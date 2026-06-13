@@ -1,0 +1,32 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/database";
+
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: document, error } = await supabase
+    .from("documents")
+    .select("file_name, storage_path")
+    .eq("id", id)
+    .single();
+
+  if (error || !document) return NextResponse.json({ error: "Document not found" }, { status: 404 });
+
+  const row = document as Database["public"]["Tables"]["documents"]["Row"];
+  const file = await supabase.storage.from("load-documents").download(row.storage_path);
+  if (file.error) return NextResponse.json({ error: file.error.message }, { status: 500 });
+
+  return new Response(await file.data.arrayBuffer(), {
+    headers: {
+      "Content-Type": file.data.type || "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${row.file_name.replaceAll('"', "")}"`,
+    },
+  });
+}
