@@ -1,24 +1,49 @@
 import { createClient } from "@/lib/supabase/server";
+import type { LoadStatus } from "@/types/database";
+
+const deliveredStatuses = ["Delivered", "POD Received", "Invoiced", "Client Paid", "Driver Paid", "Dispatcher Paid", "Closed"];
+const activeStatuses = ["Booked", "Dispatched", "Picked Up", "In Transit", "Delivered", "POD Received", "Invoiced"];
+
+type DashboardLoad = {
+  id: string;
+  load_number: string;
+  status: LoadStatus;
+  pickup_location: string;
+  pickup_date: string | null;
+  delivery_location: string;
+  delivery_date: string | null;
+  load_rate: number;
+  driver_pay: number;
+  dispatcher_fee: number;
+  fuel_cost: number;
+  brokers: { company_name: string } | null;
+  drivers: { name: string } | null;
+  payments:
+    | { client_paid: boolean; driver_paid: boolean; dispatcher_paid: boolean }
+    | { client_paid: boolean; driver_paid: boolean; dispatcher_paid: boolean }[]
+    | null;
+};
 
 export async function getDashboardMetrics() {
   const supabase = await createClient();
   const { data: loads, error } = await supabase
     .from("loads")
-    .select("status, load_rate, driver_pay, dispatcher_fee, payments(client_paid, driver_paid, dispatcher_paid)");
+    .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, load_rate, driver_pay, dispatcher_fee, fuel_cost, brokers(company_name), drivers(name), payments(client_paid, driver_paid, dispatcher_paid)")
+    .order("created_at", { ascending: false });
 
   if (error) throw error;
 
-  return ((loads ?? []) as unknown as {
-    status: string;
-    load_rate: number;
-    driver_pay: number;
-    dispatcher_fee: number;
-    payments: { client_paid: boolean; driver_paid: boolean; dispatcher_paid: boolean } | { client_paid: boolean; driver_paid: boolean; dispatcher_paid: boolean }[] | null;
-  }[]).reduce(
+  const rows = (loads ?? []) as unknown as DashboardLoad[];
+  const today = new Date(new Date().toDateString());
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  const metrics = rows.reduce(
     (metrics, load) => {
       const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
       const active = !["Closed", "Cancelled"].includes(load.status);
-      const delivered = ["Delivered", "POD Received", "Invoiced", "Client Paid", "Driver Paid", "Dispatcher Paid", "Closed"].includes(load.status);
+      const billable = load.status !== "Cancelled";
+      const delivered = deliveredStatuses.includes(load.status);
 
       if (active) metrics.activeLoads += 1;
       if (delivered) metrics.deliveredLoads += 1;
@@ -27,8 +52,10 @@ export async function getDashboardMetrics() {
       if (!payment?.driver_paid && delivered) metrics.pendingDriverPayments += Number(load.driver_pay);
       if (!payment?.dispatcher_paid && delivered) metrics.pendingDispatcherFees += Number(load.dispatcher_fee);
 
-      metrics.totalRevenue += Number(load.load_rate);
-      if (!payment?.client_paid) metrics.outstandingRevenue += Number(load.load_rate);
+      if (billable) {
+        metrics.totalRevenue += Number(load.load_rate);
+        if (!payment?.client_paid) metrics.outstandingRevenue += Number(load.load_rate);
+      }
 
       return metrics;
     },
@@ -43,4 +70,43 @@ export async function getDashboardMetrics() {
       pendingDispatcherFees: 0,
     },
   );
+
+  const currentLoads = rows
+    .filter((load) => activeStatuses.includes(load.status))
+    .sort((a, b) => (a.delivery_date ?? "9999-12-31").localeCompare(b.delivery_date ?? "9999-12-31"))
+    .slice(0, 6);
+
+  const unpaidAlerts = rows
+    .filter((load) => {
+      const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
+      if (payment?.client_paid || load.status === "Cancelled") return false;
+      const basis = load.delivery_date ?? load.pickup_date;
+      if (!basis) return false;
+      return new Date(`${basis}T00:00:00`) <= thirtyDaysAgo;
+    })
+    .sort((a, b) => (a.delivery_date ?? a.pickup_date ?? "").localeCompare(b.delivery_date ?? b.pickup_date ?? ""))
+    .slice(0, 5);
+
+  const upcomingDeliveries = rows
+    .filter((load) => {
+      if (!load.delivery_date || ["Closed", "Cancelled"].includes(load.status)) return false;
+      const deliveryDate = new Date(`${load.delivery_date}T00:00:00`);
+      return deliveryDate >= today;
+    })
+    .sort((a, b) => (a.delivery_date ?? "").localeCompare(b.delivery_date ?? ""))
+    .slice(0, 5);
+
+  const statusCounts = rows.reduce<Record<string, number>>((counts, load) => {
+    counts[load.status] = (counts[load.status] ?? 0) + 1;
+    return counts;
+  }, {});
+
+  return {
+    ...metrics,
+    currentLoads,
+    unpaidAlerts,
+    upcomingDeliveries,
+    statusCounts: Object.entries(statusCounts).sort(([, a], [, b]) => b - a),
+    collectedRevenue: metrics.totalRevenue - metrics.outstandingRevenue,
+  };
 }

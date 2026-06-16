@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { documentSchema, loadSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
+import type { Database } from "@/types/database";
+
+type PaymentFlag = "client_paid" | "driver_paid" | "dispatcher_paid";
+type PaymentUpdate = Database["public"]["Tables"]["payments"]["Update"];
 
 function value(formData: FormData, key: string) {
   return formData.get(key) ?? "";
@@ -22,6 +26,7 @@ function loadPayload(formData: FormData) {
     load_rate: value(formData, "load_rate"),
     driver_pay: value(formData, "driver_pay"),
     dispatcher_fee: value(formData, "dispatcher_fee"),
+    fuel_cost: value(formData, "fuel_cost"),
     notes: value(formData, "notes"),
     status: value(formData, "status"),
   });
@@ -70,6 +75,49 @@ export async function updateLoad(loadId: string, formData: FormData) {
   revalidatePath(`/loads/${loadId}`);
   revalidatePath("/dashboard");
   redirect(`/loads/${loadId}`);
+}
+
+export async function updatePaymentFlag(loadId: string, flag: PaymentFlag, paid: boolean) {
+  const supabase = await createClient();
+  const { data: load, error: loadError } = await supabase
+    .from("loads")
+    .select("load_rate, driver_pay, dispatcher_fee, payments(*)")
+    .eq("id", loadId)
+    .single();
+
+  if (loadError) throw new Error(loadError.message);
+
+  const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
+  const today = new Date().toISOString().slice(0, 10);
+  const updates: PaymentUpdate = { [flag]: paid };
+
+  if (flag === "client_paid") {
+    updates.client_date_received = paid ? today : null;
+    if (paid && !payment?.client_amount_received) updates.client_amount_received = Number(load.load_rate);
+  }
+
+  if (flag === "driver_paid") {
+    updates.driver_date_paid = paid ? today : null;
+    if (paid && !payment?.driver_amount_paid) updates.driver_amount_paid = Number(load.driver_pay);
+  }
+
+  if (flag === "dispatcher_paid") {
+    updates.dispatcher_date_paid = paid ? today : null;
+    if (paid && !payment?.dispatcher_fee_amount) updates.dispatcher_fee_amount = Number(load.dispatcher_fee);
+  }
+
+  const { error } = await supabase.from("payments").update(updates).eq("load_id", loadId);
+  if (error) throw new Error(error.message);
+
+  const label = flag.replace("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  await supabase.from("activity_logs").insert({
+    load_id: loadId,
+    action: `${label} marked ${paid ? "Yes" : "No"}`,
+  });
+
+  revalidatePath(`/loads/${loadId}`);
+  revalidatePath("/loads");
+  revalidatePath("/dashboard");
 }
 
 export async function deleteLoad(loadId: string) {

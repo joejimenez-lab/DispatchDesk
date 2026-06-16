@@ -71,6 +71,7 @@ create table public.loads (
   load_rate numeric(12, 2) not null default 0 check (load_rate >= 0),
   driver_pay numeric(12, 2) not null default 0 check (driver_pay >= 0),
   dispatcher_fee numeric(12, 2) not null default 0 check (dispatcher_fee >= 0),
+  fuel_cost numeric(12, 2) not null default 0 check (fuel_cost >= 0),
   notes text,
   status public.load_status not null default 'Booked',
   created_at timestamptz not null default now(),

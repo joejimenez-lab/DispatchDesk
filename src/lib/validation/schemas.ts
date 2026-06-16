@@ -18,6 +18,7 @@ export const loadSchema = z.object({
   load_rate: money,
   driver_pay: money,
   dispatcher_fee: money,
+  fuel_cost: money,
   notes: optionalText,
   status: z.enum(loadStatuses),
 });

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Button, LinkButton } from "@/components/button";
 import { Field, Select, Textarea } from "@/components/field";
 import { StatusBadge } from "@/components/status-badge";
-import { addNote, deleteDocument, deleteLoad, uploadDocument } from "@/lib/actions/loads";
+import { addNote, deleteDocument, deleteLoad, updatePaymentFlag, uploadDocument } from "@/lib/actions/loads";
 import { getLoad, getLoadRelated } from "@/lib/data/loads";
 import { currency, formatDate } from "@/lib/utils";
 import { documentCategories } from "@/types/database";
@@ -16,11 +16,58 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function PaymentToggle({
+  label,
+  amount,
+  paid,
+  loadId,
+  field,
+}: {
+  label: string;
+  amount?: React.ReactNode;
+  paid: boolean;
+  loadId: string;
+  field: "client_paid" | "driver_paid" | "dispatcher_paid";
+}) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase text-zinc-500">{label}</dt>
+      <dd className="mt-2 flex flex-wrap items-center gap-2 text-sm text-zinc-950">
+        <form action={updatePaymentFlag.bind(null, loadId, field, true)}>
+          <button
+            type="submit"
+            className={`h-8 rounded-md px-3 text-sm font-semibold ring-1 ${
+              paid
+                ? "bg-green-600 text-white ring-green-600"
+                : "bg-white text-zinc-700 ring-zinc-300 hover:bg-green-50"
+            }`}
+          >
+            Yes
+          </button>
+        </form>
+        <form action={updatePaymentFlag.bind(null, loadId, field, false)}>
+          <button
+            type="submit"
+            className={`h-8 rounded-md px-3 text-sm font-semibold ring-1 ${
+              !paid
+                ? "bg-red-600 text-white ring-red-600"
+                : "bg-white text-zinc-700 ring-zinc-300 hover:bg-red-50"
+            }`}
+          >
+            No
+          </button>
+        </form>
+        {amount ? <span className="text-zinc-500">{amount}</span> : null}
+      </dd>
+    </div>
+  );
+}
+
 export default async function LoadDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [load, related] = await Promise.all([getLoad(id), getLoadRelated(id)]);
   const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
-  const profit = Number(load.load_rate) - Number(load.driver_pay) - Number(load.dispatcher_fee);
+  const profit = Number(load.load_rate) - Number(load.driver_pay) - Number(load.dispatcher_fee) - Number(load.fuel_cost);
 
   return (
     <div className="space-y-6">
@@ -68,10 +115,29 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
             <Detail label="Load Rate" value={currency(load.load_rate)} />
             <Detail label="Driver Pay" value={currency(load.driver_pay)} />
             <Detail label="Dispatcher Fee" value={currency(load.dispatcher_fee)} />
+            <Detail label="Fuel Cost" value={currency(load.fuel_cost)} />
             <Detail label="Profit" value={<span className={profit >= 0 ? "text-green-700" : "text-red-700"}>{currency(profit)}</span>} />
-            <Detail label="Client Paid" value={payment?.client_paid ? `Yes, ${currency(payment.client_amount_received)}` : "No"} />
-            <Detail label="Driver Paid" value={payment?.driver_paid ? `Yes, ${currency(payment.driver_amount_paid)}` : "No"} />
-            <Detail label="Dispatcher Paid" value={payment?.dispatcher_paid ? "Yes" : "No"} />
+            <PaymentToggle
+              label="Client Paid"
+              loadId={id}
+              field="client_paid"
+              paid={Boolean(payment?.client_paid)}
+              amount={payment?.client_paid ? currency(payment.client_amount_received) : undefined}
+            />
+            <PaymentToggle
+              label="Driver Paid"
+              loadId={id}
+              field="driver_paid"
+              paid={Boolean(payment?.driver_paid)}
+              amount={payment?.driver_paid ? currency(payment.driver_amount_paid) : undefined}
+            />
+            <PaymentToggle
+              label="Dispatcher Paid"
+              loadId={id}
+              field="dispatcher_paid"
+              paid={Boolean(payment?.dispatcher_paid)}
+              amount={payment?.dispatcher_paid ? currency(payment.dispatcher_fee_amount) : undefined}
+            />
           </dl>
         </div>
       </section>

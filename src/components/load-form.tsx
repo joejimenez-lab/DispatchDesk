@@ -1,5 +1,6 @@
 import { Button, LinkButton } from "@/components/button";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/field";
+import { LocationAutocomplete } from "@/components/location-autocomplete";
 import { inputDate } from "@/lib/utils";
 import { loadStatuses, type Database } from "@/types/database";
 
@@ -49,13 +50,13 @@ export function LoadForm({ action, drivers, brokers, load, payment, showPayments
           </Select>
         </Field>
         <Field label="Pickup Location">
-          <Input name="pickup_location" required defaultValue={load?.pickup_location ?? ""} />
+          <LocationAutocomplete name="pickup_location" required defaultValue={load?.pickup_location} />
         </Field>
         <Field label="Pickup Date">
           <Input type="date" name="pickup_date" defaultValue={inputDate(load?.pickup_date)} />
         </Field>
         <Field label="Delivery Location">
-          <Input name="delivery_location" required defaultValue={load?.delivery_location ?? ""} />
+          <LocationAutocomplete name="delivery_location" required defaultValue={load?.delivery_location} />
         </Field>
         <Field label="Delivery Date">
           <Input type="date" name="delivery_date" defaultValue={inputDate(load?.delivery_date)} />
@@ -68,6 +69,9 @@ export function LoadForm({ action, drivers, brokers, load, payment, showPayments
         </Field>
         <Field label="Dispatcher Fee">
           <Input type="number" step="0.01" min="0" name="dispatcher_fee" defaultValue={load?.dispatcher_fee ?? 0} />
+        </Field>
+        <Field label="Fuel Cost">
+          <Input type="number" step="0.01" min="0" name="fuel_cost" defaultValue={load?.fuel_cost ?? 0} />
         </Field>
         <Field label="Notes" className="md:col-span-2">
           <Textarea name="notes" defaultValue={load?.notes ?? ""} />

@@ -1,0 +1,85 @@
+import { NextResponse } from "next/server";
+
+type NominatimResult = {
+  place_id: number;
+  display_name: string;
+  type?: string;
+  address?: {
+    city?: string;
+    town?: string;
+    village?: string;
+    hamlet?: string;
+    state?: string;
+    postcode?: string;
+    road?: string;
+    house_number?: string;
+  };
+};
+
+function formatLocation(result: NominatimResult) {
+  const address = result.address;
+  if (!address) return result.display_name;
+
+  const city = address.city ?? address.town ?? address.village ?? address.hamlet;
+  const street = [address.house_number, address.road].filter(Boolean).join(" ");
+
+  if (street && city && address.state) {
+    return [street, city, address.state, address.postcode].filter(Boolean).join(", ");
+  }
+
+  if (city && address.state) {
+    return [city, address.state].filter(Boolean).join(", ");
+  }
+
+  return result.display_name;
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get("q")?.trim();
+
+  if (!query || query.length < 3) {
+    return NextResponse.json({ locations: [] }, { headers: { "Cache-Control": "private, max-age=60" } });
+  }
+
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("limit", "6");
+  url.searchParams.set("countrycodes", "us");
+
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "DispatchDesk local development location search",
+      Accept: "application/json",
+    },
+    next: { revalidate: 60 * 60 * 24 },
+  });
+
+  if (!response.ok) {
+    return NextResponse.json({ locations: [] }, { status: 502 });
+  }
+
+  const results = (await response.json()) as NominatimResult[];
+  const seen = new Set<string>();
+  const locations = results.flatMap((result) => {
+    const label = formatLocation(result);
+    const key = label.toLowerCase();
+
+    if (seen.has(key)) return [];
+    seen.add(key);
+
+    return [{
+      id: String(result.place_id),
+      label,
+      fullLabel: result.display_name,
+      type: result.type ?? "location",
+    }];
+  });
+
+  return NextResponse.json(
+    { locations },
+    { headers: { "Cache-Control": "private, max-age=86400, stale-while-revalidate=604800" } },
+  );
+}

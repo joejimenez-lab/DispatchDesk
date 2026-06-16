@@ -113,6 +113,7 @@ export type Database = {
           load_rate: number;
           driver_pay: number;
           dispatcher_fee: number;
+          fuel_cost: number;
           notes: string | null;
           status: LoadStatus;
           created_at: string;
@@ -131,6 +132,7 @@ export type Database = {
           load_rate?: number;
           driver_pay?: number;
           dispatcher_fee?: number;
+          fuel_cost?: number;
           notes?: string | null;
           status?: LoadStatus;
         };
