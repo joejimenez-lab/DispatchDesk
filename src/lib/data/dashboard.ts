@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { clientCollected, clientOutstanding } from "@/lib/financials";
 import type { LoadStatus } from "@/types/database";
 
 const deliveredStatuses = ["Delivered", "POD Received", "Invoiced", "Client Paid", "Driver Paid", "Dispatcher Paid", "Closed"];
@@ -19,8 +20,8 @@ type DashboardLoad = {
   brokers: { company_name: string } | null;
   drivers: { name: string } | null;
   payments:
-    | { client_paid: boolean; driver_paid: boolean; dispatcher_paid: boolean }
-    | { client_paid: boolean; driver_paid: boolean; dispatcher_paid: boolean }[]
+    | { client_paid: boolean; client_amount_received: number; driver_paid: boolean; dispatcher_paid: boolean }
+    | { client_paid: boolean; client_amount_received: number; driver_paid: boolean; dispatcher_paid: boolean }[]
     | null;
 };
 
@@ -28,7 +29,7 @@ export async function getDashboardMetrics() {
   const supabase = await createClient();
   const { data: loads, error } = await supabase
     .from("loads")
-    .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, load_rate, driver_pay, dispatcher_fee, fuel_cost, brokers(company_name), drivers(name), payments(client_paid, driver_paid, dispatcher_paid)")
+    .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, load_rate, driver_pay, dispatcher_fee, fuel_cost, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, dispatcher_paid)")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -48,13 +49,14 @@ export async function getDashboardMetrics() {
       if (active) metrics.activeLoads += 1;
       if (delivered) metrics.deliveredLoads += 1;
       if (load.status === "Closed") metrics.closedLoads += 1;
-      if (!payment?.client_paid && load.status !== "Cancelled") metrics.unpaidLoads += 1;
+      if (clientOutstanding(load.load_rate, payment) > 0 && load.status !== "Cancelled") metrics.unpaidLoads += 1;
       if (!payment?.driver_paid && delivered) metrics.pendingDriverPayments += Number(load.driver_pay);
       if (!payment?.dispatcher_paid && delivered) metrics.pendingDispatcherFees += Number(load.dispatcher_fee);
 
       if (billable) {
         metrics.totalRevenue += Number(load.load_rate);
-        if (!payment?.client_paid) metrics.outstandingRevenue += Number(load.load_rate);
+        metrics.collectedRevenue += clientCollected(load.load_rate, payment);
+        metrics.outstandingRevenue += clientOutstanding(load.load_rate, payment);
       }
 
       return metrics;
@@ -65,6 +67,7 @@ export async function getDashboardMetrics() {
       unpaidLoads: 0,
       closedLoads: 0,
       totalRevenue: 0,
+      collectedRevenue: 0,
       outstandingRevenue: 0,
       pendingDriverPayments: 0,
       pendingDispatcherFees: 0,
@@ -79,7 +82,7 @@ export async function getDashboardMetrics() {
   const unpaidAlerts = rows
     .filter((load) => {
       const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
-      if (payment?.client_paid || load.status === "Cancelled") return false;
+      if (clientOutstanding(load.load_rate, payment) <= 0 || load.status === "Cancelled") return false;
       const basis = load.delivery_date ?? load.pickup_date;
       if (!basis) return false;
       return new Date(`${basis}T00:00:00`) <= thirtyDaysAgo;
@@ -107,6 +110,5 @@ export async function getDashboardMetrics() {
     unpaidAlerts,
     upcomingDeliveries,
     statusCounts: Object.entries(statusCounts).sort(([, a], [, b]) => b - a),
-    collectedRevenue: metrics.totalRevenue - metrics.outstandingRevenue,
   };
 }

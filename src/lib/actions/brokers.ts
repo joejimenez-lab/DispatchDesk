@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { errorState, successState, type ActionState } from "@/lib/actions/state";
 import { brokerSchema } from "@/lib/validation/schemas";
 
 function payload(formData: FormData) {
@@ -14,23 +15,40 @@ function payload(formData: FormData) {
   });
 }
 
-export async function createBroker(formData: FormData) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("brokers").insert(payload(formData));
-  if (error) throw new Error(error.message);
-  revalidatePath("/brokers");
+export async function createBroker(_state: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from("brokers").insert(payload(formData));
+    if (error) return errorState(error, "Could not add broker.");
+    revalidatePath("/brokers");
+    return successState("Broker added.");
+  } catch (error) {
+    return errorState(error, "Could not add broker.");
+  }
 }
 
-export async function updateBroker(brokerId: string, formData: FormData) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("brokers").update(payload(formData)).eq("id", brokerId);
-  if (error) throw new Error(error.message);
-  revalidatePath("/brokers");
+export async function updateBroker(brokerId: string, _state: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from("brokers").update(payload(formData)).eq("id", brokerId);
+    if (error) return errorState(error, "Could not save broker.");
+    revalidatePath("/brokers");
+    return successState("Broker saved.");
+  } catch (error) {
+    return errorState(error, "Could not save broker.");
+  }
 }
 
-export async function deleteBroker(brokerId: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("brokers").delete().eq("id", brokerId);
-  if (error) throw new Error(error.message);
-  revalidatePath("/brokers");
+export async function deleteBroker(brokerId: string, _state: ActionState): Promise<ActionState> {
+  void _state;
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from("brokers").delete().eq("id", brokerId);
+    if (error) return errorState(error, "Could not delete broker.");
+    revalidatePath("/brokers");
+    return successState("Broker deleted.");
+  } catch (error) {
+    return errorState(error, "Could not delete broker.");
+  }
 }

@@ -1,6 +1,9 @@
-import { Button, LinkButton } from "@/components/button";
+import { ActionForm } from "@/components/action-form";
+import { LinkButton } from "@/components/button";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/field";
+import { SubmitButton } from "@/components/form-buttons";
 import { LocationAutocomplete } from "@/components/location-autocomplete";
+import type { ActionState } from "@/lib/actions/state";
 import { inputDate } from "@/lib/utils";
 import { loadStatuses, type Database } from "@/types/database";
 
@@ -8,7 +11,7 @@ type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Database["public"]["Tables"]["payments"]["Row"];
 
 type LoadFormProps = {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (state: ActionState, formData: FormData) => ActionState | Promise<ActionState>;
   drivers: { id: string; name: string }[];
   brokers: { id: string; company_name: string }[];
   load?: LoadRow;
@@ -18,7 +21,7 @@ type LoadFormProps = {
 
 export function LoadForm({ action, drivers, brokers, load, payment, showPayments = false }: LoadFormProps) {
   return (
-    <form action={action} className="space-y-8">
+    <ActionForm action={action} className="space-y-8" successMessage={false}>
       <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 md:grid-cols-2">
         <Field label="Load Number">
           <Input name="load_number" required defaultValue={load?.load_number ?? ""} />
@@ -111,9 +114,9 @@ export function LoadForm({ action, drivers, brokers, load, payment, showPayments
       ) : null}
 
       <div className="flex gap-3">
-        <Button type="submit">Save load</Button>
+        <SubmitButton>Save load</SubmitButton>
         <LinkButton href="/loads" variant="secondary">Cancel</LinkButton>
       </div>
-    </form>
+    </ActionForm>
   );
 }

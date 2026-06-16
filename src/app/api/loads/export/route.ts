@@ -1,0 +1,157 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { clientCollected, clientOutstanding, profitForLoad } from "@/lib/financials";
+import type { LoadStatus } from "@/types/database";
+
+type ExportLoad = {
+  load_number: string;
+  status: LoadStatus;
+  pickup_location: string;
+  pickup_date: string | null;
+  delivery_location: string;
+  delivery_date: string | null;
+  load_rate: number;
+  driver_pay: number;
+  dispatcher_fee: number;
+  fuel_cost: number;
+  carrier_company: string | null;
+  notes: string | null;
+  brokers: { company_name: string | null; contact_name: string | null } | null;
+  drivers: { name: string | null; truck_number: string | null; trailer_number: string | null } | null;
+  payments:
+    | {
+        client_paid: boolean;
+        client_amount_received: number;
+        driver_paid: boolean;
+        driver_amount_paid: number;
+        dispatcher_paid: boolean;
+        dispatcher_fee_amount: number;
+      }
+    | {
+        client_paid: boolean;
+        client_amount_received: number;
+        driver_paid: boolean;
+        driver_amount_paid: number;
+        dispatcher_paid: boolean;
+        dispatcher_fee_amount: number;
+      }[]
+    | null;
+};
+
+function csvCell(value: string | number | boolean | null | undefined) {
+  const text = String(value ?? "");
+  if (!/[",\n\r]/.test(text)) return text;
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function csvRow(values: (string | number | boolean | null | undefined)[]) {
+  return values.map(csvCell).join(",");
+}
+
+export async function GET(request: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  let query = supabase
+    .from("loads")
+    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, load_rate, driver_pay, dispatcher_fee, fuel_cost, carrier_company, notes, brokers(company_name, contact_name), drivers(name, truck_number, trailer_number), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
+    .order("created_at", { ascending: false });
+
+  const status = searchParams.get("status");
+  const broker = searchParams.get("broker");
+  const driver = searchParams.get("driver");
+  const q = searchParams.get("q")?.trim();
+
+  if (status) query = query.eq("status", status as LoadStatus);
+  if (broker) query = query.eq("broker_id", broker);
+  if (driver) query = query.eq("driver_id", driver);
+  if (q) {
+    const term = `%${q}%`;
+    query = query.or(
+      `load_number.ilike.${term},pickup_location.ilike.${term},delivery_location.ilike.${term},carrier_company.ilike.${term}`,
+    );
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    return NextResponse.json({ error: "Could not export loads." }, { status: 500 });
+  }
+
+  const rows = (data ?? []) as unknown as ExportLoad[];
+  const headers = [
+    "Load Number",
+    "Status",
+    "Broker",
+    "Broker Contact",
+    "Carrier",
+    "Driver",
+    "Truck",
+    "Trailer",
+    "Pickup Location",
+    "Pickup Date",
+    "Delivery Location",
+    "Delivery Date",
+    "Load Rate",
+    "Driver Pay",
+    "Dispatcher Fee",
+    "Fuel Cost",
+    "Profit",
+    "Client Collected",
+    "Client Outstanding",
+    "Client Paid",
+    "Driver Paid",
+    "Dispatcher Paid",
+    "Notes",
+  ];
+
+  const csv = [
+    csvRow(headers),
+    ...rows.map((load) => {
+      const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
+      const outstanding = load.status === "Cancelled" ? 0 : clientOutstanding(load.load_rate, payment);
+
+      return csvRow([
+        load.load_number,
+        load.status,
+        load.brokers?.company_name,
+        load.brokers?.contact_name,
+        load.carrier_company,
+        load.drivers?.name,
+        load.drivers?.truck_number,
+        load.drivers?.trailer_number,
+        load.pickup_location,
+        load.pickup_date,
+        load.delivery_location,
+        load.delivery_date,
+        load.load_rate,
+        load.driver_pay,
+        load.dispatcher_fee,
+        load.fuel_cost,
+        profitForLoad(load),
+        clientCollected(load.load_rate, payment),
+        outstanding,
+        Boolean(payment?.client_paid),
+        Boolean(payment?.driver_paid),
+        Boolean(payment?.dispatcher_paid),
+        load.notes,
+      ]);
+    }),
+  ].join("\n");
+
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  return new NextResponse(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="dispatchdesk-loads-${stamp}.csv"`,
+      "Cache-Control": "private, no-store",
+    },
+  });
+}

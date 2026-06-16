@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { Button, LinkButton } from "@/components/button";
+import { ActionForm } from "@/components/action-form";
+import { LinkButton } from "@/components/button";
 import { Field, Select, Textarea } from "@/components/field";
+import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import { StatusBadge } from "@/components/status-badge";
 import { addNote, deleteDocument, deleteLoad, updatePaymentFlag, uploadDocument } from "@/lib/actions/loads";
 import { getLoad, getLoadRelated } from "@/lib/data/loads";
+import { clientCollected, clientOutstanding, profitForLoad } from "@/lib/financials";
 import { currency, formatDate } from "@/lib/utils";
 import { documentCategories } from "@/types/database";
 
@@ -19,12 +22,14 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
 function PaymentToggle({
   label,
   amount,
+  detail,
   paid,
   loadId,
   field,
 }: {
   label: string;
   amount?: React.ReactNode;
+  detail?: React.ReactNode;
   paid: boolean;
   loadId: string;
   field: "client_paid" | "driver_paid" | "dispatcher_paid";
@@ -33,31 +38,26 @@ function PaymentToggle({
     <div>
       <dt className="text-xs font-semibold uppercase text-zinc-500">{label}</dt>
       <dd className="mt-2 flex flex-wrap items-center gap-2 text-sm text-zinc-950">
-        <form action={updatePaymentFlag.bind(null, loadId, field, true)}>
-          <button
-            type="submit"
-            className={`h-8 rounded-md px-3 text-sm font-semibold ring-1 ${
-              paid
-                ? "bg-green-600 text-white ring-green-600"
-                : "bg-white text-zinc-700 ring-zinc-300 hover:bg-green-50"
-            }`}
+        <ActionForm action={updatePaymentFlag.bind(null, loadId, field, true)} successMessage={false}>
+          <SubmitButton
+            className="h-8 px-3"
+            pendingText="..."
+            variant={paid ? "primary" : "secondary"}
           >
             Yes
-          </button>
-        </form>
-        <form action={updatePaymentFlag.bind(null, loadId, field, false)}>
-          <button
-            type="submit"
-            className={`h-8 rounded-md px-3 text-sm font-semibold ring-1 ${
-              !paid
-                ? "bg-red-600 text-white ring-red-600"
-                : "bg-white text-zinc-700 ring-zinc-300 hover:bg-red-50"
-            }`}
+          </SubmitButton>
+        </ActionForm>
+        <ActionForm action={updatePaymentFlag.bind(null, loadId, field, false)} successMessage={false}>
+          <SubmitButton
+            className="h-8 px-3"
+            pendingText="..."
+            variant={!paid ? "danger" : "secondary"}
           >
             No
-          </button>
-        </form>
+          </SubmitButton>
+        </ActionForm>
         {amount ? <span className="text-zinc-500">{amount}</span> : null}
+        {detail ? <span className="basis-full text-xs text-zinc-500">{detail}</span> : null}
       </dd>
     </div>
   );
@@ -67,7 +67,9 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const [load, related] = await Promise.all([getLoad(id), getLoadRelated(id)]);
   const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
-  const profit = Number(load.load_rate) - Number(load.driver_pay) - Number(load.dispatcher_fee) - Number(load.fuel_cost);
+  const profit = profitForLoad(load);
+  const collected = clientCollected(load.load_rate, payment);
+  const outstanding = load.status === "Cancelled" ? 0 : clientOutstanding(load.load_rate, payment);
 
   return (
     <div className="space-y-6">
@@ -81,9 +83,14 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
         </div>
         <div className="flex gap-2">
           <LinkButton href={`/loads/${id}/edit`} variant="secondary">Edit</LinkButton>
-          <form action={deleteLoad.bind(null, id)}>
-            <Button type="submit" variant="danger">Delete</Button>
-          </form>
+          <ActionForm action={deleteLoad.bind(null, id)} successMessage={false}>
+            <ConfirmSubmitButton
+              message={`Delete load ${load.load_number}? This also removes its notes, activity, payment record, and uploaded documents.`}
+              variant="danger"
+            >
+              Delete
+            </ConfirmSubmitButton>
+          </ActionForm>
         </div>
       </div>
 
@@ -117,12 +124,15 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
             <Detail label="Dispatcher Fee" value={currency(load.dispatcher_fee)} />
             <Detail label="Fuel Cost" value={currency(load.fuel_cost)} />
             <Detail label="Profit" value={<span className={profit >= 0 ? "text-green-700" : "text-red-700"}>{currency(profit)}</span>} />
+            <Detail label="Client Collected" value={currency(collected)} />
+            <Detail label="Client Outstanding" value={currency(outstanding)} />
             <PaymentToggle
               label="Client Paid"
               loadId={id}
               field="client_paid"
               paid={Boolean(payment?.client_paid)}
-              amount={payment?.client_paid ? currency(payment.client_amount_received) : undefined}
+              amount={`${currency(collected)} received`}
+              detail={`${currency(outstanding)} outstanding`}
             />
             <PaymentToggle
               label="Driver Paid"
@@ -145,7 +155,7 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="mb-4 text-lg font-semibold text-zinc-950">Documents</h2>
-          <form action={uploadDocument} className="mb-5 grid gap-3">
+          <ActionForm action={uploadDocument} className="mb-5 grid gap-3">
             <input type="hidden" name="load_id" value={id} />
             <Field label="Category">
               <Select name="category">
@@ -158,8 +168,8 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
             <Field label="Notes">
               <Textarea name="notes" />
             </Field>
-            <Button type="submit">Upload document</Button>
-          </form>
+            <SubmitButton pendingText="Uploading...">Upload document</SubmitButton>
+          </ActionForm>
           <div className="divide-y divide-zinc-100">
             {related.documents.map((document) => (
               <div key={document.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -179,9 +189,14 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
                   <Link href={`/api/documents/${document.id}/download`} className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium">
                     Download
                   </Link>
-                  <form action={deleteDocument.bind(null, document.id, id, document.storage_path)}>
-                    <Button type="submit" variant="secondary">Delete</Button>
-                  </form>
+                  <ActionForm action={deleteDocument.bind(null, document.id, id, document.storage_path)} successMessage={false}>
+                    <ConfirmSubmitButton
+                      message={`Delete document ${document.file_name}?`}
+                      variant="secondary"
+                    >
+                      Delete
+                    </ConfirmSubmitButton>
+                  </ActionForm>
                 </div>
               </div>
             ))}
@@ -192,13 +207,13 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
         <div className="space-y-6">
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="mb-4 text-lg font-semibold text-zinc-950">Notes</h2>
-            <form action={addNote} className="mb-4 space-y-3">
+            <ActionForm action={addNote} className="mb-4 space-y-3">
               <input type="hidden" name="load_id" value={id} />
               <Field label="New Note">
                 <Textarea name="note_text" required />
               </Field>
-              <Button type="submit">Add note</Button>
-            </form>
+              <SubmitButton pendingText="Adding...">Add note</SubmitButton>
+            </ActionForm>
             <div className="divide-y divide-zinc-100">
               {related.notes.map((note) => (
                 <div key={note.id} className="py-3">

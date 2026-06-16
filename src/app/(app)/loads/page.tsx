@@ -14,6 +14,12 @@ export default async function LoadsPage({
 }) {
   const params = await searchParams;
   const [loads, options] = await Promise.all([getLoads(params), getFormOptions()]);
+  const exportParams = new URLSearchParams();
+  if (params.q) exportParams.set("q", params.q);
+  if (params.status) exportParams.set("status", params.status);
+  if (params.broker) exportParams.set("broker", params.broker);
+  if (params.driver) exportParams.set("driver", params.driver);
+  const exportHref = `/api/loads/export${exportParams.size ? `?${exportParams.toString()}` : ""}`;
   const linkedCell = (loadId: string, children: React.ReactNode, className = "") => (
     <td className={`p-0 ${className}`}>
       <Link href={`/loads/${loadId}`} className="block h-full px-4 py-3">
@@ -29,7 +35,10 @@ export default async function LoadsPage({
           <h1 className="text-2xl font-semibold text-zinc-950">Loads</h1>
           <p className="text-sm text-zinc-600">Search, filter, and manage dispatch loads.</p>
         </div>
-        <LinkButton href="/loads/new">Create load</LinkButton>
+        <div className="flex gap-2">
+          <LinkButton href={exportHref} variant="secondary">Export CSV</LinkButton>
+          <LinkButton href="/loads/new">Create load</LinkButton>
+        </div>
       </div>
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-5">
@@ -87,7 +96,14 @@ export default async function LoadsPage({
             ))}
             {!loads.length ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">No loads found.</td>
+                <td colSpan={7} className="px-4 py-10 text-center">
+                  <div className="text-sm font-medium text-zinc-900">No loads found</div>
+                  <div className="mt-1 text-sm text-zinc-500">Adjust the filters or create a new load.</div>
+                  <div className="mt-4 flex justify-center gap-2">
+                    <Link href="/loads" className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium">Reset filters</Link>
+                    <Link href="/loads/new" className="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white">Create load</Link>
+                  </div>
+                </td>
               </tr>
             ) : null}
           </tbody>

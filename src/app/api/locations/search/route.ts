@@ -49,16 +49,29 @@ export async function GET(request: Request) {
   url.searchParams.set("limit", "6");
   url.searchParams.set("countrycodes", "us");
 
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "DispatchDesk local development location search",
-      Accept: "application/json",
-    },
-    next: { revalidate: 60 * 60 * 24 },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      signal: AbortSignal.timeout(5_000),
+      headers: {
+        "User-Agent": "DispatchDesk local development location search",
+        Accept: "application/json",
+      },
+      next: { revalidate: 60 * 60 * 24 },
+    });
+  } catch {
+    return NextResponse.json(
+      { locations: [], message: "Location lookup is temporarily unavailable." },
+      { status: 504, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   if (!response.ok) {
-    return NextResponse.json({ locations: [] }, { status: 502 });
+    return NextResponse.json(
+      { locations: [], message: "Location lookup is temporarily unavailable." },
+      { status: 502, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   const results = (await response.json()) as NominatimResult[];
