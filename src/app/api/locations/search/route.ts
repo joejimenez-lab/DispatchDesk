@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 
+// OpenStreetMap's Nominatim usage policy requires a User-Agent that identifies
+// the application and provides a contact (URL or email). Set NOMINATIM_USER_AGENT
+// to a real contact before deploying; the fallback is only suitable for local dev.
+const NOMINATIM_USER_AGENT =
+  process.env.NOMINATIM_USER_AGENT ?? "DispatchDesk/1.0 (local development; set NOMINATIM_USER_AGENT)";
+
 type NominatimResult = {
   place_id: number;
   display_name: string;
@@ -55,7 +61,7 @@ export async function GET(request: Request) {
     response = await fetch(url, {
       signal: AbortSignal.timeout(5_000),
       headers: {
-        "User-Agent": "DispatchDesk local development location search",
+        "User-Agent": NOMINATIM_USER_AGENT,
         Accept: "application/json",
       },
       next: { revalidate: 60 * 60 * 24 },

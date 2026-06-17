@@ -33,6 +33,8 @@ Local full-stack truck dispatcher/load management application built with Next.js
    ```bash
    NEXT_PUBLIC_SUPABASE_URL=...
    NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+   # Optional locally, required in production (see Production notes):
+   NOMINATIM_USER_AGENT=DispatchDesk/1.0 (you@example.com)
    ```
 
 5. Start the app:
@@ -49,9 +51,15 @@ Local full-stack truck dispatcher/load management application built with Next.js
 - `001_initial_schema.sql` is the full fresh-install schema. Later numbered migrations, such as `003_add_fuel_cost_to_loads.sql`, are for existing databases that already ran the initial schema.
 - Every business table has RLS enabled.
 - Version 1 allows any authenticated user to manage records, matching the single-admin requirement.
-- The `load-documents` storage bucket is private. Downloads are routed through `/api/documents/[id]/download`, which checks auth and redirects to a short-lived signed URL.
+- The `load-documents` storage bucket is private. The `/api/documents/[id]/view` and `/api/documents/[id]/download` routes check auth, then fetch the file from Storage and stream it back to the browser (inline or as an attachment). The storage path is never exposed to the client.
 - Location autocomplete uses OpenStreetMap Nominatim through `/api/locations/search` and limits results to US locations.
 - The schema is structured so roles and multi-company support can be added later by introducing organization ownership columns and narrower RLS policies.
+
+## Production notes
+
+- **Disable public signups.** RLS grants the `authenticated` role full access to every table, so the single-admin model only holds if no one else can register. In the Supabase dashboard, turn off open email signups (or restrict to an allowlist) before deploying.
+- **Set `NOMINATIM_USER_AGENT`** to a real contact (URL or email). OpenStreetMap's usage policy requires it and may block generic User-Agents.
+- The full-text GIN indexes in `001_initial_schema.sql` are not used by the current `ilike` search; revisit them if search needs to scale.
 
 ## Verification
 

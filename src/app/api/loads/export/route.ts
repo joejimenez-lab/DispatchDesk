@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { clientCollected, clientOutstanding, profitForLoad } from "@/lib/financials";
+import { ilikeOr, searchTokens } from "@/lib/search";
 import type { LoadStatus } from "@/types/database";
+
+const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "carrier_company"];
 
 type ExportLoad = {
   load_number: string;
@@ -67,16 +70,13 @@ export async function GET(request: Request) {
   const status = searchParams.get("status");
   const broker = searchParams.get("broker");
   const driver = searchParams.get("driver");
-  const q = searchParams.get("q")?.trim();
+  const q = searchParams.get("q");
 
   if (status) query = query.eq("status", status as LoadStatus);
   if (broker) query = query.eq("broker_id", broker);
   if (driver) query = query.eq("driver_id", driver);
-  if (q) {
-    const term = `%${q}%`;
-    query = query.or(
-      `load_number.ilike.${term},pickup_location.ilike.${term},delivery_location.ilike.${term},carrier_company.ilike.${term}`,
-    );
+  for (const token of searchTokens(q)) {
+    query = query.or(ilikeOr(LOAD_SEARCH_COLUMNS, token));
   }
 
   const { data, error } = await query;

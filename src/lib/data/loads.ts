@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { ilikeOr, searchTokens } from "@/lib/search";
 import type { Database, LoadStatus } from "@/types/database";
+
+const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "carrier_company"];
 
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Pick<Database["public"]["Tables"]["payments"]["Row"], "client_paid" | "driver_paid" | "dispatcher_paid">;
@@ -33,11 +36,10 @@ export async function getLoads(params: {
   if (params.status) query = query.eq("status", params.status as LoadStatus);
   if (params.broker) query = query.eq("broker_id", params.broker);
   if (params.driver) query = query.eq("driver_id", params.driver);
-  if (params.q) {
-    const term = `%${params.q}%`;
-    query = query.or(
-      `load_number.ilike.${term},pickup_location.ilike.${term},delivery_location.ilike.${term},carrier_company.ilike.${term}`,
-    );
+  // Each token must match at least one column; chained `.or()` calls are ANDed
+  // together, so "Dallas Memphis" matches a load whose lane spans both cities.
+  for (const token of searchTokens(params.q)) {
+    query = query.or(ilikeOr(LOAD_SEARCH_COLUMNS, token));
   }
 
   const { data, error } = await query;
