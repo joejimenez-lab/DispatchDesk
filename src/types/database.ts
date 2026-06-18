@@ -4,17 +4,11 @@ export type LoadStatus =
   | "Picked Up"
   | "In Transit"
   | "Delivered"
-  | "POD Received"
-  | "Invoiced"
-  | "Client Paid"
-  | "Driver Paid"
-  | "Dispatcher Paid"
   | "Closed"
   | "Cancelled";
 
 export type DocumentCategory =
   | "Rate Confirmation"
-  | "POD"
   | "Invoice"
   | "BOL"
   | "Fuel Receipt"
@@ -29,18 +23,12 @@ export const loadStatuses: LoadStatus[] = [
   "Picked Up",
   "In Transit",
   "Delivered",
-  "POD Received",
-  "Invoiced",
-  "Client Paid",
-  "Driver Paid",
-  "Dispatcher Paid",
   "Closed",
   "Cancelled",
 ];
 
 export const documentCategories: DocumentCategory[] = [
   "Rate Confirmation",
-  "POD",
   "Invoice",
   "BOL",
   "Fuel Receipt",
@@ -158,6 +146,8 @@ export type Database = {
         Row: {
           id: string;
           load_id: string;
+          invoice_sent: boolean;
+          invoice_sent_date: string | null;
           client_paid: boolean;
           client_amount_received: number;
           client_date_received: string | null;
@@ -172,6 +162,8 @@ export type Database = {
         };
         Insert: {
           load_id: string;
+          invoice_sent?: boolean;
+          invoice_sent_date?: string | null;
           client_paid?: boolean;
           client_amount_received?: number;
           client_date_received?: string | null;

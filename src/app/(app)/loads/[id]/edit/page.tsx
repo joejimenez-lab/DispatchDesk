@@ -12,7 +12,7 @@ export default async function EditLoadPage({ params }: { params: Promise<{ id: s
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold text-zinc-950">Edit Load {load.load_number}</h1>
-        <p className="text-sm text-zinc-600">Update load, status, and payment details.</p>
+        <p className="text-sm text-zinc-600">Update dispatch, documentation, and payment details.</p>
       </div>
       <LoadForm
         action={updateLoad.bind(null, id)}

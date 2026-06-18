@@ -31,6 +31,7 @@ export async function getLoads(params: {
   let query = supabase
     .from("loads")
     .select("*, brokers(company_name), drivers(name), payments(client_paid, driver_paid, dispatcher_paid)")
+    .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
   if (params.status) query = query.eq("status", params.status as LoadStatus);

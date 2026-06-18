@@ -24,6 +24,8 @@ export const loadSchema = z.object({
 });
 
 export const paymentSchema = z.object({
+  invoice_sent: z.coerce.boolean().default(false),
+  invoice_sent_date: optionalDate,
   client_paid: z.coerce.boolean().default(false),
   client_amount_received: money,
   client_date_received: optionalDate,

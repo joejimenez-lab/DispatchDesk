@@ -6,18 +6,12 @@ create type public.load_status as enum (
   'Picked Up',
   'In Transit',
   'Delivered',
-  'POD Received',
-  'Invoiced',
-  'Client Paid',
-  'Driver Paid',
-  'Dispatcher Paid',
   'Closed',
   'Cancelled'
 );
 
 create type public.document_category as enum (
   'Rate Confirmation',
-  'POD',
   'Invoice',
   'BOL',
   'Fuel Receipt',
@@ -81,6 +75,8 @@ create table public.loads (
 create table public.payments (
   id uuid primary key default gen_random_uuid(),
   load_id uuid not null unique references public.loads(id) on delete cascade,
+  invoice_sent boolean not null default false,
+  invoice_sent_date date,
   client_paid boolean not null default false,
   client_amount_received numeric(12, 2) not null default 0 check (client_amount_received >= 0),
   client_date_received date,
