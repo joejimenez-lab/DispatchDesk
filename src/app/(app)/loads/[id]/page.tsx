@@ -32,7 +32,7 @@ function PaymentToggle({
   detail?: React.ReactNode;
   paid: boolean;
   loadId: string;
-  field: "client_paid" | "driver_paid" | "dispatcher_paid";
+  field: "invoice_sent" | "client_paid" | "driver_paid" | "dispatcher_paid";
 }) {
   return (
     <div>
@@ -116,39 +116,54 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
           ) : null}
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="mb-4 text-lg font-semibold text-zinc-950">Financial Summary</h2>
-          <dl className="space-y-3">
-            <Detail label="Load Rate" value={currency(load.load_rate)} />
-            <Detail label="Driver Pay" value={currency(load.driver_pay)} />
-            <Detail label="Dispatcher Fee" value={currency(load.dispatcher_fee)} />
-            <Detail label="Fuel Cost" value={currency(load.fuel_cost)} />
-            <Detail label="Profit" value={<span className={profit >= 0 ? "text-green-700" : "text-red-700"}>{currency(profit)}</span>} />
-            <Detail label="Client Collected" value={currency(collected)} />
-            <Detail label="Client Outstanding" value={currency(outstanding)} />
-            <PaymentToggle
-              label="Client Paid"
-              loadId={id}
-              field="client_paid"
-              paid={Boolean(payment?.client_paid)}
-              amount={`${currency(collected)} received`}
-              detail={`${currency(outstanding)} outstanding`}
-            />
-            <PaymentToggle
-              label="Driver Paid"
-              loadId={id}
-              field="driver_paid"
-              paid={Boolean(payment?.driver_paid)}
-              amount={payment?.driver_paid ? currency(payment.driver_amount_paid) : undefined}
-            />
-            <PaymentToggle
-              label="Dispatcher Paid"
-              loadId={id}
-              field="dispatcher_paid"
-              paid={Boolean(payment?.dispatcher_paid)}
-              amount={payment?.dispatcher_paid ? currency(payment.dispatcher_fee_amount) : undefined}
-            />
-          </dl>
+        <div className="space-y-4">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="mb-4 text-lg font-semibold text-zinc-950">Documentation</h2>
+            <dl className="space-y-3">
+              <PaymentToggle
+                label="Invoice Sent"
+                loadId={id}
+                field="invoice_sent"
+                paid={Boolean(payment?.invoice_sent)}
+                detail={payment?.invoice_sent_date ? formatDate(payment.invoice_sent_date) : undefined}
+              />
+            </dl>
+          </div>
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="mb-4 text-lg font-semibold text-zinc-950">Financial Summary</h2>
+            <dl className="space-y-3">
+              <Detail label="Load Rate" value={currency(load.load_rate)} />
+              <Detail label="Driver Pay" value={currency(load.driver_pay)} />
+              <Detail label="Dispatcher Fee" value={currency(load.dispatcher_fee)} />
+              <Detail label="Fuel Cost" value={currency(load.fuel_cost)} />
+              <Detail label="Profit" value={<span className={profit >= 0 ? "text-green-700" : "text-red-700"}>{currency(profit)}</span>} />
+              <Detail label="Client Collected" value={currency(collected)} />
+              <Detail label="Client Outstanding" value={currency(outstanding)} />
+              <PaymentToggle
+                label="Client Paid"
+                loadId={id}
+                field="client_paid"
+                paid={Boolean(payment?.client_paid)}
+                amount={`${currency(collected)} received`}
+                detail={`${currency(outstanding)} outstanding`}
+              />
+              <PaymentToggle
+                label="Driver Paid"
+                loadId={id}
+                field="driver_paid"
+                paid={Boolean(payment?.driver_paid)}
+                amount={payment?.driver_paid ? currency(payment.driver_amount_paid) : undefined}
+              />
+              <PaymentToggle
+                label="Dispatcher Paid"
+                loadId={id}
+                field="dispatcher_paid"
+                paid={Boolean(payment?.dispatcher_paid)}
+                amount={payment?.dispatcher_paid ? currency(payment.dispatcher_fee_amount) : undefined}
+              />
+            </dl>
+          </div>
         </div>
       </section>
 

@@ -5,9 +5,9 @@ import { redirect } from "next/navigation";
 import { errorState, successState, type ActionState } from "@/lib/actions/state";
 import { createClient } from "@/lib/supabase/server";
 import { documentSchema, loadSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
-import type { Database } from "@/types/database";
+import { loadStatuses, type Database, type LoadStatus } from "@/types/database";
 
-type PaymentFlag = "client_paid" | "driver_paid" | "dispatcher_paid";
+type PaymentFlag = "invoice_sent" | "client_paid" | "driver_paid" | "dispatcher_paid";
 type PaymentUpdate = Database["public"]["Tables"]["payments"]["Update"];
 
 function value(formData: FormData, key: string) {
@@ -35,6 +35,8 @@ function loadPayload(formData: FormData) {
 
 function paymentPayload(formData: FormData) {
   return paymentSchema.parse({
+    invoice_sent: formData.get("invoice_sent") === "on",
+    invoice_sent_date: value(formData, "invoice_sent_date"),
     client_paid: formData.get("client_paid") === "on",
     client_amount_received: value(formData, "client_amount_received"),
     client_date_received: value(formData, "client_date_received"),
@@ -105,6 +107,10 @@ export async function updatePaymentFlag(loadId: string, flag: PaymentFlag, paid:
   const today = new Date().toISOString().slice(0, 10);
   const updates: PaymentUpdate = { [flag]: paid };
 
+  if (flag === "invoice_sent") {
+    updates.invoice_sent_date = paid ? today : null;
+  }
+
   if (flag === "client_paid") {
     updates.client_date_received = paid ? today : null;
     if (paid && !payment?.client_amount_received) updates.client_amount_received = Number(load.load_rate);
@@ -125,7 +131,7 @@ export async function updatePaymentFlag(loadId: string, flag: PaymentFlag, paid:
     .upsert({ load_id: loadId, ...updates }, { onConflict: "load_id" });
   if (error) return errorState(error, "Could not update payment.");
 
-  const label = flag.replace("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const label = flag.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   await supabase.from("activity_logs").insert({
     load_id: loadId,
     action: `${label} marked ${paid ? "Yes" : "No"}`,
@@ -134,7 +140,26 @@ export async function updatePaymentFlag(loadId: string, flag: PaymentFlag, paid:
   revalidatePath(`/loads/${loadId}`);
   revalidatePath("/loads");
   revalidatePath("/dashboard");
-  return successState("Payment updated.");
+  return successState("Load progress updated.");
+}
+
+export async function updateLoadStatus(loadId: string, status: LoadStatus): Promise<ActionState> {
+  if (!loadId || !loadStatuses.includes(status as LoadStatus)) {
+    return errorState(new Error("Invalid load status."), "Could not update status.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("loads")
+    .update({ status: status as LoadStatus })
+    .eq("id", loadId);
+
+  if (error) return errorState(error, "Could not update status.");
+
+  revalidatePath("/loads");
+  revalidatePath(`/loads/${loadId}`);
+  revalidatePath("/dashboard");
+  return successState("Status updated.");
 }
 
 export async function deleteLoad(loadId: string, _state: ActionState): Promise<ActionState> {

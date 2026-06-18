@@ -2,9 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { clientCollected, clientOutstanding } from "@/lib/financials";
 import type { LoadStatus } from "@/types/database";
 
-const deliveredStatuses = ["Delivered", "POD Received", "Invoiced", "Client Paid", "Driver Paid", "Dispatcher Paid", "Closed"];
-const activeStatuses = ["Booked", "Dispatched", "Picked Up", "In Transit", "Delivered", "POD Received", "Invoiced"];
-
 type DashboardLoad = {
   id: string;
   load_number: string;
@@ -44,7 +41,7 @@ export async function getDashboardMetrics() {
       const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
       const active = !["Closed", "Cancelled"].includes(load.status);
       const billable = load.status !== "Cancelled";
-      const delivered = deliveredStatuses.includes(load.status);
+      const delivered = ["Delivered", "Closed"].includes(load.status);
 
       if (active) metrics.activeLoads += 1;
       if (delivered) metrics.deliveredLoads += 1;
@@ -75,7 +72,7 @@ export async function getDashboardMetrics() {
   );
 
   const currentLoads = rows
-    .filter((load) => activeStatuses.includes(load.status))
+    .filter((load) => !["Closed", "Cancelled"].includes(load.status))
     .sort((a, b) => (a.delivery_date ?? "9999-12-31").localeCompare(b.delivery_date ?? "9999-12-31"))
     .slice(0, 6);
 

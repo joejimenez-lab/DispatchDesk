@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { LinkButton } from "@/components/button";
 import { Field, Input, Select } from "@/components/field";
-import { StatusBadge } from "@/components/status-badge";
+import { LoadStatusSelect } from "@/components/load-status-select";
 import { getFormOptions } from "@/lib/data/options";
 import { getLoads } from "@/lib/data/loads";
 import { currency, formatDate } from "@/lib/utils";
@@ -91,7 +91,9 @@ export default async function LoadsPage({
                 {linkedCell(load.id, `${load.pickup_location} to ${load.delivery_location}`)}
                 {linkedCell(load.id, formatDate(load.delivery_date))}
                 {linkedCell(load.id, currency(load.load_rate))}
-                {linkedCell(load.id, <StatusBadge status={load.status} />)}
+                <td className="px-4 py-3">
+                  <LoadStatusSelect loadId={load.id} status={load.status} />
+                </td>
               </tr>
             ))}
             {!loads.length ? (

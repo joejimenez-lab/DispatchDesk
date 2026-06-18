@@ -24,6 +24,7 @@ type ExportLoad = {
   drivers: { name: string | null; truck_number: string | null; trailer_number: string | null } | null;
   payments:
     | {
+        invoice_sent: boolean;
         client_paid: boolean;
         client_amount_received: number;
         driver_paid: boolean;
@@ -32,6 +33,7 @@ type ExportLoad = {
         dispatcher_fee_amount: number;
       }
     | {
+        invoice_sent: boolean;
         client_paid: boolean;
         client_amount_received: number;
         driver_paid: boolean;
@@ -55,7 +57,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   let query = supabase
     .from("loads")
-    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, load_rate, driver_pay, dispatcher_fee, fuel_cost, carrier_company, notes, brokers(company_name, contact_name), drivers(name, truck_number, trailer_number), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
+    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, load_rate, driver_pay, dispatcher_fee, fuel_cost, carrier_company, notes, brokers(company_name, contact_name), drivers(name, truck_number, trailer_number), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
     .order("created_at", { ascending: false });
 
   const status = searchParams.get("status");
@@ -94,6 +96,7 @@ export async function GET(request: Request) {
     "Dispatcher Fee",
     "Fuel Cost",
     "Profit",
+    "Invoice Sent",
     "Client Collected",
     "Client Outstanding",
     "Client Paid",
@@ -126,6 +129,7 @@ export async function GET(request: Request) {
         load.dispatcher_fee,
         load.fuel_cost,
         profitForLoad(load),
+        Boolean(payment?.invoice_sent),
         clientCollected(load.load_rate, payment),
         outstanding,
         Boolean(payment?.client_paid),
