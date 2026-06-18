@@ -6,6 +6,7 @@ import { Button } from "@/components/button";
 const links = [
   ["Dashboard", "/dashboard"],
   ["Loads", "/loads"],
+  ["Reports", "/reports"],
   ["Drivers", "/drivers"],
   ["Brokers", "/brokers"],
 ];
