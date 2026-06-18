@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { csvRow } from "@/lib/csv";
 import { createClient } from "@/lib/supabase/server";
 import { clientCollected, clientOutstanding, profitForLoad } from "@/lib/financials";
 import { ilikeOr, searchTokens } from "@/lib/search";
@@ -40,16 +41,6 @@ type ExportLoad = {
       }[]
     | null;
 };
-
-function csvCell(value: string | number | boolean | null | undefined) {
-  const text = String(value ?? "");
-  if (!/[",\n\r]/.test(text)) return text;
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
-function csvRow(values: (string | number | boolean | null | undefined)[]) {
-  return values.map(csvCell).join(",");
-}
 
 export async function GET(request: Request) {
   const supabase = await createClient();
