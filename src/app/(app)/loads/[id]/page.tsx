@@ -97,6 +97,18 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
           <h2 className="mb-4 text-lg font-semibold text-zinc-950">Load Details</h2>
+          <dl className="mb-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+              <dt className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Pickup</dt>
+              <dd className="mt-2 break-words font-semibold text-zinc-950">{load.pickup_location}</dd>
+              <dd className="mt-1 text-sm text-zinc-600">{formatDate(load.pickup_date)}</dd>
+            </div>
+            <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+              <dt className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Delivery</dt>
+              <dd className="mt-2 break-words font-semibold text-zinc-950">{load.delivery_location}</dd>
+              <dd className="mt-1 text-sm text-zinc-600">{formatDate(load.delivery_date)}</dd>
+            </div>
+          </dl>
           <dl className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <Detail label="Broker" value={load.brokers?.company_name ?? "Unassigned"} />
             <Detail label="Broker Contact" value={load.brokers?.contact_name ?? "Not set"} />
@@ -104,8 +116,6 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
             <Detail label="Driver" value={load.drivers?.name ?? "Unassigned"} />
             <Detail label="Truck" value={load.drivers?.truck_number ?? "Not set"} />
             <Detail label="Trailer" value={load.drivers?.trailer_number ?? "Not set"} />
-            <Detail label="Pickup Date" value={formatDate(load.pickup_date)} />
-            <Detail label="Delivery Date" value={formatDate(load.delivery_date)} />
             <Detail label="Round Trip" value={load.is_round_trip ? "Yes" : "No"} />
             <Detail label="Created" value={new Date(load.created_at).toLocaleString()} />
           </dl>

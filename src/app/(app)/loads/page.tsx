@@ -76,7 +76,7 @@ export default async function LoadsPage({
               <th className="px-4 py-3">Load</th>
               <th className="px-4 py-3">Broker</th>
               <th className="px-4 py-3">Driver</th>
-              <th className="px-4 py-3">Lane</th>
+              <th className="px-4 py-3">Pickup</th>
               <th className="px-4 py-3">Delivery</th>
               <th className="px-4 py-3">Rate</th>
               <th className="px-4 py-3">Status</th>
@@ -97,8 +97,20 @@ export default async function LoadsPage({
                 )}
                 {linkedCell(load.id, load.brokers?.company_name ?? "Unassigned")}
                 {linkedCell(load.id, load.drivers?.name ?? "Unassigned")}
-                {linkedCell(load.id, `${load.pickup_location} to ${load.delivery_location}`)}
-                {linkedCell(load.id, formatDate(load.delivery_date))}
+                {linkedCell(
+                  load.id,
+                  <div className="min-w-40">
+                    <div className="font-medium text-zinc-900">{load.pickup_location}</div>
+                    <div className="mt-1 text-xs text-zinc-500">{formatDate(load.pickup_date)}</div>
+                  </div>,
+                )}
+                {linkedCell(
+                  load.id,
+                  <div className="min-w-40">
+                    <div className="font-medium text-zinc-900">{load.delivery_location}</div>
+                    <div className="mt-1 text-xs text-zinc-500">{formatDate(load.delivery_date)}</div>
+                  </div>,
+                )}
                 {linkedCell(load.id, currency(load.load_rate))}
                 <td className="px-4 py-3">
                   <LoadStatusSelect loadId={load.id} status={load.status} />
