@@ -1,0 +1,245 @@
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { ActionForm } from "@/components/action-form";
+import { Field, Input, Select, Textarea } from "@/components/field";
+import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
+import {
+  addInspectionRecord,
+  addRepairLog,
+  addServiceRecord,
+  deleteFleetRecord,
+  deleteUnit,
+  updateUnit,
+} from "@/lib/actions/fleet";
+import { getUnit, getUnitRecords } from "@/lib/data/fleet";
+import { currency, formatDate } from "@/lib/utils";
+import { unitTypes } from "@/types/database";
+
+function odometer(value: number | null) {
+  return value != null ? `${value.toLocaleString()} mi` : null;
+}
+
+function AddRecord({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <details className="group mb-4">
+      <summary className="ml-auto flex w-fit cursor-pointer list-none rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50">
+        <span className="group-open:hidden">+ {label}</span>
+        <span className="hidden group-open:inline">Cancel</span>
+      </summary>
+      <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">{children}</div>
+    </details>
+  );
+}
+
+export default async function UnitDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string }>;
+}) {
+  const { id } = await params;
+  const { edit } = await searchParams;
+  const isEditing = edit === "1";
+  const [unit, records] = await Promise.all([getUnit(id), getUnitRecords(id)]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Link
+          href="/fleet"
+          className="mb-4 inline-flex items-center rounded-md border border-zinc-300 bg-white px-4 py-2 text-base font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 hover:text-zinc-950"
+        >
+          ← Back to fleet
+        </Link>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-semibold text-zinc-950">{unit.unit_number}</h1>
+              <span className="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-300">
+                {unit.unit_type}
+              </span>
+            </div>
+            <p className="text-sm text-zinc-600">{unit.company ?? "No company set"}</p>
+          </div>
+          <Link
+            href={isEditing ? `/fleet/${id}` : `/fleet/${id}?edit=1`}
+            className={isEditing
+              ? "inline-flex rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              : "inline-flex rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"}
+          >
+            {isEditing ? "Cancel" : "Edit unit"}
+          </Link>
+        </div>
+      </div>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+        {isEditing ? (
+          <div>
+            <h2 className="mb-4 text-lg font-semibold text-zinc-950">Edit unit</h2>
+            <ActionForm action={updateUnit.bind(null, id)} className="grid gap-4 md:grid-cols-3">
+              <Field label="Unit Number"><Input name="unit_number" required defaultValue={unit.unit_number} /></Field>
+              <Field label="Unit Type">
+                <Select name="unit_type" defaultValue={unit.unit_type}>
+                  {unitTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                </Select>
+              </Field>
+              <Field label="Company / Fleet"><Input name="company" defaultValue={unit.company ?? ""} /></Field>
+              <Field label="Odometer"><Input type="number" min="0" name="odometer" defaultValue={unit.odometer ?? ""} /></Field>
+              <Field label="Notes" className="md:col-span-3"><Textarea name="notes" defaultValue={unit.notes ?? ""} /></Field>
+              <SubmitButton variant="secondary" className="md:w-fit">Save changes</SubmitButton>
+            </ActionForm>
+            <div className="mt-6 border-t border-zinc-200 pt-5">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-zinc-950">Delete this unit</h3>
+                <p className="text-sm text-zinc-600">This permanently removes the unit and all of its records.</p>
+              </div>
+              <ActionForm action={deleteUnit.bind(null, id)} successMessage={false}>
+                <ConfirmSubmitButton
+                  message={`Delete ${unit.unit_type.toLowerCase()} ${unit.unit_number}? This also removes its service, inspection, and repair history.`}
+                  variant="danger"
+                >
+                  Delete unit
+                </ConfirmSubmitButton>
+              </ActionForm>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-3">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Company / Fleet</div>
+              <div className="mt-1 text-sm font-medium text-zinc-950">{unit.company ?? "Not set"}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Odometer</div>
+              <div className="mt-1 text-sm font-medium text-zinc-950">{odometer(unit.odometer) ?? "Not set"}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Notes</div>
+              <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">{unit.notes ?? "No notes"}</div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div className="pt-1">
+        <h2 className="text-xl font-semibold text-zinc-950">Maintenance history</h2>
+        <p className="text-sm text-zinc-600">Service, inspections, and repairs for this unit.</p>
+      </div>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-zinc-950">
+            Service <span className="text-sm font-normal text-zinc-500">({records.service.length})</span>
+          </h2>
+        </div>
+        <AddRecord label="Add service">
+            <ActionForm action={addServiceRecord} className="grid gap-3 md:grid-cols-4">
+              <input type="hidden" name="unit_id" value={id} />
+              <Field label="Date"><Input type="date" name="service_date" /></Field>
+              <Field label="Odometer"><Input type="number" min="0" name="odometer" /></Field>
+              <Field label="Cost"><Input type="number" min="0" step="0.01" name="cost" /></Field>
+              <Field label="Description" className="md:col-span-4"><Input name="description" required /></Field>
+              <Field label="Notes" className="md:col-span-4"><Textarea name="notes" /></Field>
+              <SubmitButton className="md:w-fit" pendingText="Adding...">Add service</SubmitButton>
+            </ActionForm>
+        </AddRecord>
+        <div className="divide-y divide-zinc-100 border-t border-zinc-100">
+          {records.service.map((record) => (
+            <div key={record.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+              <div>
+                <div className="font-medium text-zinc-950">{record.description}</div>
+                <div className="mt-1 text-xs text-zinc-500">
+                  {formatDate(record.service_date)}
+                  {odometer(record.odometer) ? ` · ${odometer(record.odometer)}` : ""}
+                  {` · ${currency(record.cost)}`}
+                </div>
+                {record.notes ? <p className="mt-1 text-sm text-zinc-600">{record.notes}</p> : null}
+              </div>
+              <ActionForm action={deleteFleetRecord.bind(null, "service_records", record.id, id)} successMessage={false}>
+                <ConfirmSubmitButton message="Delete this service record?" variant="secondary">Delete</ConfirmSubmitButton>
+              </ActionForm>
+            </div>
+          ))}
+          {!records.service.length ? <p className="py-4 text-sm text-zinc-500">No service records yet.</p> : null}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-zinc-950">
+            Inspections <span className="text-sm font-normal text-zinc-500">({records.inspections.length})</span>
+          </h2>
+        </div>
+        <AddRecord label="Add inspection">
+            <ActionForm action={addInspectionRecord} className="grid gap-3 md:grid-cols-4">
+              <input type="hidden" name="unit_id" value={id} />
+              <Field label="Date"><Input type="date" name="inspection_date" /></Field>
+              <Field label="Odometer"><Input type="number" min="0" name="odometer" /></Field>
+              <Field label="Inspector"><Input name="inspector" /></Field>
+              <Field label="Result"><Input name="result" placeholder="Pass / Fail" required /></Field>
+              <Field label="Notes" className="md:col-span-4"><Textarea name="notes" /></Field>
+              <SubmitButton className="md:w-fit" pendingText="Adding...">Add inspection</SubmitButton>
+            </ActionForm>
+        </AddRecord>
+        <div className="divide-y divide-zinc-100 border-t border-zinc-100">
+          {records.inspections.map((record) => (
+            <div key={record.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+              <div>
+                <div className="font-medium text-zinc-950">{record.result ?? "Inspection"}</div>
+                <div className="mt-1 text-xs text-zinc-500">
+                  {formatDate(record.inspection_date)}
+                  {record.inspector ? ` · ${record.inspector}` : ""}
+                  {odometer(record.odometer) ? ` · ${odometer(record.odometer)}` : ""}
+                </div>
+                {record.notes ? <p className="mt-1 text-sm text-zinc-600">{record.notes}</p> : null}
+              </div>
+              <ActionForm action={deleteFleetRecord.bind(null, "inspection_records", record.id, id)} successMessage={false}>
+                <ConfirmSubmitButton message="Delete this inspection record?" variant="secondary">Delete</ConfirmSubmitButton>
+              </ActionForm>
+            </div>
+          ))}
+          {!records.inspections.length ? <p className="py-4 text-sm text-zinc-500">No inspection records yet.</p> : null}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-zinc-950">
+            Repairs <span className="text-sm font-normal text-zinc-500">({records.repairs.length})</span>
+          </h2>
+        </div>
+        <AddRecord label="Add repair">
+            <ActionForm action={addRepairLog} className="grid gap-3 md:grid-cols-4">
+              <input type="hidden" name="unit_id" value={id} />
+              <Field label="Date"><Input type="date" name="repair_date" /></Field>
+              <Field label="Odometer"><Input type="number" min="0" name="odometer" /></Field>
+              <Field label="Cost"><Input type="number" min="0" step="0.01" name="cost" /></Field>
+              <Field label="Description" className="md:col-span-4"><Input name="description" required /></Field>
+              <Field label="Notes" className="md:col-span-4"><Textarea name="notes" /></Field>
+              <SubmitButton className="md:w-fit" pendingText="Adding...">Add repair</SubmitButton>
+            </ActionForm>
+        </AddRecord>
+        <div className="divide-y divide-zinc-100 border-t border-zinc-100">
+          {records.repairs.map((record) => (
+            <div key={record.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+              <div>
+                <div className="font-medium text-zinc-950">{record.description}</div>
+                <div className="mt-1 text-xs text-zinc-500">
+                  {formatDate(record.repair_date)}
+                  {odometer(record.odometer) ? ` · ${odometer(record.odometer)}` : ""}
+                  {` · ${currency(record.cost)}`}
+                </div>
+                {record.notes ? <p className="mt-1 text-sm text-zinc-600">{record.notes}</p> : null}
+              </div>
+              <ActionForm action={deleteFleetRecord.bind(null, "repair_logs", record.id, id)} successMessage={false}>
+                <ConfirmSubmitButton message="Delete this repair log?" variant="secondary">Delete</ConfirmSubmitButton>
+              </ActionForm>
+            </div>
+          ))}
+          {!records.repairs.length ? <p className="py-4 text-sm text-zinc-500">No repair logs yet.</p> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
