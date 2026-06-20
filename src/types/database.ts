@@ -38,6 +38,10 @@ export const documentCategories: DocumentCategory[] = [
   "Other",
 ];
 
+export type UnitType = "Truck" | "Trailer";
+
+export const unitTypes: UnitType[] = ["Truck", "Trailer"];
+
 export type Database = {
   public: {
     Tables: {
@@ -261,12 +265,125 @@ export type Database = {
           },
         ];
       };
+      fleet_units: {
+        Row: {
+          id: string;
+          unit_number: string;
+          unit_type: UnitType;
+          company: string | null;
+          odometer: number | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          unit_number: string;
+          unit_type: UnitType;
+          company?: string | null;
+          odometer?: number | null;
+          notes?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["fleet_units"]["Insert"]>;
+        Relationships: [];
+      };
+      service_records: {
+        Row: {
+          id: string;
+          unit_id: string;
+          service_date: string | null;
+          odometer: number | null;
+          description: string;
+          cost: number;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          unit_id: string;
+          service_date?: string | null;
+          odometer?: number | null;
+          description: string;
+          cost?: number;
+          notes?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_records"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "service_records_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "fleet_units";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      inspection_records: {
+        Row: {
+          id: string;
+          unit_id: string;
+          inspection_date: string | null;
+          odometer: number | null;
+          inspector: string | null;
+          result: string | null;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          unit_id: string;
+          inspection_date?: string | null;
+          odometer?: number | null;
+          inspector?: string | null;
+          result?: string | null;
+          notes?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["inspection_records"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "inspection_records_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "fleet_units";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      repair_logs: {
+        Row: {
+          id: string;
+          unit_id: string;
+          repair_date: string | null;
+          odometer: number | null;
+          description: string;
+          cost: number;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          unit_id: string;
+          repair_date?: string | null;
+          odometer?: number | null;
+          description: string;
+          cost?: number;
+          notes?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["repair_logs"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "repair_logs_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "fleet_units";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
     Enums: {
       load_status: LoadStatus;
       document_category: DocumentCategory;
+      unit_type: UnitType;
     };
   };
 };

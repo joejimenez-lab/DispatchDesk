@@ -1,10 +1,15 @@
 import { z } from "zod";
-import { documentCategories, loadStatuses } from "@/types/database";
+import { documentCategories, loadStatuses, unitTypes } from "@/types/database";
 
 const money = z.coerce.number().min(0).default(0);
 const optionalText = z.string().trim().transform((value) => (value === "" ? null : value));
 const optionalUuid = z.string().transform((value) => (value === "" ? null : value)).nullable();
 const optionalDate = z.string().transform((value) => (value === "" ? null : value)).nullable();
+const optionalOdometer = z
+  .string()
+  .trim()
+  .transform((value) => (value === "" ? null : Math.trunc(Number(value))))
+  .refine((value) => value === null || (Number.isFinite(value) && value >= 0), "Odometer must be a positive number");
 
 export const loadSchema = z.object({
   load_number: z.string().trim().min(1, "Load number is required"),
@@ -64,5 +69,40 @@ export const noteSchema = z.object({
 export const documentSchema = z.object({
   load_id: z.string().uuid(),
   category: z.enum(documentCategories),
+  notes: optionalText,
+});
+
+export const fleetUnitSchema = z.object({
+  unit_number: z.string().trim().min(1, "Unit number is required"),
+  unit_type: z.enum(unitTypes),
+  company: optionalText,
+  odometer: optionalOdometer,
+  notes: optionalText,
+});
+
+export const serviceRecordSchema = z.object({
+  unit_id: z.string().uuid(),
+  service_date: optionalDate,
+  odometer: optionalOdometer,
+  description: z.string().trim().min(1, "Description is required"),
+  cost: money,
+  notes: optionalText,
+});
+
+export const inspectionRecordSchema = z.object({
+  unit_id: z.string().uuid(),
+  inspection_date: optionalDate,
+  odometer: optionalOdometer,
+  inspector: optionalText,
+  result: z.string().trim().min(1, "Inspection result is required"),
+  notes: optionalText,
+});
+
+export const repairLogSchema = z.object({
+  unit_id: z.string().uuid(),
+  repair_date: optionalDate,
+  odometer: optionalOdometer,
+  description: z.string().trim().min(1, "Description is required"),
+  cost: money,
   notes: optionalText,
 });
