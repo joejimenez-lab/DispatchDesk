@@ -85,7 +85,16 @@ export default async function LoadsPage({
           <tbody className="divide-y divide-zinc-100">
             {loads.map((load) => (
               <tr key={load.id} className="cursor-pointer hover:bg-zinc-50">
-                {linkedCell(load.id, load.load_number, "font-semibold text-zinc-950")}
+                {linkedCell(
+                  load.id,
+                  <span className="flex items-center gap-2">
+                    {load.load_number}
+                    {load.is_round_trip ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Round trip</span>
+                    ) : null}
+                  </span>,
+                  "font-semibold text-zinc-950",
+                )}
                 {linkedCell(load.id, load.brokers?.company_name ?? "Unassigned")}
                 {linkedCell(load.id, load.drivers?.name ?? "Unassigned")}
                 {linkedCell(load.id, `${load.pickup_location} to ${load.delivery_location}`)}

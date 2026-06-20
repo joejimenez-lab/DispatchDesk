@@ -106,8 +106,15 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
             <Detail label="Trailer" value={load.drivers?.trailer_number ?? "Not set"} />
             <Detail label="Pickup Date" value={formatDate(load.pickup_date)} />
             <Detail label="Delivery Date" value={formatDate(load.delivery_date)} />
+            <Detail label="Round Trip" value={load.is_round_trip ? "Yes" : "No"} />
             <Detail label="Created" value={new Date(load.created_at).toLocaleString()} />
           </dl>
+          {load.is_round_trip && load.round_trip_details ? (
+            <div className="mt-5 border-t border-zinc-100 pt-4">
+              <h3 className="text-sm font-semibold text-zinc-950">Round Trip Details</h3>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">{load.round_trip_details}</p>
+            </div>
+          ) : null}
           {load.notes ? (
             <div className="mt-5 border-t border-zinc-100 pt-4">
               <h3 className="text-sm font-semibold text-zinc-950">Load Notes</h3>

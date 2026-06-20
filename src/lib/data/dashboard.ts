@@ -10,6 +10,7 @@ type DashboardLoad = {
   pickup_date: string | null;
   delivery_location: string;
   delivery_date: string | null;
+  is_round_trip: boolean;
   load_rate: number;
   driver_pay: number;
   dispatcher_fee: number;
@@ -17,8 +18,8 @@ type DashboardLoad = {
   brokers: { company_name: string } | null;
   drivers: { name: string } | null;
   payments:
-    | { client_paid: boolean; client_amount_received: number; driver_paid: boolean; dispatcher_paid: boolean }
-    | { client_paid: boolean; client_amount_received: number; driver_paid: boolean; dispatcher_paid: boolean }[]
+    | { client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean }
+    | { client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean }[]
     | null;
 };
 
@@ -26,7 +27,7 @@ export async function getDashboardMetrics() {
   const supabase = await createClient();
   const { data: loads, error } = await supabase
     .from("loads")
-    .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, load_rate, driver_pay, dispatcher_fee, fuel_cost, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, dispatcher_paid)")
+    .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, load_rate, driver_pay, dispatcher_fee, fuel_cost, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -47,7 +48,12 @@ export async function getDashboardMetrics() {
       if (delivered) metrics.deliveredLoads += 1;
       if (load.status === "Closed") metrics.closedLoads += 1;
       if (clientOutstanding(load.load_rate, payment) > 0 && load.status !== "Cancelled") metrics.unpaidLoads += 1;
-      if (!payment?.driver_paid && delivered) metrics.pendingDriverPayments += Number(load.driver_pay);
+      if (!payment?.driver_paid && delivered) {
+        metrics.pendingDriverPayments += Math.max(
+          Number(load.driver_pay) - Number(payment?.driver_amount_paid ?? 0),
+          0,
+        );
+      }
       if (!payment?.dispatcher_paid && delivered) metrics.pendingDispatcherFees += Number(load.dispatcher_fee);
 
       if (billable) {
@@ -85,7 +91,14 @@ export async function getDashboardMetrics() {
       return new Date(`${basis}T00:00:00`) <= thirtyDaysAgo;
     })
     .sort((a, b) => (a.delivery_date ?? a.pickup_date ?? "").localeCompare(b.delivery_date ?? b.pickup_date ?? ""))
-    .slice(0, 5);
+    .slice(0, 5)
+    .map((load) => {
+      const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
+      return {
+        ...load,
+        outstandingAmount: clientOutstanding(load.load_rate, payment),
+      };
+    });
 
   const upcomingDeliveries = rows
     .filter((load) => {

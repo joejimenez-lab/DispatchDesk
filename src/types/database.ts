@@ -98,6 +98,8 @@ export type Database = {
           pickup_date: string | null;
           delivery_location: string;
           delivery_date: string | null;
+          is_round_trip: boolean;
+          round_trip_details: string | null;
           load_rate: number;
           driver_pay: number;
           dispatcher_fee: number;
@@ -117,6 +119,8 @@ export type Database = {
           pickup_date?: string | null;
           delivery_location: string;
           delivery_date?: string | null;
+          is_round_trip?: boolean;
+          round_trip_details?: string | null;
           load_rate?: number;
           driver_pay?: number;
           dispatcher_fee?: number;

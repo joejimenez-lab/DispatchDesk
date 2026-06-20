@@ -75,7 +75,12 @@ export default async function DashboardPage() {
           <div className="divide-y divide-zinc-100">
             {metrics.currentLoads.map((load) => (
               <Link key={load.id} href={`/loads/${load.id}`} className="grid gap-3 py-3 hover:bg-zinc-50 sm:grid-cols-[120px_1fr_130px_130px]">
-                <div className="font-semibold text-zinc-950">{load.load_number}</div>
+                <div className="font-semibold text-zinc-950">
+                  {load.load_number}
+                  {load.is_round_trip ? (
+                    <span className="mt-1 block text-xs font-semibold text-amber-800">Round trip</span>
+                  ) : null}
+                </div>
                 <div>
                   <div className="text-sm text-zinc-900">{load.pickup_location} to {load.delivery_location}</div>
                   <div className="text-xs text-zinc-500">
@@ -100,7 +105,7 @@ export default async function DashboardPage() {
                   <span className="font-semibold text-red-950">{load.load_number}</span>
                   <span className="text-xs font-semibold text-red-700">{daysAgo(load.delivery_date ?? load.pickup_date)} old</span>
                 </div>
-                <div className="mt-1 text-sm text-red-900">{currency(load.load_rate)} outstanding</div>
+                <div className="mt-1 text-sm text-red-900">{currency(load.outstandingAmount)} outstanding</div>
                 <div className="text-xs text-red-700">Delivery: {formatDate(load.delivery_date)}</div>
               </Link>
             ))}

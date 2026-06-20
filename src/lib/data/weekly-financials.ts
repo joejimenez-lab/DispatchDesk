@@ -8,6 +8,8 @@ type WeeklyFinancialLoad = {
   status: LoadStatus;
   pickup_date: string | null;
   delivery_date: string | null;
+  is_round_trip: boolean;
+  round_trip_details: string | null;
   load_rate: number;
   driver_pay: number;
   dispatcher_fee: number;
@@ -34,6 +36,8 @@ export type WeeklyDriverFinancialSummary = {
     loadNumber: string;
     status: LoadStatus;
     date: string;
+    isRoundTrip: boolean;
+    roundTripDetails: string | null;
     loadRate: number;
     driverPay: number;
     dispatcherFee: number;
@@ -146,7 +150,7 @@ export async function getWeeklyDriverFinancialSummary(
 
   let query = supabase
     .from("loads")
-    .select("id, load_number, status, pickup_date, delivery_date, load_rate, driver_pay, dispatcher_fee, fuel_cost, created_at, driver_id, drivers(name)")
+    .select("id, load_number, status, pickup_date, delivery_date, is_round_trip, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, created_at, driver_id, drivers(name)")
     .neq("status", "Cancelled")
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("pickup_date", { ascending: false, nullsFirst: false })
@@ -199,6 +203,8 @@ export async function getWeeklyDriverFinancialSummary(
       loadNumber: load.load_number,
       status: load.status,
       date,
+      isRoundTrip: load.is_round_trip,
+      roundTripDetails: load.round_trip_details,
       loadRate: Number(load.load_rate),
       driverPay: Number(load.driver_pay),
       dispatcherFee: Number(load.dispatcher_fee),
