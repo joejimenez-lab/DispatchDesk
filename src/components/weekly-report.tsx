@@ -101,6 +101,11 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
                   <Link href={`/loads/${load.id}`} className="underline-offset-2 hover:underline">
                     {load.loadNumber}
                   </Link>
+                  {load.isRoundTrip ? (
+                    <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                      Round trip
+                    </span>
+                  ) : null}
                 </td>
                 <td className="px-4 py-3 text-zinc-700">{formatDate(load.date)}</td>
                 <td className="px-4 py-3 text-zinc-700">{load.status}</td>

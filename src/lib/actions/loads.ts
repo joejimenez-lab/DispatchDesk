@@ -15,7 +15,7 @@ function value(formData: FormData, key: string) {
 }
 
 function loadPayload(formData: FormData) {
-  return loadSchema.parse({
+  const load = loadSchema.parse({
     load_number: value(formData, "load_number"),
     broker_id: value(formData, "broker_id"),
     carrier_company: value(formData, "carrier_company"),
@@ -24,6 +24,8 @@ function loadPayload(formData: FormData) {
     pickup_date: value(formData, "pickup_date"),
     delivery_location: value(formData, "delivery_location"),
     delivery_date: value(formData, "delivery_date"),
+    is_round_trip: formData.get("is_round_trip") === "on",
+    round_trip_details: value(formData, "round_trip_details"),
     load_rate: value(formData, "load_rate"),
     driver_pay: value(formData, "driver_pay"),
     dispatcher_fee: value(formData, "dispatcher_fee"),
@@ -31,6 +33,11 @@ function loadPayload(formData: FormData) {
     notes: value(formData, "notes"),
     status: value(formData, "status"),
   });
+
+  return {
+    ...load,
+    round_trip_details: load.is_round_trip ? load.round_trip_details : null,
+  };
 }
 
 function paymentPayload(formData: FormData) {

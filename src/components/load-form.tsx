@@ -64,7 +64,13 @@ export function LoadForm({ action, drivers, brokers, load, payment, showPayments
         <Field label="Delivery Date">
           <Input type="date" name="delivery_date" defaultValue={inputDate(load?.delivery_date)} />
         </Field>
-        <Field label="Load Rate">
+        <div className="flex items-end pb-2 md:col-span-2">
+          <Checkbox name="is_round_trip" label="Round trip" defaultChecked={load?.is_round_trip} />
+        </div>
+        <Field label="Round Trip Details" className="md:col-span-2">
+          <Textarea name="round_trip_details" defaultValue={load?.round_trip_details ?? ""} />
+        </Field>
+        <Field label="Load Rate (Total)">
           <Input type="number" step="0.01" min="0" name="load_rate" defaultValue={load?.load_rate ?? 0} />
         </Field>
         <Field label="Driver Pay">
