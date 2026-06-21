@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { clientCollected, clientOutstanding } from "@/lib/financials";
+import { mapMaintenanceAlerts } from "@/lib/data/maintenance";
+import { getDashboardMaintenanceSummary } from "@/lib/maintenance";
 import type { LoadStatus } from "@/types/database";
 
 type DashboardLoad = {
@@ -25,17 +27,28 @@ type DashboardLoad = {
 
 export async function getDashboardMetrics() {
   const supabase = await createClient();
-  const { data: loads, error } = await supabase
-    .from("loads")
-    .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, load_rate, driver_pay, dispatcher_fee, fuel_cost, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  const rows = (loads ?? []) as unknown as DashboardLoad[];
   const today = new Date(new Date().toDateString());
   const thirtyDaysAgo = new Date(today);
   thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  const [loadsResult, remindersResult] = await Promise.all([
+    supabase
+      .from("loads")
+      .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, load_rate, driver_pay, dispatcher_fee, fuel_cost, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("maintenance_reminders")
+      .select("*, fleet_units!inner(id, unit_number, unit_type, odometer)")
+      .is("completed_at", null)
+      .order("due_date", { ascending: true, nullsFirst: false }),
+  ]);
+
+  if (loadsResult.error) throw loadsResult.error;
+  if (remindersResult.error) throw remindersResult.error;
+
+  const rows = (loadsResult.data ?? []) as unknown as DashboardLoad[];
+  const allMaintenanceAlerts = mapMaintenanceAlerts((remindersResult.data ?? []) as unknown[]);
+  const maintenanceSummary = getDashboardMaintenanceSummary(allMaintenanceAlerts);
 
   const metrics = rows.reduce(
     (metrics, load) => {
@@ -119,6 +132,8 @@ export async function getDashboardMetrics() {
     currentLoads,
     unpaidAlerts,
     upcomingDeliveries,
+    maintenanceAlerts: maintenanceSummary.visible,
+    maintenanceCounts: maintenanceSummary.counts,
     statusCounts: Object.entries(statusCounts).sort(([, a], [, b]) => b - a),
   };
 }

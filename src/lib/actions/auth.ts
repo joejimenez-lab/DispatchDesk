@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "");
@@ -14,7 +15,7 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signOut() {
-  const supabase = await createClient();
+  const { supabase } = await createAuthenticatedClient();
   await supabase.auth.signOut();
   redirect("/login");
 }

@@ -50,7 +50,7 @@ export default async function DashboardPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">Dashboard</h1>
-          <p className="text-sm text-zinc-600">Operational and payment summary.</p>
+          <p className="text-sm text-zinc-600">Operational, payment, and maintenance summary.</p>
         </div>
         <LinkButton href="/loads/new">Create load</LinkButton>
       </div>
@@ -107,21 +107,73 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-lg font-semibold text-zinc-950">Payment Alerts</h2>
-          <p className="mb-4 text-sm text-zinc-500">Client payments overdue 30+ days.</p>
-          <div className="space-y-3">
-            {metrics.unpaidAlerts.map((load) => (
-              <Link key={load.id} href={`/loads/${load.id}`} className="block rounded-md border border-red-100 bg-red-50 p-3 hover:bg-red-100">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-semibold text-red-950">{load.load_number}</span>
-                  <span className="text-xs font-semibold text-red-700">{daysAgo(load.delivery_date ?? load.pickup_date)} old</span>
-                </div>
-                <div className="mt-1 text-sm text-red-900">{currency(load.outstandingAmount)} outstanding</div>
-                <div className="text-xs text-red-700">Delivery: {formatDate(load.delivery_date)}</div>
-              </Link>
-            ))}
-            {!metrics.unpaidAlerts.length ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">No 30+ day unpaid client loads.</p> : null}
+        <div className="space-y-4">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="text-lg font-semibold text-zinc-950">Payment Alerts</h2>
+            <p className="mb-4 text-sm text-zinc-500">Client payments overdue 30+ days.</p>
+            <div className="space-y-3">
+              {metrics.unpaidAlerts.map((load) => (
+                <Link key={load.id} href={`/loads/${load.id}`} className="block rounded-md border border-red-100 bg-red-50 p-3 hover:bg-red-100">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold text-red-950">{load.load_number}</span>
+                    <span className="text-xs font-semibold text-red-700">{daysAgo(load.delivery_date ?? load.pickup_date)} old</span>
+                  </div>
+                  <div className="mt-1 text-sm text-red-900">{currency(load.outstandingAmount)} outstanding</div>
+                  <div className="text-xs text-red-700">Delivery: {formatDate(load.delivery_date)}</div>
+                </Link>
+              ))}
+              {!metrics.unpaidAlerts.length ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">No 30+ day unpaid client loads.</p> : null}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-950">Maintenance Alerts</h2>
+                <p className="text-sm text-zinc-500">Date and mileage schedules needing attention.</p>
+              </div>
+              <Link href="/maintenance" className="text-sm font-medium text-zinc-950 underline">View all</Link>
+            </div>
+            <div className="my-4 grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-md bg-red-50 p-2 text-red-800"><div className="text-lg font-semibold">{metrics.maintenanceCounts.overdue}</div>Overdue</div>
+              <div className="rounded-md bg-amber-50 p-2 text-amber-800"><div className="text-lg font-semibold">{metrics.maintenanceCounts["due-soon"]}</div>Due soon</div>
+              <div className="rounded-md bg-blue-50 p-2 text-blue-800"><div className="text-lg font-semibold">{metrics.maintenanceCounts.upcoming}</div>Upcoming</div>
+            </div>
+            <div className="space-y-3">
+              {metrics.maintenanceAlerts.map((reminder) => {
+                const overdue = reminder.status === "overdue";
+                const remaining = reminder.daysRemaining != null
+                  ? reminder.daysRemaining < 0 ? `${Math.abs(reminder.daysRemaining)}d overdue` : reminder.daysRemaining === 0 ? "Due today" : `${reminder.daysRemaining}d left`
+                  : reminder.milesRemaining != null
+                    ? reminder.milesRemaining < 0 ? `${Math.abs(reminder.milesRemaining).toLocaleString()} mi overdue` : `${reminder.milesRemaining.toLocaleString()} mi left`
+                    : "Due soon";
+                return (
+                  <Link
+                    key={reminder.id}
+                    href={`/maintenance#reminder-${reminder.id}`}
+                    className={overdue
+                      ? "block rounded-md border border-red-100 bg-red-50 p-3 hover:bg-red-100"
+                      : "block rounded-md border border-amber-100 bg-amber-50 p-3 hover:bg-amber-100"}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <span className={overdue ? "font-semibold text-red-950" : "font-semibold text-amber-950"}>
+                        {reminder.unit.unit_number}
+                      </span>
+                      <span className={overdue ? "text-right text-xs font-semibold text-red-700" : "text-right text-xs font-semibold text-amber-700"}>
+                        {remaining}
+                      </span>
+                    </div>
+                    <div className={overdue ? "mt-1 text-sm text-red-900" : "mt-1 text-sm text-amber-900"}>{reminder.reminder_type}</div>
+                    <div className={overdue ? "text-xs text-red-700" : "text-xs text-amber-700"}>
+                      {reminder.due_date ? `Due ${formatDate(reminder.due_date)}` : ""}
+                      {reminder.due_date && reminder.due_odometer != null ? " · " : ""}
+                      {reminder.due_odometer != null ? `${reminder.due_odometer.toLocaleString()} mi` : ""}
+                    </div>
+                  </Link>
+                );
+              })}
+              {!metrics.maintenanceAlerts.length ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">No unsnoozed maintenance needs attention.</p> : null}
+            </div>
           </div>
         </div>
       </section>

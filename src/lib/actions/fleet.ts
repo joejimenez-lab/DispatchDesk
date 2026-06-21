@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { errorState, successState, type ActionState } from "@/lib/actions/state";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import {
   inspectionRecordSchema,
   fleetUnitSchema,
@@ -29,7 +29,7 @@ export async function createUnit(_state: ActionState, formData: FormData): Promi
   let unitId: string;
 
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const { data, error } = await supabase
       .from("fleet_units")
       .insert(unitPayload(formData))
@@ -47,7 +47,7 @@ export async function createUnit(_state: ActionState, formData: FormData): Promi
 
 export async function updateUnit(unitId: string, _state: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const { error } = await supabase.from("fleet_units").update(unitPayload(formData)).eq("id", unitId);
     if (error) return errorState(error, "Could not save unit.");
     revalidatePath("/fleet");
@@ -62,7 +62,7 @@ export async function deleteUnit(unitId: string, _state: ActionState): Promise<A
   void _state;
 
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const { error } = await supabase.from("fleet_units").delete().eq("id", unitId);
     if (error) return errorState(error, "Could not delete unit.");
   } catch (error) {
@@ -75,7 +75,7 @@ export async function deleteUnit(unitId: string, _state: ActionState): Promise<A
 
 export async function addServiceRecord(_state: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const payload = serviceRecordSchema.parse({
       unit_id: value(formData, "unit_id"),
       service_date: value(formData, "service_date"),
@@ -96,7 +96,7 @@ export async function addServiceRecord(_state: ActionState, formData: FormData):
 
 export async function addInspectionRecord(_state: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const payload = inspectionRecordSchema.parse({
       unit_id: value(formData, "unit_id"),
       inspection_date: value(formData, "inspection_date"),
@@ -117,9 +117,10 @@ export async function addInspectionRecord(_state: ActionState, formData: FormDat
 
 export async function addRepairLog(_state: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const payload = repairLogSchema.parse({
       unit_id: value(formData, "unit_id"),
+      log_type: value(formData, "log_type"),
       repair_date: value(formData, "repair_date"),
       odometer: value(formData, "odometer"),
       description: value(formData, "description"),
@@ -147,7 +148,7 @@ export async function deleteFleetRecord(
   void _state;
 
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const { error } = await supabase.from(table).delete().eq("id", recordId).eq("unit_id", unitId);
     if (error) return errorState(error, "Could not delete record.");
     revalidatePath(`/fleet/${unitId}`);
