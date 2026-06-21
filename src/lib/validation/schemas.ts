@@ -1,15 +1,26 @@
 import { z } from "zod";
-import { documentCategories, loadStatuses, unitTypes } from "@/types/database";
+import { documentCategories, loadStatuses, maintenanceReminderTypes, repairLogTypes, unitTypes } from "@/types/database";
 
 const money = z.coerce.number().min(0).default(0);
 const optionalText = z.string().trim().transform((value) => (value === "" ? null : value));
 const optionalUuid = z.string().transform((value) => (value === "" ? null : value)).nullable();
 const optionalDate = z.string().transform((value) => (value === "" ? null : value)).nullable();
+const requiredDate = z.string().date("Enter a valid date");
 const optionalOdometer = z
   .string()
   .trim()
   .transform((value) => (value === "" ? null : Math.trunc(Number(value))))
   .refine((value) => value === null || (Number.isFinite(value) && value >= 0), "Odometer must be a positive number");
+const optionalPositiveInteger = z
+  .string()
+  .trim()
+  .transform((value) => (value === "" ? null : Math.trunc(Number(value))))
+  .refine((value) => value === null || (Number.isFinite(value) && value > 0), "Enter a number greater than zero");
+const optionalNonNegativeInteger = z
+  .string()
+  .trim()
+  .transform((value) => (value === "" ? null : Math.trunc(Number(value))))
+  .refine((value) => value === null || (Number.isFinite(value) && value >= 0), "Enter zero or a positive number");
 
 export const loadSchema = z.object({
   load_number: z.string().trim().min(1, "Load number is required"),
@@ -100,9 +111,33 @@ export const inspectionRecordSchema = z.object({
 
 export const repairLogSchema = z.object({
   unit_id: z.string().uuid(),
+  log_type: z.enum(repairLogTypes),
   repair_date: optionalDate,
   odometer: optionalOdometer,
   description: z.string().trim().min(1, "Description is required"),
   cost: money,
   notes: optionalText,
+});
+
+export const maintenanceReminderSchema = z.object({
+  unit_id: z.string().uuid(),
+  reminder_type: z.enum(maintenanceReminderTypes),
+  due_date: optionalDate,
+  due_odometer: optionalOdometer,
+  interval_days: optionalPositiveInteger,
+  interval_miles: optionalPositiveInteger,
+  warning_days: optionalNonNegativeInteger,
+  warning_miles: optionalNonNegativeInteger,
+  notes: optionalText,
+});
+
+export const maintenanceCompletionSchema = z.object({
+  completed_date: requiredDate,
+  odometer: optionalOdometer,
+  cost: money,
+  notes: optionalText,
+});
+
+export const maintenanceSnoozeSchema = z.object({
+  snoozed_until: requiredDate,
 });

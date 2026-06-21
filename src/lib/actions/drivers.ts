@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import { errorState, successState, type ActionState } from "@/lib/actions/state";
 import { driverSchema } from "@/lib/validation/schemas";
 
@@ -18,7 +18,7 @@ function payload(formData: FormData) {
 
 export async function createDriver(_state: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const { error } = await supabase.from("drivers").insert(payload(formData));
     if (error) return errorState(error, "Could not add driver.");
     revalidatePath("/drivers");
@@ -30,7 +30,7 @@ export async function createDriver(_state: ActionState, formData: FormData): Pro
 
 export async function updateDriver(driverId: string, _state: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const { error } = await supabase.from("drivers").update(payload(formData)).eq("id", driverId);
     if (error) return errorState(error, "Could not save driver.");
     revalidatePath("/drivers");
@@ -44,7 +44,7 @@ export async function deleteDriver(driverId: string, _state: ActionState): Promi
   void _state;
 
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const { error } = await supabase.from("drivers").delete().eq("id", driverId);
     if (error) return errorState(error, "Could not delete driver.");
     revalidatePath("/drivers");

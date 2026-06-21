@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
+import { MaintenanceReminderCard } from "@/components/maintenance-reminder-card";
+import { MaintenanceReminderForm } from "@/components/maintenance-reminder-form";
 import { Field, Input, Select, Textarea } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import {
@@ -11,9 +13,11 @@ import {
   deleteUnit,
   updateUnit,
 } from "@/lib/actions/fleet";
+import { addMaintenanceReminder } from "@/lib/actions/maintenance";
 import { getUnit, getUnitRecords } from "@/lib/data/fleet";
+import { classifyMaintenanceReminder, type MaintenanceAlert } from "@/lib/maintenance";
 import { currency, formatDate } from "@/lib/utils";
-import { unitTypes } from "@/types/database";
+import { repairLogTypes, unitTypes } from "@/types/database";
 
 function odometer(value: number | null) {
   return value != null ? `${value.toLocaleString()} mi` : null;
@@ -42,6 +46,15 @@ export default async function UnitDetailPage({
   const { edit } = await searchParams;
   const isEditing = edit === "1";
   const [unit, records] = await Promise.all([getUnit(id), getUnitRecords(id)]);
+  const reminderUnit = { id: unit.id, unit_number: unit.unit_number, unit_type: unit.unit_type, odometer: unit.odometer };
+  const activeReminders = records.reminders
+    .filter((reminder) => !reminder.completed_at)
+    .map((reminder) => ({
+      ...reminder,
+      unit: reminderUnit,
+      ...classifyMaintenanceReminder(reminder, unit.odometer),
+    } satisfies MaintenanceAlert));
+  const completedReminders = records.reminders.filter((reminder) => reminder.completed_at);
 
   return (
     <div className="space-y-6">
@@ -121,6 +134,40 @@ export default async function UnitDetailPage({
           </div>
         )}
       </section>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-950">Maintenance schedules</h2>
+            <p className="text-sm text-zinc-600">Automatic date and mileage reminders for this unit.</p>
+          </div>
+          <Link href={`/maintenance?unit=${id}`} className="text-sm font-medium text-zinc-950 underline">View in Maintenance</Link>
+        </div>
+        <AddRecord label="Add schedule">
+          <MaintenanceReminderForm action={addMaintenanceReminder} unitId={id} unitType={unit.unit_type} submitLabel="Add schedule" />
+        </AddRecord>
+        <div className="grid gap-4 border-t border-zinc-100 pt-4">
+          {activeReminders.map((reminder) => <MaintenanceReminderCard key={reminder.id} alert={reminder} />)}
+          {!activeReminders.length ? <p className="py-4 text-sm text-zinc-500">No active maintenance schedules.</p> : null}
+        </div>
+      </section>
+
+      {completedReminders.length ? (
+        <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-zinc-950">Completed schedule activity</h2>
+          <div className="mt-3 divide-y divide-zinc-100">
+            {completedReminders.map((reminder) => (
+              <div key={reminder.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm">
+                <div>
+                  <div className="font-medium text-zinc-900">{reminder.reminder_type}</div>
+                  <div className="text-xs text-zinc-500">Completed {reminder.completed_at ? new Date(reminder.completed_at).toLocaleString() : ""}</div>
+                </div>
+                <div className="text-right text-xs text-zinc-500">by {reminder.completed_by_email ?? "authenticated user"}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className="pt-1">
         <h2 className="text-xl font-semibold text-zinc-950">Maintenance history</h2>
@@ -206,12 +253,17 @@ export default async function UnitDetailPage({
       <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-zinc-950">
-            Repairs <span className="text-sm font-normal text-zinc-500">({records.repairs.length})</span>
+            Repairs & daily logs <span className="text-sm font-normal text-zinc-500">({records.repairs.length})</span>
           </h2>
         </div>
-        <AddRecord label="Add repair">
+        <AddRecord label="Add repair / daily log">
             <ActionForm action={addRepairLog} className="grid gap-3 md:grid-cols-4">
               <input type="hidden" name="unit_id" value={id} />
+              <Field label="Entry type">
+                <Select name="log_type" required defaultValue="Repair">
+                  {repairLogTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                </Select>
+              </Field>
               <Field label="Date"><Input type="date" name="repair_date" /></Field>
               <Field label="Odometer"><Input type="number" min="0" name="odometer" /></Field>
               <Field label="Cost"><Input type="number" min="0" step="0.01" name="cost" /></Field>
@@ -224,7 +276,10 @@ export default async function UnitDetailPage({
           {records.repairs.map((record) => (
             <div key={record.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
               <div>
-                <div className="font-medium text-zinc-950">{record.description}</div>
+                <div className="flex flex-wrap items-center gap-2 font-medium text-zinc-950">
+                  {record.description}
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-normal text-zinc-600">{record.log_type}</span>
+                </div>
                 <div className="mt-1 text-xs text-zinc-500">
                   {formatDate(record.repair_date)}
                   {odometer(record.odometer) ? ` · ${odometer(record.odometer)}` : ""}
@@ -237,7 +292,7 @@ export default async function UnitDetailPage({
               </ActionForm>
             </div>
           ))}
-          {!records.repairs.length ? <p className="py-4 text-sm text-zinc-500">No repair logs yet.</p> : null}
+          {!records.repairs.length ? <p className="py-4 text-sm text-zinc-500">No repairs or daily logs yet.</p> : null}
         </div>
       </section>
     </div>

@@ -1,0 +1,41 @@
+name: Encrypted database backup
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Verify backup secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          test -n "$DATABASE_URL" || (echo "DATABASE_URL is not configured" && exit 1)
+          test -n "$BACKUP_ENCRYPTION_KEY" || (echo "BACKUP_ENCRYPTION_KEY is not configured" && exit 1)
+
+      - name: Create encrypted PostgreSQL backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          backup="dispatchdesk-$(date -u +%Y%m%dT%H%M%SZ).dump.enc"
+          pg_dump "$DATABASE_URL" --format=custom --no-owner --no-privileges \
+            | openssl enc -aes-256-cbc -salt -pbkdf2 -pass env:BACKUP_ENCRYPTION_KEY -out "$backup"
+          test -s "$backup"
+          echo "BACKUP_FILE=$backup" >> "$GITHUB_ENV"
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatchdesk-database-${{ github.run_id }}
+          path: ${{ env.BACKUP_FILE }}
+          if-no-files-found: error
+          retention-days: 14

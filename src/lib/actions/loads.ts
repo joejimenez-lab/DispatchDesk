@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { errorState, successState, type ActionState } from "@/lib/actions/state";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import { documentSchema, loadSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
 import { loadStatuses, type Database, type LoadStatus } from "@/types/database";
 
@@ -60,7 +60,7 @@ export async function createLoad(_state: ActionState, formData: FormData): Promi
   let loadId: string;
 
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const payload = loadPayload(formData);
 
     const { data, error } = await supabase.from("loads").insert(payload).select("id").single();
@@ -77,7 +77,7 @@ export async function createLoad(_state: ActionState, formData: FormData): Promi
 
 export async function updateLoad(loadId: string, _state: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const load = loadPayload(formData);
     const payment = paymentPayload(formData);
 
@@ -101,7 +101,7 @@ export async function updateLoad(loadId: string, _state: ActionState, formData: 
 }
 
 export async function updatePaymentFlag(loadId: string, flag: PaymentFlag, paid: boolean) {
-  const supabase = await createClient();
+  const { supabase } = await createAuthenticatedClient();
   const { data: load, error: loadError } = await supabase
     .from("loads")
     .select("load_rate, driver_pay, dispatcher_fee, payments(*)")
@@ -155,7 +155,7 @@ export async function updateLoadStatus(loadId: string, status: LoadStatus): Prom
     return errorState(new Error("Invalid load status."), "Could not update status.");
   }
 
-  const supabase = await createClient();
+  const { supabase } = await createAuthenticatedClient();
   const { error } = await supabase
     .from("loads")
     .update({ status: status as LoadStatus })
@@ -173,7 +173,7 @@ export async function deleteLoad(loadId: string, _state: ActionState): Promise<A
   void _state;
 
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const { data: docs } = await supabase.from("documents").select("storage_path").eq("load_id", loadId);
     if (docs?.length) {
       await supabase.storage.from("load-documents").remove(docs.map((doc) => doc.storage_path));
@@ -192,7 +192,7 @@ export async function deleteLoad(loadId: string, _state: ActionState): Promise<A
 
 export async function addNote(_state: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     const payload = noteSchema.parse({
       load_id: value(formData, "load_id"),
       note_text: value(formData, "note_text"),
@@ -211,7 +211,7 @@ export async function addNote(_state: ActionState, formData: FormData): Promise<
 
 export async function uploadDocument(_state: ActionState, formData: FormData): Promise<ActionState> {
   let storagePath = "";
-  const supabase = await createClient();
+  const { supabase } = await createAuthenticatedClient();
 
   try {
     const parsed = documentSchema.parse({
@@ -259,7 +259,7 @@ export async function deleteDocument(documentId: string, loadId: string, storage
   void _state;
 
   try {
-    const supabase = await createClient();
+    const { supabase } = await createAuthenticatedClient();
     await supabase.storage.from("load-documents").remove([storagePath]);
 
     const { error } = await supabase.from("documents").delete().eq("id", documentId);
@@ -274,7 +274,7 @@ export async function deleteDocument(documentId: string, loadId: string, storage
 }
 
 export async function getDocumentUrl(storagePath: string) {
-  const supabase = await createClient();
+  const { supabase } = await createAuthenticatedClient();
   const { data, error } = await supabase.storage
     .from("load-documents")
     .createSignedUrl(storagePath, 60);

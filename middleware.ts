@@ -24,12 +24,13 @@ export async function middleware(request: NextRequest) {
   );
 
   const isLogin = request.nextUrl.pathname.startsWith("/login");
+  const isHealthCheck = request.nextUrl.pathname === "/api/health";
 
   const {
     data: { user },
   } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
 
-  if (!user && !isLogin) {
+  if (!user && !isLogin && !isHealthCheck) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

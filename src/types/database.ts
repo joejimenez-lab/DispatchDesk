@@ -42,6 +42,26 @@ export type UnitType = "Truck" | "Trailer";
 
 export const unitTypes: UnitType[] = ["Truck", "Trailer"];
 
+export type MaintenanceReminderType =
+  | "Monthly service"
+  | "90-day inspection"
+  | "Annual inspection"
+  | "Oil change"
+  | "Repair follow-up"
+  | "Daily repair log";
+
+export type RepairLogType = "Repair" | "Daily repair log";
+
+export const repairLogTypes: RepairLogType[] = ["Repair", "Daily repair log"];
+
+export const maintenanceReminderTypes: MaintenanceReminderType[] = [
+  "Monthly service",
+  "90-day inspection",
+  "Annual inspection",
+  "Oil change",
+  "Repair follow-up",
+];
+
 export type Database = {
   public: {
     Tables: {
@@ -354,6 +374,7 @@ export type Database = {
           repair_date: string | null;
           odometer: number | null;
           description: string;
+          log_type: RepairLogType;
           cost: number;
           notes: string | null;
           created_at: string;
@@ -363,6 +384,7 @@ export type Database = {
           repair_date?: string | null;
           odometer?: number | null;
           description: string;
+          log_type?: RepairLogType;
           cost?: number;
           notes?: string | null;
         };
@@ -377,9 +399,74 @@ export type Database = {
           },
         ];
       };
+      maintenance_reminders: {
+        Row: {
+          id: string;
+          unit_id: string;
+          reminder_type: MaintenanceReminderType;
+          due_date: string | null;
+          due_odometer: number | null;
+          interval_days: number | null;
+          interval_miles: number | null;
+          warning_days: number;
+          warning_miles: number;
+          notes: string | null;
+          snoozed_until: string | null;
+          completed_at: string | null;
+          completed_by: string | null;
+          completed_by_email: string | null;
+          completion_record_table: "service_records" | "inspection_records" | "repair_logs" | null;
+          completion_record_id: string | null;
+          created_by: string | null;
+          created_by_email: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          unit_id: string;
+          reminder_type: MaintenanceReminderType;
+          due_date?: string | null;
+          due_odometer?: number | null;
+          interval_days?: number | null;
+          interval_miles?: number | null;
+          warning_days?: number;
+          warning_miles?: number;
+          notes?: string | null;
+          snoozed_until?: string | null;
+          completed_at?: string | null;
+          completed_by?: string | null;
+          completed_by_email?: string | null;
+          completion_record_table?: "service_records" | "inspection_records" | "repair_logs" | null;
+          completion_record_id?: string | null;
+          created_by?: string | null;
+          created_by_email?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["maintenance_reminders"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_reminders_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "fleet_units";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      complete_maintenance_reminder: {
+        Args: {
+          p_reminder_id: string;
+          p_completed_date?: string;
+          p_odometer?: number | null;
+          p_notes?: string | null;
+          p_cost?: number;
+        };
+        Returns: string | null;
+      };
+    };
     Enums: {
       load_status: LoadStatus;
       document_category: DocumentCategory;

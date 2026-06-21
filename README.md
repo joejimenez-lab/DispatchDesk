@@ -5,9 +5,11 @@ Local full-stack truck dispatcher/load management application built with Next.js
 ## Features
 
 - Email/password admin login through Supabase Auth
-- Dashboard metrics for active, delivered, unpaid, closed, revenue, pending payments, operational status mix, current loads, and upcoming deliveries
+- Dashboard metrics for active, delivered, unpaid, closed, revenue, pending payments, operational status mix, current loads, upcoming deliveries, and maintenance due alerts
 - Load CRUD with broker, driver, lane, operational status, financial fields, and notes
 - Fuel cost tracking and profit calculation per load
+- Fleet maintenance reminders for monthly truck service, 90-day and annual inspections, oil changes, and repair follow-ups, plus manual daily repair-log history
+- Automatic date/mileage recurrence, maintenance completion history, audit attribution, snoozing, and overdue/due-soon/upcoming maintenance views
 - Driver and broker management
 - Invoice, client payment, driver payment, and dispatcher fee tracking
 - Private document uploads per load through Supabase Storage
@@ -65,5 +67,8 @@ Local full-stack truck dispatcher/load management application built with Next.js
 
 ```bash
 npm run lint
+npm test
 npm run build
 ```
+
+Production backup, health-check, logging, and error-monitoring setup is documented in [`docs/production-operations.md`](docs/production-operations.md).
