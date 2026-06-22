@@ -26,6 +26,23 @@ export async function getUnits(q?: string) {
   return (data ?? []) as UnitRow[];
 }
 
+export async function getFleetCompanies() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("fleet_units")
+    .select("company")
+    .not("company", "is", null)
+    .order("company");
+
+  if (error) throw error;
+
+  const companies = (data ?? [])
+    .map((row) => row.company?.trim())
+    .filter((company): company is string => Boolean(company));
+
+  return [...new Map(companies.map((company) => [company.toLocaleLowerCase(), company])).values()];
+}
+
 export async function getUnit(unitId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

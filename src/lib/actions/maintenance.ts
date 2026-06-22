@@ -161,13 +161,15 @@ export async function clearMaintenanceSnooze(
   void _state;
   try {
     const { supabase, user } = await createAuthenticatedClient();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("maintenance_reminders")
       .update({ snoozed_until: null })
       .eq("id", reminderId)
       .eq("unit_id", unitId)
-      .is("completed_at", null);
-    if (error) return errorState(error, "Could not restore reminder.");
+      .is("completed_at", null)
+      .select("id")
+      .single();
+    if (error || !data) return errorState(error, "Active maintenance reminder not found.");
     logInfo("maintenance.schedule.snooze_cleared", { reminderId, unitId, userId: user.id });
     revalidateMaintenance(unitId);
     return successState("Reminder restored.");
@@ -192,7 +194,7 @@ export async function completeMaintenanceReminder(
     });
     const { data: reminder, error: reminderError } = await supabase
       .from("maintenance_reminders")
-      .select("interval_miles, fleet_units(odometer)")
+      .select("interval_days, interval_miles, fleet_units(odometer)")
       .eq("id", reminderId)
       .eq("unit_id", unitId)
       .is("completed_at", null)
@@ -204,7 +206,7 @@ export async function completeMaintenanceReminder(
       return errorState(new Error("Enter the current odometer to schedule the next mileage reminder."));
     }
 
-    const { error } = await supabase.rpc("complete_maintenance_reminder", {
+    const { data: nextReminderId, error } = await supabase.rpc("complete_maintenance_reminder", {
       p_reminder_id: reminderId,
       p_completed_date: payload.completed_date,
       p_odometer: payload.odometer,
@@ -214,7 +216,9 @@ export async function completeMaintenanceReminder(
     if (error) return errorState(error, "Could not complete maintenance.");
     logInfo("maintenance.completed", { reminderId, unitId, userId: user.id });
     revalidateMaintenance(unitId);
-    return successState("Maintenance completed and the next occurrence was scheduled.");
+    return successState(nextReminderId
+      ? "Maintenance completed and the next occurrence was scheduled."
+      : "Maintenance completed.");
   } catch (error) {
     return errorState(error, "Could not complete maintenance.");
   }
@@ -228,13 +232,15 @@ export async function deleteMaintenanceReminder(
   void _state;
   try {
     const { supabase, user } = await createAuthenticatedClient();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("maintenance_reminders")
       .delete()
       .eq("id", reminderId)
       .eq("unit_id", unitId)
-      .is("completed_at", null);
-    if (error) return errorState(error, "Could not delete maintenance schedule.");
+      .is("completed_at", null)
+      .select("id")
+      .single();
+    if (error || !data) return errorState(error, "Active maintenance reminder not found.");
     logInfo("maintenance.schedule.deleted", { reminderId, unitId, userId: user.id });
     revalidateMaintenance(unitId);
     return successState("Maintenance schedule deleted.");

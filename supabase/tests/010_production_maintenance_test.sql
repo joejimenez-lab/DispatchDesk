@@ -1,6 +1,6 @@
 begin;
 
-select plan(17);
+select plan(19);
 
 select has_table('public', 'maintenance_reminders', 'maintenance reminders table exists');
 select has_column('public', 'maintenance_reminders', 'due_odometer', 'mileage targets are stored');
@@ -110,6 +110,21 @@ select is(
   (select completed_by_email from public.maintenance_reminders where reminder_type = 'Oil change' and completed_at is not null),
   'issue6-test@example.com',
   'completion records who performed it'
+);
+
+select lives_ok(
+  $$
+    insert into public.service_records (unit_id, service_date, odometer, description)
+    select id, current_date, 110000, 'Manual odometer synchronization test'
+    from public.fleet_units where unit_number = 'ISSUE-6-PGTAP'
+  $$,
+  'manual maintenance history can include a newer odometer reading'
+);
+
+select is(
+  (select odometer from public.fleet_units where unit_number = 'ISSUE-6-PGTAP'),
+  110000,
+  'manual maintenance history advances the fleet unit odometer'
 );
 
 reset role;
