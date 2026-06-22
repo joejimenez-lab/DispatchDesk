@@ -25,6 +25,13 @@ function unitPayload(formData: FormData) {
   });
 }
 
+function revalidateFleetMaintenance(unitId: string) {
+  revalidatePath("/dashboard");
+  revalidatePath("/maintenance");
+  revalidatePath("/fleet");
+  revalidatePath(`/fleet/${unitId}`);
+}
+
 export async function createUnit(_state: ActionState, formData: FormData): Promise<ActionState> {
   let unitId: string;
 
@@ -87,7 +94,7 @@ export async function addServiceRecord(_state: ActionState, formData: FormData):
 
     const { error } = await supabase.from("service_records").insert(payload);
     if (error) return errorState(error, "Could not add service record.");
-    revalidatePath(`/fleet/${payload.unit_id}`);
+    revalidateFleetMaintenance(payload.unit_id);
     return successState("Service record added.");
   } catch (error) {
     return errorState(error, "Could not add service record.");
@@ -108,7 +115,7 @@ export async function addInspectionRecord(_state: ActionState, formData: FormDat
 
     const { error } = await supabase.from("inspection_records").insert(payload);
     if (error) return errorState(error, "Could not add inspection record.");
-    revalidatePath(`/fleet/${payload.unit_id}`);
+    revalidateFleetMaintenance(payload.unit_id);
     return successState("Inspection record added.");
   } catch (error) {
     return errorState(error, "Could not add inspection record.");
@@ -130,7 +137,7 @@ export async function addRepairLog(_state: ActionState, formData: FormData): Pro
 
     const { error } = await supabase.from("repair_logs").insert(payload);
     if (error) return errorState(error, "Could not add repair log.");
-    revalidatePath(`/fleet/${payload.unit_id}`);
+    revalidateFleetMaintenance(payload.unit_id);
     return successState("Repair log added.");
   } catch (error) {
     return errorState(error, "Could not add repair log.");

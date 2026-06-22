@@ -4,6 +4,8 @@ import {
   calculateNextTargets,
   classifyMaintenanceReminder,
   getDashboardMaintenanceSummary,
+  localDateString,
+  maintenanceRecurrenceLabel,
   sortMaintenanceAlerts,
   maintenanceTypesForUnit,
   type MaintenanceAlert,
@@ -12,6 +14,11 @@ import {
 const today = "2026-06-20";
 
 describe("maintenance recurrence", () => {
+  it("uses the Pacific business date instead of the server timezone", () => {
+    expect(localDateString(new Date("2026-06-21T06:30:00Z"))).toBe("2026-06-20");
+    expect(localDateString(new Date("2026-06-21T08:30:00Z"))).toBe("2026-06-21");
+  });
+
   it.each([
     ["Monthly service", "2026-07-20", 30],
     ["90-day inspection", "2026-09-18", 90],
@@ -84,6 +91,13 @@ describe("maintenance recurrence", () => {
     })).toEqual({ dueDate: "2026-09-18", dueOdometer: 130_000 });
   });
 
+  it("labels one-time, date, mileage, and combined recurrence correctly", () => {
+    expect(maintenanceRecurrenceLabel({ interval_days: null, interval_miles: null })).toBe("One time");
+    expect(maintenanceRecurrenceLabel({ interval_days: 30, interval_miles: null })).toBe("30 days");
+    expect(maintenanceRecurrenceLabel({ interval_days: null, interval_miles: 5_000 })).toBe("5,000 mi");
+    expect(maintenanceRecurrenceLabel({ interval_days: 90, interval_miles: 5_000 })).toBe("90 days · 5,000 mi");
+  });
+
   it("keeps truck-only schedules and daily logs out of trailer reminder options", () => {
     expect(maintenanceTypesForUnit("Truck")).toContain("Monthly service");
     expect(maintenanceTypesForUnit("Truck")).toContain("Oil change");
@@ -153,7 +167,7 @@ describe("dashboard maintenance summary", () => {
     return { status, snoozed } as MaintenanceAlert;
   }
 
-  it("counts every active status while hiding upcoming and snoozed dashboard cards", () => {
+  it("excludes snoozed reminders from actionable counts and dashboard cards", () => {
     const alerts = sortMaintenanceAlerts([
       alert("upcoming"),
       alert("due-soon"),
@@ -161,7 +175,7 @@ describe("dashboard maintenance summary", () => {
       alert("overdue", true),
     ]);
     const summary = getDashboardMaintenanceSummary(alerts);
-    expect(summary.counts).toEqual({ overdue: 2, "due-soon": 1, upcoming: 1 });
+    expect(summary.counts).toEqual({ overdue: 1, "due-soon": 1, upcoming: 1 });
     expect(summary.visible.map((item) => item.status)).toEqual(["overdue", "due-soon"]);
   });
 

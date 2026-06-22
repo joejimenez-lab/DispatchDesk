@@ -1,14 +1,36 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
+import { CompanyFleetField } from "@/components/company-fleet-field";
 import { Field, Input, Select, Textarea } from "@/components/field";
 import { SubmitButton } from "@/components/form-buttons";
 import { createUnit } from "@/lib/actions/fleet";
-import { getUnits } from "@/lib/data/fleet";
+import { getFleetCompanies, getUnits } from "@/lib/data/fleet";
+import { getMaintenanceAlerts } from "@/lib/data/maintenance";
 import { unitTypes, type Database } from "@/types/database";
 
 type Unit = Database["public"]["Tables"]["fleet_units"]["Row"];
+type MaintenanceCounts = { overdue: number; dueSoon: number; upcoming: number; snoozed: number };
 
-function UnitGroup({ title, units }: { title: string; units: Unit[] }) {
+const emptyMaintenanceCounts = (): MaintenanceCounts => ({ overdue: 0, dueSoon: 0, upcoming: 0, snoozed: 0 });
+
+function MaintenanceSummary({ counts }: { counts: MaintenanceCounts }) {
+  const total = counts.overdue + counts.dueSoon + counts.upcoming + counts.snoozed;
+
+  return (
+    <div>
+      <div className="text-xs text-zinc-500">Maintenance</div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {counts.overdue ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">{counts.overdue} overdue</span> : null}
+        {counts.dueSoon ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">{counts.dueSoon} due soon</span> : null}
+        {counts.upcoming ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">{counts.upcoming} upcoming</span> : null}
+        {counts.snoozed ? <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">{counts.snoozed} snoozed</span> : null}
+        {!total ? <span className="text-sm font-medium text-zinc-500">No alerts</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function UnitGroup({ title, units, maintenanceByUnit }: { title: string; units: Unit[]; maintenanceByUnit: Map<string, MaintenanceCounts> }) {
   return (
     <section className="space-y-3">
       <div className="flex items-end justify-between gap-3">
@@ -26,9 +48,15 @@ function UnitGroup({ title, units }: { title: string; units: Unit[] }) {
               className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Unit</div>
-                  <div className="mt-1 text-xl font-semibold text-zinc-950">{unit.unit_number}</div>
+                <div className="flex min-w-0 gap-6">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Company / Fleet</div>
+                    <div className="mt-1 truncate text-xl font-semibold text-zinc-950">{unit.company ?? "Not set"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Unit</div>
+                    <div className="mt-1 text-xl font-semibold text-zinc-950">{unit.unit_number}</div>
+                  </div>
                 </div>
                 <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600">
                   {unit.unit_type}
@@ -36,15 +64,12 @@ function UnitGroup({ title, units }: { title: string; units: Unit[] }) {
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3 border-t border-zinc-100 pt-4">
                 <div>
-                  <div className="text-xs text-zinc-500">Company / Fleet</div>
-                  <div className="mt-1 truncate text-sm font-medium text-zinc-800">{unit.company ?? "Not set"}</div>
-                </div>
-                <div>
                   <div className="text-xs text-zinc-500">Odometer</div>
                   <div className="mt-1 text-sm font-medium text-zinc-800">
                     {unit.odometer != null ? `${unit.odometer.toLocaleString()} mi` : "Not set"}
                   </div>
                 </div>
+                <MaintenanceSummary counts={maintenanceByUnit.get(unit.id) ?? emptyMaintenanceCounts()} />
               </div>
               <div className="mt-4 text-sm font-medium text-zinc-500 transition group-hover:text-zinc-950">
                 View unit <span aria-hidden="true">→</span>
@@ -67,7 +92,16 @@ export default async function FleetPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const params = await searchParams;
-  const units = await getUnits(params.q);
+  const [units, companies, maintenanceAlerts] = await Promise.all([getUnits(params.q), getFleetCompanies(), getMaintenanceAlerts()]);
+  const maintenanceByUnit = maintenanceAlerts.reduce((byUnit, alert) => {
+    const counts = byUnit.get(alert.unit_id) ?? emptyMaintenanceCounts();
+    if (alert.snoozed) counts.snoozed += 1;
+    else if (alert.status === "overdue") counts.overdue += 1;
+    else if (alert.status === "due-soon") counts.dueSoon += 1;
+    else counts.upcoming += 1;
+    byUnit.set(alert.unit_id, counts);
+    return byUnit;
+  }, new Map<string, MaintenanceCounts>());
   const trucks = units.filter((unit) => unit.unit_type === "Truck");
   const trailers = units.filter((unit) => unit.unit_type === "Trailer");
 
@@ -84,13 +118,13 @@ export default async function FleetPage({
             <span className="hidden group-open:inline">Cancel</span>
           </summary>
           <ActionForm action={createUnit} className="grid gap-4 md:grid-cols-3">
+            <CompanyFleetField companies={companies} />
             <Field label="Unit Number"><Input name="unit_number" required /></Field>
             <Field label="Unit Type">
               <Select name="unit_type" defaultValue="Truck">
                 {unitTypes.map((type) => <option key={type} value={type}>{type}</option>)}
               </Select>
             </Field>
-            <Field label="Company / Fleet"><Input name="company" /></Field>
             <Field label="Odometer"><Input type="number" min="0" name="odometer" /></Field>
             <Field label="Notes" className="md:col-span-3"><Textarea name="notes" /></Field>
             <SubmitButton className="md:w-fit" pendingText="Adding...">Add unit</SubmitButton>
@@ -127,8 +161,8 @@ export default async function FleetPage({
         ) : null}
       </form>
 
-      <UnitGroup title="Trucks" units={trucks} />
-      <UnitGroup title="Trailers" units={trailers} />
+      <UnitGroup title="Trucks" units={trucks} maintenanceByUnit={maintenanceByUnit} />
+      <UnitGroup title="Trailers" units={trailers} maintenanceByUnit={maintenanceByUnit} />
     </div>
   );
 }

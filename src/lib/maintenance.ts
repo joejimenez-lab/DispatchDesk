@@ -2,6 +2,14 @@ import { maintenanceReminderTypes, type Database, type MaintenanceReminderType, 
 
 export const DEFAULT_WARNING_DAYS = 30;
 export const DEFAULT_WARNING_MILES = 500;
+export const BUSINESS_TIME_ZONE = "America/Los_Angeles";
+
+const businessDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: BUSINESS_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 export type MaintenanceStatus = "overdue" | "due-soon" | "upcoming";
 export type MaintenanceReminderRow = Database["public"]["Tables"]["maintenance_reminders"]["Row"];
@@ -20,21 +28,18 @@ export type MaintenanceAlert = MaintenanceReminderRow & {
 };
 
 export function localDateString(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return businessDateFormatter.format(date);
 }
 
 export function addDays(date: string, days: number) {
-  const value = new Date(`${date}T00:00:00`);
-  value.setDate(value.getDate() + days);
-  return localDateString(value);
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
 }
 
 export function daysBetween(from: string, to: string) {
-  const start = new Date(`${from}T00:00:00`).getTime();
-  const end = new Date(`${to}T00:00:00`).getTime();
+  const start = new Date(`${from}T00:00:00Z`).getTime();
+  const end = new Date(`${to}T00:00:00Z`).getTime();
   return Math.round((end - start) / 86_400_000);
 }
 
@@ -112,6 +117,21 @@ export function calculateNextTargets({
   };
 }
 
+export function maintenanceRecurrenceLabel(
+  reminder: Pick<MaintenanceReminderRow, "interval_days" | "interval_miles">,
+) {
+  const intervals = [];
+  if (reminder.interval_days) intervals.push(`${reminder.interval_days} days`);
+  if (reminder.interval_miles) intervals.push(`${reminder.interval_miles.toLocaleString()} mi`);
+  return intervals.length ? intervals.join(" · ") : "One time";
+}
+
+export function maintenanceWillRepeat(
+  reminder: Pick<MaintenanceReminderRow, "interval_days" | "interval_miles">,
+) {
+  return reminder.interval_days != null || reminder.interval_miles != null;
+}
+
 export function classifyMaintenanceReminder(
   reminder: Pick<MaintenanceReminderRow, "due_date" | "due_odometer" | "warning_days" | "warning_miles" | "snoozed_until">,
   unitOdometer: number | null,
@@ -150,7 +170,7 @@ export function sortMaintenanceAlerts(alerts: MaintenanceAlert[]) {
 export function getDashboardMaintenanceSummary(alerts: MaintenanceAlert[], limit = 8) {
   const counts = alerts.reduce(
     (result, reminder) => {
-      result[reminder.status] += 1;
+      if (!reminder.snoozed) result[reminder.status] += 1;
       return result;
     },
     { overdue: 0, "due-soon": 0, upcoming: 0 },

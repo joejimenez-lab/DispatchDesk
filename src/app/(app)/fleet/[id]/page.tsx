@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
+import { CompanyFleetField } from "@/components/company-fleet-field";
 import { MaintenanceReminderCard } from "@/components/maintenance-reminder-card";
 import { MaintenanceReminderForm } from "@/components/maintenance-reminder-form";
 import { Field, Input, Select, Textarea } from "@/components/field";
@@ -14,7 +15,7 @@ import {
   updateUnit,
 } from "@/lib/actions/fleet";
 import { addMaintenanceReminder } from "@/lib/actions/maintenance";
-import { getUnit, getUnitRecords } from "@/lib/data/fleet";
+import { getFleetCompanies, getUnit, getUnitRecords } from "@/lib/data/fleet";
 import { classifyMaintenanceReminder, type MaintenanceAlert } from "@/lib/maintenance";
 import { currency, formatDate } from "@/lib/utils";
 import { repairLogTypes, unitTypes } from "@/types/database";
@@ -45,7 +46,7 @@ export default async function UnitDetailPage({
   const { id } = await params;
   const { edit } = await searchParams;
   const isEditing = edit === "1";
-  const [unit, records] = await Promise.all([getUnit(id), getUnitRecords(id)]);
+  const [unit, records, companies] = await Promise.all([getUnit(id), getUnitRecords(id), getFleetCompanies()]);
   const reminderUnit = { id: unit.id, unit_number: unit.unit_number, unit_type: unit.unit_type, odometer: unit.odometer };
   const activeReminders = records.reminders
     .filter((reminder) => !reminder.completed_at)
@@ -91,13 +92,13 @@ export default async function UnitDetailPage({
           <div>
             <h2 className="mb-4 text-lg font-semibold text-zinc-950">Edit unit</h2>
             <ActionForm action={updateUnit.bind(null, id)} className="grid gap-4 md:grid-cols-3">
+              <CompanyFleetField companies={companies} defaultValue={unit.company ?? ""} />
               <Field label="Unit Number"><Input name="unit_number" required defaultValue={unit.unit_number} /></Field>
               <Field label="Unit Type">
                 <Select name="unit_type" defaultValue={unit.unit_type}>
                   {unitTypes.map((type) => <option key={type} value={type}>{type}</option>)}
                 </Select>
               </Field>
-              <Field label="Company / Fleet"><Input name="company" defaultValue={unit.company ?? ""} /></Field>
               <Field label="Odometer"><Input type="number" min="0" name="odometer" defaultValue={unit.odometer ?? ""} /></Field>
               <Field label="Notes" className="md:col-span-3"><Textarea name="notes" defaultValue={unit.notes ?? ""} /></Field>
               <SubmitButton variant="secondary" className="md:w-fit">Save changes</SubmitButton>

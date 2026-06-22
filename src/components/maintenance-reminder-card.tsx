@@ -11,7 +11,7 @@ import {
   snoozeMaintenanceReminder,
   updateMaintenanceReminder,
 } from "@/lib/actions/maintenance";
-import { addDays, localDateString, type MaintenanceAlert } from "@/lib/maintenance";
+import { addDays, localDateString, maintenanceRecurrenceLabel, maintenanceWillRepeat, type MaintenanceAlert } from "@/lib/maintenance";
 import { formatDate } from "@/lib/utils";
 
 const statusTone = {
@@ -67,7 +67,7 @@ export function MaintenanceReminderCard({ alert }: { alert: MaintenanceAlert }) 
           {alert.notes ? <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-600">{alert.notes}</p> : null}
         </div>
         <div className="text-right text-xs text-zinc-500">
-          <div>Repeat: {alert.interval_days ? `${alert.interval_days} days` : ""}{alert.interval_days && alert.interval_miles ? " · " : ""}{alert.interval_miles ? `${alert.interval_miles.toLocaleString()} mi` : "One time"}</div>
+          <div>Repeat: {maintenanceRecurrenceLabel(alert)}</div>
           <div className="mt-1">Created by {alert.created_by_email ?? "authenticated user"}</div>
         </div>
       </div>
@@ -82,7 +82,9 @@ export function MaintenanceReminderCard({ alert }: { alert: MaintenanceAlert }) 
               <Field label="Current odometer"><Input type="number" min="0" name="odometer" defaultValue={alert.unit.odometer ?? ""} /></Field>
               <Field label="Cost"><Input type="number" min="0" step="0.01" name="cost" defaultValue="0" /></Field>
               <Field label="Completion notes" className="sm:col-span-2"><Textarea name="notes" /></Field>
-              <SubmitButton className="sm:w-fit" pendingText="Completing...">Complete and schedule next</SubmitButton>
+              <SubmitButton className="sm:w-fit" pendingText="Completing...">
+                {maintenanceWillRepeat(alert) ? "Complete and schedule next" : "Complete maintenance"}
+              </SubmitButton>
             </ActionForm>
           </div>
         </details>

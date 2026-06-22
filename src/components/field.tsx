@@ -21,16 +21,16 @@ export function Field({
   );
 }
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(control, props.className)} {...props} />;
+export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className={cn(control, className)} />;
 }
 
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(control, props.className)} {...props} />;
+export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select {...props} className={cn(control, className)} />;
 }
 
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(control, "min-h-24 py-2", props.className)} {...props} />;
+export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea {...props} className={cn(control, "min-h-24 py-2", className)} />;
 }
 
 export function Checkbox({
