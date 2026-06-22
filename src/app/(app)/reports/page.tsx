@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Field, Input, Select } from "@/components/field";
+import { ExportMenu, type ExportMenuItem } from "@/components/export-menu";
 import { SummaryTotals, WeeklySummaryList } from "@/components/weekly-report";
 import { getFormOptions } from "@/lib/data/options";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
-import { LinkButton } from "@/components/button";
 
 const PERIODS: { value: WeeklyFinancialPeriod; label: string }[] = [
   { value: "this", label: "This week" },
@@ -29,6 +29,9 @@ export default async function ReportsPage({
   if (params.to) exportParams.set("to", params.to);
   if (params.driver) exportParams.set("driver", params.driver);
   const exportHref = `/api/reports/weekly/export?${exportParams.toString()}`;
+  const pdfExportHref = `/api/reports/weekly/pdf?${exportParams.toString()}`;
+  const filteredExportHref = (report: "weekly-payroll" | "weekly-financial") =>
+    `/api/reports/exports/${report}?${exportParams.toString()}`;
   const [{ summaries }, options] = await Promise.all([
     getWeeklyDriverFinancialSummary({
       period,
@@ -38,15 +41,51 @@ export default async function ReportsPage({
     }),
     getFormOptions(),
   ]);
+  const exports: ExportMenuItem[] = [
+    {
+      title: "Loads",
+      description: "Complete operational and payment detail for every load.",
+      formats: [{ label: "CSV", href: "/api/loads/export", type: "csv" }],
+    },
+    {
+      title: "Weekly driver payroll",
+      description: "Payroll totals by driver and week.",
+      formats: [{ label: "CSV", href: filteredExportHref("weekly-payroll"), type: "csv" }],
+    },
+    {
+      title: "Weekly financial report",
+      description: "Filtered revenue, costs, estimated profit, and load detail.",
+      formats: [
+        { label: "Summary CSV", href: filteredExportHref("weekly-financial"), type: "csv" },
+        { label: "Detailed CSV", href: exportHref, type: "csv" },
+        { label: "PDF", href: pdfExportHref, type: "pdf" },
+      ],
+    },
+    {
+      title: "Client billing",
+      description: "Invoice status, collections, and outstanding balances.",
+      formats: [{ label: "CSV", href: "/api/reports/exports/client-billing", type: "csv" }],
+    },
+    {
+      title: "Maintenance",
+      description: "Fleet service, inspection, repair, and reminder history.",
+      formats: [{ label: "CSV", href: "/api/reports/exports/maintenance", type: "csv" }],
+    },
+    {
+      title: "Yearly financial summary",
+      description: "Annual revenue, costs, load count, and estimated profit.",
+      formats: [{ label: "CSV", href: "/api/reports/exports/yearly-financial", type: "csv" }],
+    },
+  ];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">Reports</h1>
-          <p className="text-sm text-zinc-600">Weekly driver payroll and financial review.</p>
+          <p className="text-sm text-zinc-600">Financial review and business exports.</p>
         </div>
-        <LinkButton href={exportHref} variant="secondary">Export CSV</LinkButton>
+        <ExportMenu items={exports} />
       </div>
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-5">
