@@ -1,14 +1,31 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import {
+  getSupabaseConfig,
+  getVerifiedUser,
+  logAuthUnavailable,
+  missingSupabaseConfigResult,
+} from "@/lib/supabase/auth-state";
 
 export async function createAuthenticatedClient() {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  if (!getSupabaseConfig()) {
+    const result = missingSupabaseConfigResult();
+    logAuthUnavailable(result, { route: "createAuthenticatedClient", kind: "page" });
+    throw new Error("Authentication service unavailable.");
+  }
 
-  if (error || !user) {
+  const supabase = await createClient();
+  const auth = await getVerifiedUser(supabase);
+
+  if (auth.status === "unauthenticated") {
     throw new Error("Authentication required.");
   }
 
-  return { supabase, user };
+  if (auth.status === "unavailable") {
+    logAuthUnavailable(auth, { route: "createAuthenticatedClient", kind: "page" });
+    throw new Error("Authentication service unavailable.");
+  }
+
+  return { supabase, user: auth.user };
 }

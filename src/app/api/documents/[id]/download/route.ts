@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 import type { Database } from "@/types/database";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const url = new URL(request.url);
+  const auth = await createAuthenticatedRouteClient({
+    method: request.method,
+    path: url.pathname,
+    route: "/api/documents/[id]/download",
+    kind: "api",
+  });
+  if ("response" in auth) return auth.response;
 
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { supabase } = auth;
 
   const { data: document, error } = await supabase
     .from("documents")

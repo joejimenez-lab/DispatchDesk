@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { csvRow } from "@/lib/csv";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 import { clientCollected, clientOutstanding, profitForLoad } from "@/lib/financials";
 import { ilikeOr, searchTokens } from "@/lib/search";
 import type { LoadStatus } from "@/types/database";
@@ -47,16 +47,16 @@ type ExportLoad = {
 };
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(request.url);
+  const auth = await createAuthenticatedRouteClient({
+    method: request.method,
+    path: new URL(request.url).pathname,
+    route: "/api/loads/export",
+    kind: "api",
+  });
+  if ("response" in auth) return auth.response;
+
+  const { supabase } = auth;
   let query = supabase
     .from("loads")
     .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, carrier_company, notes, brokers(company_name, contact_name), drivers(name, truck_number, trailer_number), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")

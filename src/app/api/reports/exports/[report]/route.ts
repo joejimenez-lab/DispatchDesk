@@ -9,7 +9,7 @@ import {
   weeklyPayrollCsv,
   yearlyFinancialCsv,
 } from "@/lib/report-exports";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 
 const PERIODS: WeeklyFinancialPeriod[] = ["this", "last", "all", "custom"];
 const REPORTS = ["weekly-payroll", "weekly-financial", "client-billing", "maintenance", "yearly-financial"] as const;
@@ -33,18 +33,23 @@ function download(csv: string, report: Report) {
 type Unit = { unit_number: string; unit_type: string; company: string | null } | null;
 
 export async function GET(request: Request, { params }: { params: Promise<{ report: string }> }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const url = new URL(request.url);
+  const auth = await createAuthenticatedRouteClient({
+    method: request.method,
+    path: url.pathname,
+    route: "/api/reports/exports/[report]",
+    kind: "api",
+  });
+  if ("response" in auth) return auth.response;
+
+  const { supabase } = auth;
 
   const { report: rawReport } = await params;
   if (!REPORTS.includes(rawReport as Report)) {
     return NextResponse.json({ error: "Unknown report." }, { status: 404 });
   }
   const report = rawReport as Report;
-  const { searchParams } = new URL(request.url);
+  const { searchParams } = url;
 
   try {
     if (report === "weekly-payroll" || report === "weekly-financial") {

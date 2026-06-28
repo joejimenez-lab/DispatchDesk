@@ -1,14 +1,30 @@
 import { AppNav } from "@/components/app-nav";
+import { AuthUnavailablePanel } from "@/components/auth-unavailable-panel";
 import { createClient } from "@/lib/supabase/server";
+import {
+  getSupabaseConfig,
+  getVerifiedUser,
+  logAuthUnavailable,
+  missingSupabaseConfigResult,
+} from "@/lib/supabase/auth-state";
 import { redirect } from "next/navigation";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+  if (!getSupabaseConfig()) {
+    const result = missingSupabaseConfigResult();
+    logAuthUnavailable(result, { route: "(app)/layout", kind: "page" });
+    return <AuthUnavailablePanel />;
+  }
 
-  if (!user) redirect("/login");
+  const supabase = await createClient();
+  const auth = await getVerifiedUser(supabase);
+
+  if (auth.status === "unauthenticated") redirect("/login");
+
+  if (auth.status === "unavailable") {
+    logAuthUnavailable(auth, { route: "(app)/layout", kind: "page" });
+    return <AuthUnavailablePanel />;
+  }
 
   return (
     <>
