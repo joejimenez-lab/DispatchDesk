@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { classifyMaintenanceReminder, sortMaintenanceAlerts, type MaintenanceAlert } from "@/lib/maintenance";
 import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import type { Database } from "@/types/database";
@@ -51,6 +52,7 @@ export async function getMaintenanceReminder(reminderId: string) {
     .eq("id", reminderId)
     .single();
 
-  if (error || !data) notFound();
+  if (isMissingPostgrestRow(error) || (!error && !data)) notFound();
+  if (error) throw error;
   return mapMaintenanceAlerts([data as unknown])[0];
 }

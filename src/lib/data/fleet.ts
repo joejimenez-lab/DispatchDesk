@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { createClient } from "@/lib/supabase/server";
 import { ilikeOr, searchTokens } from "@/lib/search";
 import type { Database } from "@/types/database";
@@ -51,7 +52,8 @@ export async function getUnit(unitId: string) {
     .eq("id", unitId)
     .single();
 
-  if (error || !data) notFound();
+  if (isMissingPostgrestRow(error) || (!error && !data)) notFound();
+  if (error) throw error;
   return data as UnitRow;
 }
 
