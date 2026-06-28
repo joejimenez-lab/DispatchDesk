@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { createClient } from "@/lib/supabase/server";
 import { ilikeOr, searchTokens } from "@/lib/search";
 import type { Database, LoadStatus } from "@/types/database";
@@ -56,7 +57,8 @@ export async function getLoad(loadId: string) {
     .eq("id", loadId)
     .single();
 
-  if (error || !data) notFound();
+  if (isMissingPostgrestRow(error) || (!error && !data)) notFound();
+  if (error) throw error;
   return data as unknown as LoadDetail;
 }
 

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { LinkButton } from "@/components/button";
 import { Field, Input, Select } from "@/components/field";
 import { SummaryTotals, WeeklySummaryList } from "@/components/weekly-report";
+import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { createClient } from "@/lib/supabase/server";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
 
@@ -39,7 +40,8 @@ export default async function DriverReportPage({
     }),
   ]);
 
-  if (error || !driver) notFound();
+  if (isMissingPostgrestRow(error) || (!error && !driver)) notFound();
+  if (error) throw error;
 
   const exportParams = new URLSearchParams({ period, driver: id });
   if (query.from) exportParams.set("from", query.from);
