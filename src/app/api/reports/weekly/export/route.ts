@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { csvRow } from "@/lib/csv";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 
 const PERIODS: WeeklyFinancialPeriod[] = ["this", "last", "all", "custom"];
 
@@ -14,16 +14,16 @@ function filenameDate(value: string | null) {
 }
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const url = new URL(request.url);
+  const auth = await createAuthenticatedRouteClient({
+    method: request.method,
+    path: url.pathname,
+    route: "/api/reports/weekly/export",
+    kind: "api",
+  });
+  if ("response" in auth) return auth.response;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
+  const { searchParams } = url;
   const { summaries, range } = await getWeeklyDriverFinancialSummary({
     period: normalizePeriod(searchParams.get("period")),
     from: searchParams.get("from") ?? undefined,
