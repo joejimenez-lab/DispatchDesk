@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { documentViewHeaders } from "@/lib/document-security";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 import type { Database } from "@/types/database";
 
@@ -28,10 +29,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (file.error) return NextResponse.json({ error: file.error.message }, { status: 500 });
 
   return new Response(await file.data.arrayBuffer(), {
-    headers: {
-      "Content-Type": file.data.type || "application/octet-stream",
-      "Content-Disposition": `inline; filename="${row.file_name.replaceAll('"', "")}"`,
-      "Cache-Control": "private, max-age=60",
-    },
+    headers: documentViewHeaders(row.file_name, file.data.type),
   });
 }
