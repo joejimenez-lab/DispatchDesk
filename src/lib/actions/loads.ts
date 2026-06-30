@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { errorState, successState, type ActionState } from "@/lib/actions/state";
+import { validateUploadedDocument } from "@/lib/document-security";
 import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import { documentSchema, loadSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
 import { loadStatuses, type Database, type LoadStatus } from "@/types/database";
@@ -225,11 +226,11 @@ export async function uploadDocument(_state: ActionState, formData: FormData): P
       return errorState(new Error("Choose a document before uploading."));
     }
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    storagePath = `${parsed.load_id}/${crypto.randomUUID()}-${safeName}`;
+    const document = await validateUploadedDocument(file);
+    storagePath = `${parsed.load_id}/${crypto.randomUUID()}-${document.safeName}`;
     const { error: uploadError } = await supabase.storage
       .from("load-documents")
-      .upload(storagePath, file, { upsert: false });
+      .upload(storagePath, file, { contentType: document.mimeType, upsert: false });
 
     if (uploadError) return errorState(uploadError, "Could not upload document.");
 

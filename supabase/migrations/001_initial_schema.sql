@@ -223,9 +223,12 @@ create policy "Authenticated users can manage notes" on public.notes for all to 
 create policy "Authenticated users can read activity logs" on public.activity_logs for select to authenticated using (true);
 create policy "Authenticated users can add activity logs" on public.activity_logs for insert to authenticated with check (true);
 
-insert into storage.buckets (id, name, public)
-values ('load-documents', 'load-documents', false)
-on conflict (id) do update set public = false;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('load-documents', 'load-documents', false, 10485760, array['application/pdf', 'image/png', 'image/jpeg'])
+on conflict (id) do update
+set public = false,
+    file_size_limit = 10485760,
+    allowed_mime_types = array['application/pdf', 'image/png', 'image/jpeg'];
 
 create policy "Authenticated users can read load documents"
 on storage.objects for select
