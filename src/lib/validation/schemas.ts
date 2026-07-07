@@ -33,6 +33,7 @@ export const loadSchema = z.object({
   delivery_location: z.string().trim().min(1, "Delivery location is required"),
   delivery_date: optionalDate,
   is_round_trip: z.boolean().default(false),
+  return_location: optionalText,
   round_trip_details: optionalText,
   load_rate: money,
   driver_pay: money,

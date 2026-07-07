@@ -103,7 +103,7 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
                   </Link>
                   {load.isRoundTrip ? (
                     <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
-                      Round trip
+                      Round trip{load.returnLocation ? ` · returns to ${load.returnLocation}` : ""}
                     </span>
                   ) : null}
                 </td>

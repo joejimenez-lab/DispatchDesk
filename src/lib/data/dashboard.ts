@@ -13,6 +13,7 @@ type DashboardLoad = {
   delivery_location: string;
   delivery_date: string | null;
   is_round_trip: boolean;
+  return_location: string | null;
   load_rate: number;
   driver_pay: number;
   dispatcher_fee: number;
@@ -34,7 +35,7 @@ export async function getDashboardMetrics() {
   const [loadsResult, remindersResult] = await Promise.all([
     supabase
       .from("loads")
-      .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, load_rate, driver_pay, dispatcher_fee, fuel_cost, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
+      .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, load_rate, driver_pay, dispatcher_fee, fuel_cost, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
       .order("created_at", { ascending: false }),
     supabase
       .from("maintenance_reminders")

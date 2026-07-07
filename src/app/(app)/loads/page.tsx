@@ -20,6 +20,8 @@ export default async function LoadsPage({
   if (params.broker) exportParams.set("broker", params.broker);
   if (params.driver) exportParams.set("driver", params.driver);
   const exportHref = `/api/loads/export${exportParams.size ? `?${exportParams.toString()}` : ""}`;
+  const roundTripSummary = (load: (typeof loads)[number]) =>
+    load.is_round_trip ? `Returns to ${load.return_location || load.pickup_location}` : null;
   const linkedCell = (loadId: string, children: React.ReactNode, className = "") => (
     <td className={`p-0 ${className}`}>
       <Link href={`/loads/${loadId}`} className="block h-full px-4 py-3">
@@ -87,12 +89,22 @@ export default async function LoadsPage({
               <tr key={load.id} className="cursor-pointer hover:bg-zinc-50">
                 {linkedCell(
                   load.id,
-                  <span className="flex items-center gap-2">
-                    {load.load_number}
-                    {load.is_round_trip ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Round trip</span>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>{load.load_number}</span>
+                      {load.is_round_trip ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Round trip</span>
+                      ) : null}
+                    </div>
+                    {roundTripSummary(load) ? (
+                      <div className="mt-1 text-xs font-medium text-amber-900">{roundTripSummary(load)}</div>
                     ) : null}
-                  </span>,
+                    {load.is_round_trip && load.round_trip_details ? (
+                      <div className="mt-1 max-w-64 truncate text-xs font-normal text-zinc-500">
+                        Details: {load.round_trip_details}
+                      </div>
+                    ) : null}
+                  </div>,
                   "font-semibold text-zinc-950",
                 )}
                 {linkedCell(load.id, load.brokers?.company_name ?? "Unassigned")}
@@ -109,6 +121,11 @@ export default async function LoadsPage({
                   <div className="min-w-40">
                     <div className="font-medium text-zinc-900">{load.delivery_location}</div>
                     <div className="mt-1 text-xs text-zinc-500">{formatDate(load.delivery_date)}</div>
+                    {roundTripSummary(load) ? (
+                      <div className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900">
+                        {roundTripSummary(load)}
+                      </div>
+                    ) : null}
                   </div>,
                 )}
                 {linkedCell(load.id, currency(load.load_rate))}

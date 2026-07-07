@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ilikeOr, searchTokens } from "@/lib/search";
 import type { Database, LoadStatus } from "@/types/database";
 
-const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "carrier_company"];
+const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "return_location", "carrier_company"];
 
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Pick<Database["public"]["Tables"]["payments"]["Row"], "client_paid" | "driver_paid" | "dispatcher_paid">;

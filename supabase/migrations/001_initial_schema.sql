@@ -63,6 +63,7 @@ create table public.loads (
   delivery_location text not null,
   delivery_date date,
   is_round_trip boolean not null default false,
+  return_location text,
   round_trip_details text,
   load_rate numeric(12, 2) not null default 0 check (load_rate >= 0),
   driver_pay numeric(12, 2) not null default 0 check (driver_pay >= 0),
