@@ -217,7 +217,7 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
               </Select>
             </Field>
             <Field label="Document">
-              <input name="file" type="file" accept="application/pdf,image/png,image/jpeg,.pdf,.png,.jpg,.jpeg" required className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" />
+              <input name="file" type="file" accept="application/pdf,image/png,image/jpeg,image/heic,image/heif,.pdf,.png,.jpg,.jpeg,.heic,.heif" required className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" />
             </Field>
             <Field label="Notes">
               <Textarea name="notes" />

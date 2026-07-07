@@ -51,7 +51,7 @@ describe("uploadDocument", () => {
 
     expect(result).toEqual({
       status: "error",
-      message: "Upload PDF, PNG, or JPEG files up to 10 MB.",
+      message: "Upload PDF, PNG, JPEG, HEIC, or HEIF files up to 10 MB.",
     });
     expect(upload).not.toHaveBeenCalled();
   });

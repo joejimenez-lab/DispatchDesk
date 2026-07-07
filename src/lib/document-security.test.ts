@@ -15,6 +15,8 @@ describe("document upload security", () => {
     [file([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31], "rate-confirmation.pdf", "application/pdf"), "application/pdf"],
     [file([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], "bol.png", "image/png"), "image/png"],
     [file([0xff, 0xd8, 0xff, 0xe0], "receipt.jpg", "image/jpeg"), "image/jpeg"],
+    [file([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63], "fuel.heic", "image/heic"), "image/heic"],
+    [file([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x6d, 0x69, 0x66, 0x31], "inspection.heif", "image/heif"), "image/heif"],
   ])("allows business-approved document files", async (documentFile, expectedMimeType) => {
     await expect(validateUploadedDocument(documentFile)).resolves.toMatchObject({
       mimeType: expectedMimeType,
@@ -27,7 +29,7 @@ describe("document upload security", () => {
 
     await expect(validateUploadedDocument(
       file(bytes, "large.pdf", "application/pdf"),
-    )).rejects.toThrow("Upload PDF, PNG, or JPEG files up to 10 MB.");
+    )).rejects.toThrow("Upload PDF, PNG, JPEG, HEIC, or HEIF files up to 10 MB.");
   });
 
   it("rejects a spoofed MIME type when the file signature does not match", async () => {
@@ -35,14 +37,14 @@ describe("document upload security", () => {
 
     await expect(validateUploadedDocument(
       file(htmlPayload, "invoice.pdf", "application/pdf"),
-    )).rejects.toThrow("Upload PDF, PNG, or JPEG files up to 10 MB.");
+    )).rejects.toThrow("Upload PDF, PNG, JPEG, HEIC, or HEIF files up to 10 MB.");
   });
 
   it.each([
     file(new TextEncoder().encode("<!doctype html><script>alert(1)</script>"), "attack.html", "text/html"),
     file(new TextEncoder().encode("<svg><script>alert(1)</script></svg>"), "attack.svg", "image/svg+xml"),
   ])("rejects active document formats", async (documentFile) => {
-    await expect(validateUploadedDocument(documentFile)).rejects.toThrow("Upload PDF, PNG, or JPEG files up to 10 MB.");
+    await expect(validateUploadedDocument(documentFile)).rejects.toThrow("Upload PDF, PNG, JPEG, HEIC, or HEIF files up to 10 MB.");
   });
 });
 

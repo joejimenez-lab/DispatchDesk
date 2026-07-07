@@ -101,13 +101,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
       return download(csv, report);
     }
 
-    const [services, inspections, repairs, reminders] = await Promise.all([
+    const [services, inspections, repairs, reminders, bookkeepingExpenses] = await Promise.all([
       supabase.from("service_records").select("service_date, odometer, description, cost, notes, created_at, fleet_units(unit_number, unit_type, company)"),
       supabase.from("inspection_records").select("inspection_date, odometer, inspector, result, notes, created_at, fleet_units(unit_number, unit_type, company)"),
       supabase.from("repair_logs").select("repair_date, odometer, description, log_type, cost, notes, created_at, fleet_units(unit_number, unit_type, company)"),
       supabase.from("maintenance_reminders").select("reminder_type, due_date, due_odometer, completed_at, notes, fleet_units(unit_number, unit_type, company)"),
+      supabase
+        .from("bookkeeping_expenses")
+        .select("expense_date, category, amount, vendor, notes, fleet_units(unit_number, unit_type, company)")
+        .or("category.eq.Maintenance,service_record_id.not.is.null,inspection_record_id.not.is.null,repair_log_id.not.is.null"),
     ]);
-    for (const result of [services, inspections, repairs, reminders]) if (result.error) throw result.error;
+    for (const result of [services, inspections, repairs, reminders, bookkeepingExpenses]) if (result.error) throw result.error;
 
     const unitFields = (unit: Unit) => ({ unitNumber: unit?.unit_number ?? "Unknown", unitType: unit?.unit_type ?? "", company: unit?.company ?? null });
     const rows: MaintenanceExportRow[] = [
@@ -122,6 +126,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
       })),
       ...((reminders.data ?? []) as unknown as { reminder_type: string; due_date: string | null; due_odometer: number | null; completed_at: string | null; notes: string | null; fleet_units: Unit }[]).map((row) => ({
         ...unitFields(row.fleet_units), recordType: "Reminder", date: row.due_date, odometer: row.due_odometer, description: row.reminder_type, result: null, cost: null, status: row.completed_at ? "Completed" : "Open", notes: row.notes,
+      })),
+      ...((bookkeepingExpenses.data ?? []) as unknown as { expense_date: string; category: string; amount: number; vendor: string | null; notes: string | null; fleet_units: Unit }[]).map((row) => ({
+        ...unitFields(row.fleet_units), recordType: `Bookkeeping ${row.category}`, date: row.expense_date, odometer: null, description: row.vendor ? `${row.category} - ${row.vendor}` : row.category, result: null, cost: Number(row.amount), status: "Recorded", notes: row.notes,
       })),
     ].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || a.unitNumber.localeCompare(b.unitNumber));
 

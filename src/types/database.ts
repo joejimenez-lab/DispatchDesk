@@ -38,6 +38,29 @@ export const documentCategories: DocumentCategory[] = [
   "Other",
 ];
 
+export type ExpenseCategory =
+  | "Fuel"
+  | "Maintenance"
+  | "Tolls"
+  | "Insurance"
+  | "Permits"
+  | "Parking"
+  | "Parts"
+  | "Supplies"
+  | "Other";
+
+export const expenseCategories: ExpenseCategory[] = [
+  "Fuel",
+  "Maintenance",
+  "Tolls",
+  "Insurance",
+  "Permits",
+  "Parking",
+  "Parts",
+  "Supplies",
+  "Other",
+];
+
 export type UnitType = "Truck" | "Trailer";
 
 export const unitTypes: UnitType[] = ["Truck", "Trailer"];
@@ -528,6 +551,116 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["ifta_fuel_purchases"]["Insert"]>;
         Relationships: [];
       };
+      bookkeeping_expenses: {
+        Row: {
+          id: string;
+          expense_date: string;
+          category: ExpenseCategory;
+          amount: number;
+          vendor: string | null;
+          notes: string | null;
+          unit_id: string | null;
+          load_id: string | null;
+          driver_id: string | null;
+          service_record_id: string | null;
+          inspection_record_id: string | null;
+          repair_log_id: string | null;
+          created_by: string | null;
+          created_by_email: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          expense_date: string;
+          category: ExpenseCategory;
+          amount?: number;
+          vendor?: string | null;
+          notes?: string | null;
+          unit_id?: string | null;
+          load_id?: string | null;
+          driver_id?: string | null;
+          service_record_id?: string | null;
+          inspection_record_id?: string | null;
+          repair_log_id?: string | null;
+          created_by?: string | null;
+          created_by_email?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["bookkeeping_expenses"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "bookkeeping_expenses_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "fleet_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bookkeeping_expenses_load_id_fkey";
+            columns: ["load_id"];
+            isOneToOne: false;
+            referencedRelation: "loads";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bookkeeping_expenses_driver_id_fkey";
+            columns: ["driver_id"];
+            isOneToOne: false;
+            referencedRelation: "drivers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bookkeeping_expenses_service_record_id_fkey";
+            columns: ["service_record_id"];
+            isOneToOne: false;
+            referencedRelation: "service_records";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bookkeeping_expenses_inspection_record_id_fkey";
+            columns: ["inspection_record_id"];
+            isOneToOne: false;
+            referencedRelation: "inspection_records";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bookkeeping_expenses_repair_log_id_fkey";
+            columns: ["repair_log_id"];
+            isOneToOne: false;
+            referencedRelation: "repair_logs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      bookkeeping_receipts: {
+        Row: {
+          id: string;
+          expense_id: string;
+          file_name: string;
+          storage_path: string;
+          content_type: string;
+          file_size: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          expense_id: string;
+          file_name: string;
+          storage_path: string;
+          content_type: string;
+          file_size: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["bookkeeping_receipts"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "bookkeeping_receipts_expense_id_fkey";
+            columns: ["expense_id"];
+            isOneToOne: false;
+            referencedRelation: "bookkeeping_expenses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -546,6 +679,7 @@ export type Database = {
       load_status: LoadStatus;
       document_category: DocumentCategory;
       unit_type: UnitType;
+      expense_category: ExpenseCategory;
     };
   };
 };
