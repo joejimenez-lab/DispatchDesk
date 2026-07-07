@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { iftaStateCodes } from "@/lib/ifta";
-import { documentCategories, loadStatuses, maintenanceReminderTypes, repairLogTypes, unitTypes } from "@/types/database";
+import { documentCategories, expenseCategories, loadStatuses, maintenanceReminderTypes, repairLogTypes, unitTypes } from "@/types/database";
 
 const money = z.coerce.number().min(0).default(0);
+const positiveMoney = z.coerce.number().positive("Amount must be greater than zero");
 const optionalText = z.string().trim().transform((value) => (value === "" ? null : value));
 const optionalUuid = z.string().transform((value) => (value === "" ? null : value)).nullable();
 const optionalDate = z.string().transform((value) => (value === "" ? null : value)).nullable();
@@ -173,5 +174,17 @@ export const iftaFuelPurchaseSchema = z.object({
   state: iftaState,
   gallons: z.coerce.number().positive("Gallons must be greater than zero"),
   amount_paid: money,
+  notes: optionalText,
+});
+
+export const bookkeepingExpenseSchema = z.object({
+  expense_date: requiredDate,
+  category: z.enum(expenseCategories),
+  amount: positiveMoney,
+  vendor: optionalText,
+  unit_id: optionalUuid,
+  load_id: optionalUuid,
+  driver_id: optionalUuid,
+  maintenance_record: optionalText,
   notes: optionalText,
 });

@@ -67,6 +67,11 @@ export default async function ReportsPage({
       formats: [{ label: "CSV", href: "/api/reports/exports/client-billing", type: "csv" }],
     },
     {
+      title: "Bookkeeping expenses",
+      description: "Tax and receipt records with truck, trailer, load, driver, and maintenance links.",
+      formats: [{ label: "CSV", href: "/api/bookkeeping/export", type: "csv" }],
+    },
+    {
       title: "Maintenance",
       description: "Fleet service, inspection, repair, and reminder history.",
       formats: [{ label: "CSV", href: "/api/reports/exports/maintenance", type: "csv" }],

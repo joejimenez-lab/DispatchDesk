@@ -6,6 +6,8 @@ export const allowedDocumentMimeTypes = [
   "application/pdf",
   "image/png",
   "image/jpeg",
+  "image/heic",
+  "image/heif",
 ] as const;
 
 type AllowedDocumentMimeType = (typeof allowedDocumentMimeTypes)[number];
@@ -32,13 +34,31 @@ const documentTypeRules: DocumentTypeRule[] = [
     mimeType: "image/jpeg",
     matchesSignature: (bytes) => startsWith(bytes, [0xff, 0xd8, 0xff]),
   },
+  {
+    extensions: ["heic"],
+    mimeType: "image/heic",
+    matchesSignature: (bytes) => hasIsoBrand(bytes, ["heic", "heix", "hevc", "hevx"]),
+  },
+  {
+    extensions: ["heif"],
+    mimeType: "image/heif",
+    matchesSignature: (bytes) => hasIsoBrand(bytes, ["heif", "mif1", "msf1"]),
+  },
 ];
 
-const allowedDescription = "PDF, PNG, or JPEG";
+const allowedDescription = "PDF, PNG, JPEG, HEIC, or HEIF";
 const maxUploadDescription = "10 MB";
 
 function startsWith(bytes: Uint8Array, signature: number[]) {
   return signature.every((byte, index) => bytes[index] === byte);
+}
+
+function ascii(bytes: Uint8Array, start: number, length: number) {
+  return String.fromCharCode(...bytes.slice(start, start + length));
+}
+
+function hasIsoBrand(bytes: Uint8Array, brands: string[]) {
+  return bytes.length >= 12 && ascii(bytes, 4, 4) === "ftyp" && brands.includes(ascii(bytes, 8, 4));
 }
 
 function extensionFor(fileName: string) {
@@ -85,7 +105,7 @@ export async function validateUploadedDocument(file: File) {
     throw validationError();
   }
 
-  const signature = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  const signature = new Uint8Array(await file.slice(0, 12).arrayBuffer());
   if (!rule.matchesSignature(signature)) {
     throw validationError();
   }

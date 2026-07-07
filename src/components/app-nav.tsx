@@ -7,6 +7,7 @@ const links = [
   ["Dashboard", "/dashboard"],
   ["Loads", "/loads"],
   ["Reports", "/reports"],
+  ["Bookkeeping", "/bookkeeping"],
   ["Drivers", "/drivers"],
   ["Brokers", "/brokers"],
   ["Fleet", "/fleet"],
