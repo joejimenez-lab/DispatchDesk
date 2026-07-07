@@ -6,6 +6,7 @@ import { ilikeOr, searchTokens } from "@/lib/search";
 import type { LoadStatus } from "@/types/database";
 
 const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "return_location", "carrier_company"];
+type RouteSupabase = Extract<Awaited<ReturnType<typeof createAuthenticatedRouteClient>>, { supabase: unknown }>["supabase"];
 
 type ExportLoad = {
   load_number: string;
@@ -47,6 +48,19 @@ type ExportLoad = {
     | null;
 };
 
+async function truckNumbersForFleet(supabase: RouteSupabase, fleet: string | null) {
+  if (!fleet) return null;
+
+  const { data, error } = await supabase
+    .from("fleet_units")
+    .select("unit_number")
+    .eq("unit_type", "Truck")
+    .eq("company", fleet);
+
+  if (error) throw error;
+  return new Set((data ?? []).map((unit) => unit.unit_number?.trim()).filter(Boolean));
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const auth = await createAuthenticatedRouteClient({
@@ -67,6 +81,7 @@ export async function GET(request: Request) {
   const broker = searchParams.get("broker");
   const driver = searchParams.get("driver");
   const paymentFilter = searchParams.get("payment");
+  const fleet = searchParams.get("fleet")?.trim() || null;
   const q = searchParams.get("q");
 
   if (status) query = query.eq("status", status as LoadStatus);
@@ -81,8 +96,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Could not export loads." }, { status: 500 });
   }
 
+  const fleetTruckNumbers = await truckNumbersForFleet(supabase, fleet);
   const rows = (data ?? []) as unknown as ExportLoad[];
   const filteredRows = rows.filter((load) => {
+    if (fleetTruckNumbers) {
+      const truckNumber = load.drivers?.truck_number?.trim();
+      if (!truckNumber || !fleetTruckNumbers.has(truckNumber)) return false;
+    }
+
     const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
     const paid = isClientPaymentPaid(load.load_rate, payment);
     if (paymentFilter === "paid") return paid;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Field, Input, Select } from "@/components/field";
 import { ExportMenu, type ExportMenuItem } from "@/components/export-menu";
 import { SummaryTotals, WeeklySummaryList } from "@/components/weekly-report";
+import { getFleetCompanies } from "@/lib/data/fleet";
 import { getFormOptions } from "@/lib/data/options";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
 
@@ -16,15 +17,34 @@ function normalizePeriod(value: string | undefined): WeeklyFinancialPeriod {
   return PERIODS.some((period) => period.value === value) ? (value as WeeklyFinancialPeriod) : "all";
 }
 
+function normalizeFleet(value: string | undefined, companies: string[]) {
+  const requested = value?.trim().toLocaleLowerCase();
+  if (!requested) return "";
+  return companies.find((company) => company.toLocaleLowerCase() === requested) ?? "";
+}
+
+function scopedHref(fleet: string, params: { period: WeeklyFinancialPeriod; from?: string; to?: string; driver?: string }) {
+  const next = new URLSearchParams();
+  if (fleet) next.set("fleet", fleet);
+  next.set("period", params.period);
+  if (params.from) next.set("from", params.from);
+  if (params.to) next.set("to", params.to);
+  if (params.driver) next.set("driver", params.driver);
+  return `/reports?${next.toString()}`;
+}
+
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string; fleet?: string }>;
 }) {
   const params = await searchParams;
   const period = normalizePeriod(params.period);
+  const [options, fleetCompanies] = await Promise.all([getFormOptions(), getFleetCompanies()]);
+  const fleet = normalizeFleet(params.fleet, fleetCompanies);
   const exportParams = new URLSearchParams();
   exportParams.set("period", period);
+  if (fleet) exportParams.set("fleet", fleet);
   if (params.from) exportParams.set("from", params.from);
   if (params.to) exportParams.set("to", params.to);
   if (params.driver) exportParams.set("driver", params.driver);
@@ -32,20 +52,18 @@ export default async function ReportsPage({
   const pdfExportHref = `/api/reports/weekly/pdf?${exportParams.toString()}`;
   const filteredExportHref = (report: "weekly-payroll" | "weekly-financial") =>
     `/api/reports/exports/${report}?${exportParams.toString()}`;
-  const [{ summaries }, options] = await Promise.all([
-    getWeeklyDriverFinancialSummary({
-      period,
-      from: params.from,
-      to: params.to,
-      driver: params.driver || undefined,
-    }),
-    getFormOptions(),
-  ]);
+  const { summaries } = await getWeeklyDriverFinancialSummary({
+    period,
+    from: params.from,
+    to: params.to,
+    driver: params.driver || undefined,
+    fleet: fleet || undefined,
+  });
   const exports: ExportMenuItem[] = [
     {
       title: "Loads",
       description: "Complete operational and payment detail for every load.",
-      formats: [{ label: "CSV", href: "/api/loads/export", type: "csv" }],
+      formats: [{ label: "CSV", href: `/api/loads/export?${exportParams.toString()}`, type: "csv" }],
     },
     {
       title: "Weekly driver payroll",
@@ -64,7 +82,7 @@ export default async function ReportsPage({
     {
       title: "Client billing",
       description: "Invoice status, collections, and outstanding balances.",
-      formats: [{ label: "CSV", href: "/api/reports/exports/client-billing", type: "csv" }],
+      formats: [{ label: "CSV", href: `/api/reports/exports/client-billing?${exportParams.toString()}`, type: "csv" }],
     },
     {
       title: "Bookkeeping expenses",
@@ -74,12 +92,12 @@ export default async function ReportsPage({
     {
       title: "Maintenance",
       description: "Fleet service, inspection, repair, and reminder history.",
-      formats: [{ label: "CSV", href: "/api/reports/exports/maintenance", type: "csv" }],
+      formats: [{ label: "CSV", href: `/api/reports/exports/maintenance?${exportParams.toString()}`, type: "csv" }],
     },
     {
       title: "Yearly financial summary",
       description: "Annual revenue, costs, load count, and estimated profit.",
-      formats: [{ label: "CSV", href: "/api/reports/exports/yearly-financial", type: "csv" }],
+      formats: [{ label: "CSV", href: `/api/reports/exports/yearly-financial?${exportParams.toString()}`, type: "csv" }],
     },
   ];
 
@@ -94,6 +112,7 @@ export default async function ReportsPage({
       </div>
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-5">
+        {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <Field label="Period">
           <Select name="period" defaultValue={period}>
             {PERIODS.map((option) => (
@@ -128,13 +147,37 @@ export default async function ReportsPage({
         <p className="-mt-3 text-xs text-zinc-500">Custom range uses the From and To dates above. Leave a side blank to leave it open-ended.</p>
       ) : null}
 
+      {fleetCompanies.length ? (
+        <nav aria-label="Fleet report scope" className="flex flex-wrap gap-2">
+          {[
+            { label: "All", value: "" },
+            ...fleetCompanies.map((company) => ({ label: company, value: company })),
+          ].map((option) => {
+            const active = option.value === fleet;
+            return (
+              <Link
+                key={option.value || "all"}
+                href={scopedHref(option.value, { period, from: params.from, to: params.to, driver: params.driver })}
+                className={[
+                  "flex h-10 items-center rounded-md border px-4 text-sm font-medium",
+                  active ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400",
+                ].join(" ")}
+                aria-current={active ? "page" : undefined}
+              >
+                {option.label}
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
+
       <SummaryTotals summaries={summaries} />
 
       <WeeklySummaryList
         summaries={summaries}
         linkDrivers
         emptyTitle="No reportable loads"
-        emptyMessage="No non-cancelled loads match the selected period and driver."
+        emptyMessage="No non-cancelled loads match the selected filters."
       />
     </div>
   );
