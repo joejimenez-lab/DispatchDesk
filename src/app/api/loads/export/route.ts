@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { csvRow } from "@/lib/csv";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
-import { clientCollected, clientOutstanding, profitForLoad } from "@/lib/financials";
+import { clientCollected, clientOutstanding, isClientPaymentPaid, profitForLoad } from "@/lib/financials";
 import { ilikeOr, searchTokens } from "@/lib/search";
 import type { LoadStatus } from "@/types/database";
 
@@ -66,6 +66,7 @@ export async function GET(request: Request) {
   const status = searchParams.get("status");
   const broker = searchParams.get("broker");
   const driver = searchParams.get("driver");
+  const paymentFilter = searchParams.get("payment");
   const q = searchParams.get("q");
 
   if (status) query = query.eq("status", status as LoadStatus);
@@ -81,6 +82,13 @@ export async function GET(request: Request) {
   }
 
   const rows = (data ?? []) as unknown as ExportLoad[];
+  const filteredRows = rows.filter((load) => {
+    const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
+    const paid = isClientPaymentPaid(load.load_rate, payment);
+    if (paymentFilter === "paid") return paid;
+    if (paymentFilter === "unpaid") return !paid && load.status !== "Cancelled";
+    return true;
+  });
   const headers = [
     "Load Number",
     "Status",
@@ -113,7 +121,7 @@ export async function GET(request: Request) {
 
   const csv = [
     csvRow(headers),
-    ...rows.map((load) => {
+    ...filteredRows.map((load) => {
       const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
       const outstanding = load.status === "Cancelled" ? 0 : clientOutstanding(load.load_rate, payment);
 

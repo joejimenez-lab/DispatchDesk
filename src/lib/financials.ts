@@ -23,3 +23,7 @@ export function clientCollected(loadRate: number, payment: ClientPayment) {
 export function clientOutstanding(loadRate: number, payment: ClientPayment) {
   return Math.max(Number(loadRate) - clientCollected(loadRate, payment), 0);
 }
+
+export function isClientPaymentPaid(loadRate: number, payment: ClientPayment) {
+  return Boolean(payment?.client_paid) || clientOutstanding(loadRate, payment) <= 0;
+}

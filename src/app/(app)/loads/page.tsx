@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { LinkButton } from "@/components/button";
 import { Field, Input, Select } from "@/components/field";
+import { LoadPaymentSelect } from "@/components/load-payment-select";
 import { LoadStatusSelect } from "@/components/load-status-select";
 import { getFormOptions } from "@/lib/data/options";
-import { getLoads } from "@/lib/data/loads";
+import { getLoads, isLoadClientPaymentPaid } from "@/lib/data/loads";
 import { currency, formatDate } from "@/lib/utils";
 import { loadStatuses } from "@/types/database";
 
 export default async function LoadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; broker?: string; driver?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; broker?: string; driver?: string; payment?: string }>;
 }) {
   const params = await searchParams;
   const [loads, options] = await Promise.all([getLoads(params), getFormOptions()]);
@@ -19,6 +20,7 @@ export default async function LoadsPage({
   if (params.status) exportParams.set("status", params.status);
   if (params.broker) exportParams.set("broker", params.broker);
   if (params.driver) exportParams.set("driver", params.driver);
+  if (params.payment) exportParams.set("payment", params.payment);
   const exportHref = `/api/loads/export${exportParams.size ? `?${exportParams.toString()}` : ""}`;
   const roundTripSummary = (load: (typeof loads)[number]) =>
     load.is_round_trip ? `Returns to ${load.return_location || load.pickup_location}` : null;
@@ -43,7 +45,7 @@ export default async function LoadsPage({
         </div>
       </div>
 
-      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-5">
+      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-6">
         <Field label="Search">
           <Input name="q" defaultValue={params.q ?? ""} placeholder="Load, city, carrier" />
         </Field>
@@ -65,6 +67,13 @@ export default async function LoadsPage({
             {options.drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}
           </Select>
         </Field>
+        <Field label="Payment">
+          <Select name="payment" defaultValue={params.payment ?? ""}>
+            <option value="">All payments</option>
+            <option value="paid">Paid</option>
+            <option value="unpaid">Not paid</option>
+          </Select>
+        </Field>
         <div className="flex items-end gap-2">
           <button className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-medium text-white">Filter</button>
           <Link href="/loads" className="flex h-10 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium">Reset</Link>
@@ -81,7 +90,7 @@ export default async function LoadsPage({
               <th className="px-4 py-3">Pickup</th>
               <th className="px-4 py-3">Delivery</th>
               <th className="px-4 py-3">Rate</th>
-              <th className="px-4 py-3">Status</th>
+              <th className="min-w-36 px-4 py-3">Status / Payment</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
@@ -130,7 +139,10 @@ export default async function LoadsPage({
                 )}
                 {linkedCell(load.id, currency(load.load_rate))}
                 <td className="px-4 py-3">
-                  <LoadStatusSelect loadId={load.id} status={load.status} />
+                  <div className="flex flex-col items-start gap-1.5">
+                    <LoadStatusSelect loadId={load.id} status={load.status} />
+                    <LoadPaymentSelect loadId={load.id} paid={isLoadClientPaymentPaid(load)} />
+                  </div>
                 </td>
               </tr>
             ))}
