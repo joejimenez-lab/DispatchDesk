@@ -2,12 +2,16 @@ import { notFound } from "next/navigation";
 import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { createClient } from "@/lib/supabase/server";
 import { ilikeOr, searchTokens } from "@/lib/search";
+import { isClientPaymentPaid } from "@/lib/financials";
 import type { Database, LoadStatus } from "@/types/database";
 
 const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "return_location", "carrier_company"];
 
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
-type PaymentRow = Pick<Database["public"]["Tables"]["payments"]["Row"], "client_paid" | "driver_paid" | "dispatcher_paid">;
+type PaymentRow = Pick<
+  Database["public"]["Tables"]["payments"]["Row"],
+  "client_paid" | "client_amount_received" | "driver_paid" | "dispatcher_paid"
+>;
 type LoadListItem = LoadRow & {
   brokers: { company_name: string } | null;
   drivers: { name: string } | null;
@@ -27,11 +31,12 @@ export async function getLoads(params: {
   status?: string;
   broker?: string;
   driver?: string;
+  payment?: string;
 }) {
   const supabase = await createClient();
   let query = supabase
     .from("loads")
-    .select("*, brokers(company_name), drivers(name), payments(client_paid, driver_paid, dispatcher_paid)")
+    .select("*, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, dispatcher_paid)")
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
@@ -46,7 +51,25 @@ export async function getLoads(params: {
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as unknown as LoadListItem[];
+  const loads = (data ?? []) as unknown as LoadListItem[];
+
+  if (params.payment === "paid") {
+    return loads.filter((load) => isLoadClientPaymentPaid(load));
+  }
+
+  if (params.payment === "unpaid") {
+    return loads.filter((load) => !isLoadClientPaymentPaid(load) && load.status !== "Cancelled");
+  }
+
+  return loads;
+}
+
+export function loadPayment(load: Pick<LoadListItem, "payments">) {
+  return Array.isArray(load.payments) ? load.payments[0] : load.payments;
+}
+
+export function isLoadClientPaymentPaid(load: Pick<LoadListItem, "load_rate" | "payments">) {
+  return isClientPaymentPaid(load.load_rate, loadPayment(load));
 }
 
 export async function getLoad(loadId: string) {
