@@ -73,36 +73,43 @@ export default async function DashboardPage() {
             <Link href="/loads" className="text-sm font-medium text-zinc-950 underline">View all</Link>
           </div>
           <div className="divide-y divide-zinc-100">
-            {metrics.currentLoads.map((load) => (
-              <Link
-                key={load.id}
-                href={`/loads/${load.id}`}
-                className="grid gap-x-8 gap-y-2 py-4 hover:bg-zinc-50 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)_auto]"
-              >
-                <div className="font-semibold text-zinc-950">
-                  {load.load_number}
-                  {load.is_round_trip ? (
-                    <span className="mt-1 block text-xs font-semibold text-amber-800">Round trip</span>
-                  ) : null}
-                </div>
-                <div className="min-w-0 text-sm">
-                  <div className="text-xs font-semibold uppercase text-zinc-500">Pickup</div>
-                  <div className="break-words font-medium text-zinc-900">{load.pickup_location}</div>
-                  <div className="text-xs text-zinc-500">{formatDate(load.pickup_date)}</div>
-                </div>
-                <div className="min-w-0 text-sm">
-                  <div className="text-xs font-semibold uppercase text-zinc-500">Delivery</div>
-                  <div className="break-words font-medium text-zinc-900">{load.delivery_location}</div>
-                  <div className="text-xs text-zinc-500">{formatDate(load.delivery_date)}</div>
-                </div>
-                <div className="text-xs text-zinc-500 md:col-span-2 md:col-start-2">
-                  {load.brokers?.company_name ?? "No broker"} · {load.drivers?.name ?? "No driver"}
-                </div>
-                <div className="justify-self-start md:col-start-4 md:row-start-1">
-                  <StatusBadge status={load.status} />
-                </div>
-              </Link>
-            ))}
+            {metrics.currentLoads.map((load) => {
+              const returnLocation = load.return_location || load.pickup_location;
+
+              return (
+                <Link
+                  key={load.id}
+                  href={`/loads/${load.id}`}
+                  className="grid gap-x-8 gap-y-2 py-4 hover:bg-zinc-50 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                >
+                  <div className="font-semibold text-zinc-950">
+                    {load.load_number}
+                    {load.is_round_trip ? (
+                      <span className="mt-1 block text-xs font-semibold text-amber-800">Round trip · returns to {returnLocation}</span>
+                    ) : null}
+                  </div>
+                  <div className="min-w-0 text-sm">
+                    <div className="text-xs font-semibold uppercase text-zinc-500">Pickup</div>
+                    <div className="break-words font-medium text-zinc-900">{load.pickup_location}</div>
+                    <div className="text-xs text-zinc-500">{formatDate(load.pickup_date)}</div>
+                  </div>
+                  <div className="min-w-0 text-sm">
+                    <div className="text-xs font-semibold uppercase text-zinc-500">Delivery</div>
+                    <div className="break-words font-medium text-zinc-900">{load.delivery_location}</div>
+                    <div className="text-xs text-zinc-500">{formatDate(load.delivery_date)}</div>
+                    {load.is_round_trip ? (
+                      <div className="mt-1 text-xs font-medium text-amber-800">Return: {returnLocation}</div>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-zinc-500 md:col-span-2 md:col-start-2">
+                    {load.brokers?.company_name ?? "No broker"} · {load.drivers?.name ?? "No driver"}
+                  </div>
+                  <div className="justify-self-start md:col-start-4 md:row-start-1">
+                    <StatusBadge status={load.status} />
+                  </div>
+                </Link>
+              );
+            })}
             {!metrics.currentLoads.length ? <p className="py-6 text-sm text-zinc-500">No active loads right now.</p> : null}
           </div>
         </div>

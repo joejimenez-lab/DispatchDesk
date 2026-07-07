@@ -26,6 +26,7 @@ function loadPayload(formData: FormData) {
     delivery_location: value(formData, "delivery_location"),
     delivery_date: value(formData, "delivery_date"),
     is_round_trip: formData.get("is_round_trip") === "on",
+    return_location: value(formData, "return_location"),
     round_trip_details: value(formData, "round_trip_details"),
     load_rate: value(formData, "load_rate"),
     driver_pay: value(formData, "driver_pay"),
@@ -37,6 +38,7 @@ function loadPayload(formData: FormData) {
 
   return {
     ...load,
+    return_location: load.is_round_trip ? (load.return_location || load.pickup_location) : null,
     round_trip_details: load.is_round_trip ? load.round_trip_details : null,
   };
 }

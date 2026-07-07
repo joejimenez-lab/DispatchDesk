@@ -15,7 +15,7 @@ const summaries: WeeklyDriverFinancialSummary[] = [
     dispatcherFeeTotal: 100,
     fuelCostTotal: 150,
     estimatedProfitTotal: 250,
-    loads: [{ id: "1", loadNumber: "L1", status: "Closed", date: "2026-01-06", isRoundTrip: false, roundTripDetails: null, loadRate: 1000, driverPay: 500, dispatcherFee: 100, fuelCost: 150, estimatedProfit: 250 }],
+    loads: [{ id: "1", loadNumber: "L1", status: "Closed", date: "2026-01-06", isRoundTrip: false, returnLocation: null, roundTripDetails: null, loadRate: 1000, driverPay: 500, dispatcherFee: 100, fuelCost: 150, estimatedProfit: 250 }],
   },
   {
     key: "2026-01-05:b",
@@ -29,7 +29,7 @@ const summaries: WeeklyDriverFinancialSummary[] = [
     dispatcherFeeTotal: 80,
     fuelCostTotal: 120,
     estimatedProfitTotal: 200,
-    loads: [{ id: "2", loadNumber: "L2", status: "Delivered", date: "2026-01-07", isRoundTrip: false, roundTripDetails: null, loadRate: 800, driverPay: 400, dispatcherFee: 80, fuelCost: 120, estimatedProfit: 200 }],
+    loads: [{ id: "2", loadNumber: "L2", status: "Delivered", date: "2026-01-07", isRoundTrip: false, returnLocation: null, roundTripDetails: null, loadRate: 800, driverPay: 400, dispatcherFee: 80, fuelCost: 120, estimatedProfit: 200 }],
   },
 ];
 

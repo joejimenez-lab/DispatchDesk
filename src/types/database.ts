@@ -123,6 +123,7 @@ export type Database = {
           delivery_location: string;
           delivery_date: string | null;
           is_round_trip: boolean;
+          return_location: string | null;
           round_trip_details: string | null;
           load_rate: number;
           driver_pay: number;
@@ -144,6 +145,7 @@ export type Database = {
           delivery_location: string;
           delivery_date?: string | null;
           is_round_trip?: boolean;
+          return_location?: string | null;
           round_trip_details?: string | null;
           load_rate?: number;
           driver_pay?: number;

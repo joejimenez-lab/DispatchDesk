@@ -64,11 +64,19 @@ export function LoadForm({ action, drivers, brokers, load, payment, showPayments
         <Field label="Delivery Date">
           <Input type="date" name="delivery_date" defaultValue={inputDate(load?.delivery_date)} />
         </Field>
-        <div className="flex items-end pb-2 md:col-span-2">
+        <div className="space-y-1 pb-2 md:col-span-2">
           <Checkbox name="is_round_trip" label="Round trip" defaultChecked={load?.is_round_trip} />
+          <p className="text-xs text-zinc-500">Marks this as needing a return destination after delivery.</p>
         </div>
-        <Field label="Round Trip Details" className="md:col-span-2">
-          <Textarea name="round_trip_details" defaultValue={load?.round_trip_details ?? ""} />
+        <Field label="Return Location" className="md:col-span-2">
+          <LocationAutocomplete name="return_location" defaultValue={load?.return_location ?? ""} />
+        </Field>
+        <Field label="Round Trip Return Details" className="md:col-span-2">
+          <Textarea
+            name="round_trip_details"
+            defaultValue={load?.round_trip_details ?? ""}
+            placeholder="Return appointment, backhaul notes, deadhead instructions, or other return details"
+          />
         </Field>
         <Field label="Load Rate (Total)">
           <Input type="number" step="0.01" min="0" name="load_rate" defaultValue={load?.load_rate ?? 0} />
