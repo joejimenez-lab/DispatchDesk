@@ -453,6 +453,79 @@ export type Database = {
           },
         ];
       };
+      ifta_trips: {
+        Row: {
+          id: string;
+          truck_number: string;
+          start_date: string;
+          end_date: string | null;
+          pickup_city: string;
+          dropoff_city: string;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          truck_number: string;
+          start_date: string;
+          end_date?: string | null;
+          pickup_city: string;
+          dropoff_city: string;
+          notes?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["ifta_trips"]["Insert"]>;
+        Relationships: [];
+      };
+      ifta_trip_miles: {
+        Row: {
+          id: string;
+          trip_id: string;
+          state: string;
+          miles: number;
+        };
+        Insert: {
+          id?: string;
+          trip_id: string;
+          state: string;
+          miles: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["ifta_trip_miles"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "ifta_trip_miles_trip_id_fkey";
+            columns: ["trip_id"];
+            isOneToOne: false;
+            referencedRelation: "ifta_trips";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ifta_fuel_purchases: {
+        Row: {
+          id: string;
+          truck_number: string;
+          purchase_date: string;
+          city: string | null;
+          state: string;
+          gallons: number;
+          amount_paid: number;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          truck_number: string;
+          purchase_date: string;
+          city?: string | null;
+          state: string;
+          gallons: number;
+          amount_paid?: number;
+          notes?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["ifta_fuel_purchases"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

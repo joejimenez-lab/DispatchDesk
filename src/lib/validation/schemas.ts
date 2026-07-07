@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { iftaStateCodes } from "@/lib/ifta";
 import { documentCategories, loadStatuses, maintenanceReminderTypes, repairLogTypes, unitTypes } from "@/types/database";
 
 const money = z.coerce.number().min(0).default(0);
@@ -140,4 +141,36 @@ export const maintenanceCompletionSchema = z.object({
 
 export const maintenanceSnoozeSchema = z.object({
   snoozed_until: requiredDate,
+});
+
+const iftaState = z.enum(iftaStateCodes, "Choose a state");
+
+export const iftaTripSchema = z.object({
+  truck_number: z.string().trim().min(1, "Truck number is required"),
+  start_date: requiredDate,
+  end_date: optionalDate,
+  pickup_city: z.string().trim().min(1, "Pickup city is required"),
+  dropoff_city: z.string().trim().min(1, "Drop-off city is required"),
+  notes: optionalText,
+});
+
+export const iftaStateMilesSchema = z
+  .array(z.object({
+    state: iftaState,
+    miles: z.coerce.number().positive("Miles must be greater than zero"),
+  }))
+  .min(1, "Add miles for at least one state")
+  .refine(
+    (entries) => new Set(entries.map((entry) => entry.state)).size === entries.length,
+    "Each state can only be listed once per trip",
+  );
+
+export const iftaFuelPurchaseSchema = z.object({
+  truck_number: z.string().trim().min(1, "Truck number is required"),
+  purchase_date: requiredDate,
+  city: optionalText,
+  state: iftaState,
+  gallons: z.coerce.number().positive("Gallons must be greater than zero"),
+  amount_paid: money,
+  notes: optionalText,
 });
