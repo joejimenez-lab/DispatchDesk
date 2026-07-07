@@ -11,6 +11,7 @@ import {
   type IftaQuarter,
   type IftaStateMilesEntry,
 } from "@/lib/ifta";
+import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 
 const REPORTS = ["summary", "trips", "fuel"] as const;
@@ -110,6 +111,22 @@ export async function GET(request: Request) {
   const period = selectedQuarter(searchParams);
   const { start, end } = quarterDateRange(period);
   const truck = searchParams.get("truck");
+  const fleet = searchParams.get("fleet")?.trim() || null;
+  const truckFilter = truck ? [truck] : fleet ? await getFleetTruckNumbers(fleet) : null;
+  if (truckFilter && !truckFilter.length) {
+    const csv =
+      report === "summary" ? summaryCsv([], [])
+      : report === "trips" ? tripsCsv([])
+      : fuelCsv([]);
+
+    return new NextResponse(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="dispatchdesk-ifta-${report}-${period.year}-Q${period.quarter}.csv"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  }
 
   let tripsQuery = supabase
     .from("ifta_trips")
@@ -118,7 +135,7 @@ export async function GET(request: Request) {
     .lte("start_date", end)
     .order("start_date", { ascending: true })
     .order("created_at", { ascending: true });
-  if (truck) tripsQuery = tripsQuery.eq("truck_number", truck);
+  if (truckFilter) tripsQuery = tripsQuery.in("truck_number", truckFilter);
 
   let fuelQuery = supabase
     .from("ifta_fuel_purchases")
@@ -127,7 +144,7 @@ export async function GET(request: Request) {
     .lte("purchase_date", end)
     .order("purchase_date", { ascending: true })
     .order("created_at", { ascending: true });
-  if (truck) fuelQuery = fuelQuery.eq("truck_number", truck);
+  if (truckFilter) fuelQuery = fuelQuery.in("truck_number", truckFilter);
 
   const [trips, purchases] = await Promise.all([
     report === "fuel" ? Promise.resolve({ data: [], error: null }) : tripsQuery,

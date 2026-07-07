@@ -44,6 +44,22 @@ export async function getFleetCompanies() {
   return [...new Map(companies.map((company) => [company.toLocaleLowerCase(), company])).values()];
 }
 
+export async function getFleetTruckNumbers(company: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("fleet_units")
+    .select("unit_number")
+    .eq("unit_type", "Truck")
+    .eq("company", company)
+    .order("unit_number");
+
+  if (error) throw error;
+
+  return (data ?? [])
+    .map((unit) => unit.unit_number?.trim())
+    .filter((unitNumber): unitNumber is string => Boolean(unitNumber));
+}
+
 export async function getUnit(unitId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

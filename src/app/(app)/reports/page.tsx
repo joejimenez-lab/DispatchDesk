@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
 import { Field, Input, Select } from "@/components/field";
 import { ExportMenu, type ExportMenuItem } from "@/components/export-menu";
 import { SummaryTotals, WeeklySummaryList } from "@/components/weekly-report";
@@ -17,22 +18,6 @@ function normalizePeriod(value: string | undefined): WeeklyFinancialPeriod {
   return PERIODS.some((period) => period.value === value) ? (value as WeeklyFinancialPeriod) : "all";
 }
 
-function normalizeFleet(value: string | undefined, companies: string[]) {
-  const requested = value?.trim().toLocaleLowerCase();
-  if (!requested) return "";
-  return companies.find((company) => company.toLocaleLowerCase() === requested) ?? "";
-}
-
-function scopedHref(fleet: string, params: { period: WeeklyFinancialPeriod; from?: string; to?: string; driver?: string }) {
-  const next = new URLSearchParams();
-  if (fleet) next.set("fleet", fleet);
-  next.set("period", params.period);
-  if (params.from) next.set("from", params.from);
-  if (params.to) next.set("to", params.to);
-  if (params.driver) next.set("driver", params.driver);
-  return `/reports?${next.toString()}`;
-}
-
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -41,7 +26,7 @@ export default async function ReportsPage({
   const params = await searchParams;
   const period = normalizePeriod(params.period);
   const [options, fleetCompanies] = await Promise.all([getFormOptions(), getFleetCompanies()]);
-  const fleet = normalizeFleet(params.fleet, fleetCompanies);
+  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
   const exportParams = new URLSearchParams();
   exportParams.set("period", period);
   if (fleet) exportParams.set("fleet", fleet);
@@ -147,29 +132,12 @@ export default async function ReportsPage({
         <p className="-mt-3 text-xs text-zinc-500">Custom range uses the From and To dates above. Leave a side blank to leave it open-ended.</p>
       ) : null}
 
-      {fleetCompanies.length ? (
-        <nav aria-label="Fleet report scope" className="flex flex-wrap gap-2">
-          {[
-            { label: "All", value: "" },
-            ...fleetCompanies.map((company) => ({ label: company, value: company })),
-          ].map((option) => {
-            const active = option.value === fleet;
-            return (
-              <Link
-                key={option.value || "all"}
-                href={scopedHref(option.value, { period, from: params.from, to: params.to, driver: params.driver })}
-                className={[
-                  "flex h-10 items-center rounded-md border px-4 text-sm font-medium",
-                  active ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400",
-                ].join(" ")}
-                aria-current={active ? "page" : undefined}
-              >
-                {option.label}
-              </Link>
-            );
-          })}
-        </nav>
-      ) : null}
+      <FleetScopeTabs
+        basePath="/reports"
+        companies={fleetCompanies}
+        selectedFleet={fleet}
+        params={{ period, from: params.from, to: params.to, driver: params.driver }}
+      />
 
       <SummaryTotals summaries={summaries} />
 

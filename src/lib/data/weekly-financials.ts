@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { profitForLoad } from "@/lib/financials";
+import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import type { LoadStatus } from "@/types/database";
 
 type WeeklyFinancialLoad = {
@@ -159,14 +160,7 @@ export async function getWeeklyDriverFinancialSummary(
   let fleetTruckNumbers: Set<string> | null = null;
 
   if (fleetCompany) {
-    const { data: units, error: unitsError } = await supabase
-      .from("fleet_units")
-      .select("unit_number")
-      .eq("unit_type", "Truck")
-      .eq("company", fleetCompany);
-
-    if (unitsError) throw unitsError;
-    fleetTruckNumbers = new Set((units ?? []).map((unit) => unit.unit_number?.trim()).filter(Boolean));
+    fleetTruckNumbers = new Set(await getFleetTruckNumbers(fleetCompany));
   }
 
   let query = supabase

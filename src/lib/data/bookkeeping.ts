@@ -4,6 +4,7 @@ import {
   type BookkeepingExportRow,
   type MaintenanceRecordTable,
 } from "@/lib/bookkeeping";
+import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import { createClient } from "@/lib/supabase/server";
 import { expenseCategories, type Database, type ExpenseCategory, type UnitType } from "@/types/database";
 
@@ -11,8 +12,14 @@ type ExpenseRow = Database["public"]["Tables"]["bookkeeping_expenses"]["Row"];
 type ReceiptRow = Database["public"]["Tables"]["bookkeeping_receipts"]["Row"];
 
 type UnitLink = { id: string; unit_number: string; unit_type: UnitType; company?: string | null };
-type LoadLink = { id: string; load_number: string; pickup_location: string; delivery_location: string };
-type DriverLink = { id: string; name: string };
+type LoadLink = {
+  id: string;
+  load_number: string;
+  pickup_location: string;
+  delivery_location: string;
+  drivers?: { truck_number: string | null } | null;
+};
+type DriverLink = { id: string; name: string; truck_number?: string | null };
 type ServiceLink = { id: string; service_date: string | null; description: string; fleet_units?: UnitLink | null };
 type InspectionLink = { id: string; inspection_date: string | null; result: string | null; fleet_units?: UnitLink | null };
 type RepairLink = { id: string; repair_date: string | null; description: string; log_type: string; fleet_units?: UnitLink | null };
@@ -34,6 +41,7 @@ export type BookkeepingFilters = {
   unit?: string;
   load?: string;
   driver?: string;
+  fleet?: string;
 };
 
 export type MaintenanceRecordOption = {
@@ -83,6 +91,22 @@ function maintenanceRecordLabel(expense: BookkeepingExpense) {
   return null;
 }
 
+export function bookkeepingExpenseMatchesFleet(expense: BookkeepingExpense, fleet: string, fleetTruckNumbers: Set<string>) {
+  const unitCompanies = [
+    expense.fleet_units?.company,
+    expense.service_records?.fleet_units?.company,
+    expense.inspection_records?.fleet_units?.company,
+    expense.repair_logs?.fleet_units?.company,
+  ];
+  if (unitCompanies.some((company) => company === fleet)) return true;
+
+  const truckNumbers = [
+    expense.drivers?.truck_number,
+    expense.loads?.drivers?.truck_number,
+  ];
+  return truckNumbers.some((truckNumber) => truckNumber?.trim() && fleetTruckNumbers.has(truckNumber.trim()));
+}
+
 function optionLabel({
   table,
   unit,
@@ -126,6 +150,8 @@ export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
   const unit = validUuid(filters.unit);
   const load = validUuid(filters.load);
   const driver = validUuid(filters.driver);
+  const fleet = filters.fleet?.trim() || null;
+  const fleetTruckNumbers = fleet ? new Set(await getFleetTruckNumbers(fleet)) : null;
 
   if ((filters.unit && !unit) || (filters.load && !load) || (filters.driver && !driver)) return [];
 
@@ -135,8 +161,8 @@ export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
       *,
       bookkeeping_receipts(*),
       fleet_units(id, unit_number, unit_type, company),
-      loads(id, load_number, pickup_location, delivery_location),
-      drivers(id, name),
+      loads(id, load_number, pickup_location, delivery_location, drivers(truck_number)),
+      drivers(id, name, truck_number),
       service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
       inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),
       repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company))
@@ -153,7 +179,10 @@ export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as unknown as BookkeepingExpense[];
+  const expenses = (data ?? []) as unknown as BookkeepingExpense[];
+  return fleet && fleetTruckNumbers
+    ? expenses.filter((expense) => bookkeepingExpenseMatchesFleet(expense, fleet, fleetTruckNumbers))
+    : expenses;
 }
 
 export async function getBookkeepingOptions(): Promise<BookkeepingOptions> {
@@ -166,7 +195,7 @@ export async function getBookkeepingOptions(): Promise<BookkeepingOptions> {
       .order("delivery_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(300),
-    supabase.from("drivers").select("id, name").order("name"),
+    supabase.from("drivers").select("id, name, truck_number").order("name"),
     supabase
       .from("service_records")
       .select("id, unit_id, service_date, description, created_at, fleet_units(id, unit_number, unit_type, company)")

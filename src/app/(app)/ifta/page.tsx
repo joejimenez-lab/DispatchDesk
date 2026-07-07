@@ -2,11 +2,13 @@ import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { DetailsCloseButton } from "@/components/details-close-button";
 import { ExportMenu } from "@/components/export-menu";
+import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
 import { Field, Select } from "@/components/field";
 import { ConfirmSubmitButton } from "@/components/form-buttons";
 import { IftaFuelForm } from "@/components/ifta-fuel-form";
 import { IftaTripForm } from "@/components/ifta-trip-form";
 import { addIftaFuelPurchase, addIftaTrip, deleteIftaFuelPurchase, deleteIftaTrip } from "@/lib/actions/ifta";
+import { getFleetCompanies } from "@/lib/data/fleet";
 import { getIftaFuelPurchases, getIftaRouteTemplates, getIftaTrips, getIftaTruckNumbers } from "@/lib/data/ifta";
 import {
   currentIftaQuarter,
@@ -35,17 +37,19 @@ function selectedQuarter(params: { year?: string; quarter?: string }): IftaQuart
 export default async function IftaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; quarter?: string; truck?: string }>;
+  searchParams: Promise<{ year?: string; quarter?: string; truck?: string; fleet?: string }>;
 }) {
   const params = await searchParams;
   const period = selectedQuarter(params);
   const range = quarterDateRange(period);
+  const fleetCompanies = await getFleetCompanies();
+  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
   const truck = params.truck || undefined;
 
   const [trips, purchases, truckNumbers, routes] = await Promise.all([
-    getIftaTrips({ ...range, truck }),
-    getIftaFuelPurchases({ ...range, truck }),
-    getIftaTruckNumbers(),
+    getIftaTrips({ ...range, truck, fleet: fleet || undefined }),
+    getIftaFuelPurchases({ ...range, truck, fleet: fleet || undefined }),
+    getIftaTruckNumbers(fleet || undefined),
     getIftaRouteTemplates(),
   ]);
 
@@ -67,6 +71,7 @@ export default async function IftaPage({
   );
 
   const exportParams = new URLSearchParams({ year: String(period.year), quarter: String(period.quarter) });
+  if (fleet) exportParams.set("fleet", fleet);
   if (truck) exportParams.set("truck", truck);
   const exportHref = (report: string) => `/api/ifta/export?report=${report}&${exportParams.toString()}`;
   const currentYear = currentIftaQuarter().year;
@@ -104,6 +109,7 @@ export default async function IftaPage({
       </div>
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 sm:grid-cols-4">
+        {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <Field label="Year">
           <Select name="year" defaultValue={String(period.year)}>
             {years.map((year) => <option key={year} value={year}>{year}</option>)}
@@ -128,6 +134,13 @@ export default async function IftaPage({
           <Link href="/ifta" className="flex h-10 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium">Reset</Link>
         </div>
       </form>
+
+      <FleetScopeTabs
+        basePath="/ifta"
+        companies={fleetCompanies}
+        selectedFleet={fleet}
+        params={{ year: String(period.year), quarter: String(period.quarter) }}
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4"><div className="text-sm font-medium text-zinc-600">Total miles</div><div className="mt-1 text-2xl font-semibold text-zinc-950">{formatQuantity(totals.miles)}</div></div>
