@@ -11,6 +11,7 @@ const links = [
   ["Brokers", "/brokers"],
   ["Fleet", "/fleet"],
   ["Maintenance", "/maintenance"],
+  ["IFTA", "/ifta"],
 ];
 
 export function AppNav() {

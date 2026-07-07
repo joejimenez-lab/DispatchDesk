@@ -13,7 +13,15 @@ export type ExportMenuItem = {
   }[];
 };
 
-export function ExportMenu({ items }: { items: ExportMenuItem[] }) {
+export function ExportMenu({
+  items,
+  heading = "Business exports",
+  description = "Weekly reports use the filters on this page.",
+}: {
+  items: ExportMenuItem[];
+  heading?: string;
+  description?: string;
+}) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDetailsElement>(null);
 
@@ -52,8 +60,8 @@ export function ExportMenu({ items }: { items: ExportMenuItem[] }) {
 
       <div className="absolute right-0 z-30 mt-2 w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl">
         <div className="border-b border-zinc-200 px-4 py-3">
-          <p className="text-sm font-semibold text-zinc-950">Business exports</p>
-          <p className="mt-0.5 text-xs text-zinc-500">Weekly reports use the filters on this page.</p>
+          <p className="text-sm font-semibold text-zinc-950">{heading}</p>
+          <p className="mt-0.5 text-xs text-zinc-500">{description}</p>
         </div>
         <div className="max-h-[min(32rem,70vh)] overflow-y-auto p-2">
           {items.map((item) => (
