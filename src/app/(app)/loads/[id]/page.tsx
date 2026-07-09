@@ -243,7 +243,7 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
                   <Link href={`/api/documents/${document.id}/download`} className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium">
                     Download
                   </Link>
-                  <ActionForm action={deleteDocument.bind(null, document.id, id, document.storage_path)} successMessage={false}>
+                  <ActionForm action={deleteDocument.bind(null, document.id)} successMessage={false}>
                     <ConfirmSubmitButton
                       message={`Delete document ${document.file_name}?`}
                       variant="secondary"

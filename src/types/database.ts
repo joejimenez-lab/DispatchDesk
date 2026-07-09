@@ -1,3 +1,11 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
 export type LoadStatus =
   | "Booked"
   | "Dispatched"
@@ -265,6 +273,32 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      storage_cleanup_jobs: {
+        Row: {
+          id: string;
+          bucket_id: string;
+          storage_path: string;
+          source: "delete_load" | "delete_document" | "upload_document";
+          load_id: string | null;
+          document_id: string | null;
+          last_error: string | null;
+          last_attempted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          bucket_id?: string;
+          storage_path: string;
+          source: "delete_load" | "delete_document" | "upload_document";
+          load_id?: string | null;
+          document_id?: string | null;
+          last_error?: string | null;
+          last_attempted_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["storage_cleanup_jobs"]["Insert"]>;
+        Relationships: [];
       };
       notes: {
         Row: {
@@ -664,6 +698,36 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      delete_document_with_cleanup: {
+        Args: {
+          p_document_id: string;
+        };
+        Returns: {
+          job_id: string;
+          bucket_id: string;
+          storage_path: string;
+          load_id: string;
+        }[];
+      };
+      delete_load_with_document_cleanup: {
+        Args: {
+          p_load_id: string;
+        };
+        Returns: {
+          job_id: string;
+          bucket_id: string;
+          storage_path: string;
+          load_id: string;
+        }[];
+      };
+      update_load_with_payment: {
+        Args: {
+          p_load_id: string;
+          p_load: Json;
+          p_payment: Json;
+        };
+        Returns: undefined;
+      };
       complete_maintenance_reminder: {
         Args: {
           p_reminder_id: string;
