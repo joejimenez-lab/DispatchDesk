@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { DetailsCloseButton } from "@/components/details-close-button";
+import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
 import { MaintenanceReminderCard } from "@/components/maintenance-reminder-card";
 import { MaintenanceReminderForm } from "@/components/maintenance-reminder-form";
 import { addMaintenanceReminder } from "@/lib/actions/maintenance";
 import { getMaintenanceAlerts } from "@/lib/data/maintenance";
-import { getUnits } from "@/lib/data/fleet";
+import { getFleetCompanies, getUnits } from "@/lib/data/fleet";
 import type { MaintenanceStatus } from "@/lib/maintenance";
 
 const filters: { label: string; value: "all" | MaintenanceStatus }[] = [
@@ -17,11 +18,16 @@ const filters: { label: string; value: "all" | MaintenanceStatus }[] = [
 export default async function MaintenancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; unit?: string }>;
+  searchParams: Promise<{ status?: string; unit?: string; fleet?: string }>;
 }) {
   const params = await searchParams;
-  const [alerts, units] = await Promise.all([getMaintenanceAlerts(), getUnits()]);
-  const status = filters.some((filter) => filter.value === params.status) ? params.status : "all";
+  const [units, fleetCompanies] = await Promise.all([getUnits(), getFleetCompanies()]);
+  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
+  const alerts = await getMaintenanceAlerts(fleet || undefined);
+  const filteredUnits = fleet ? units.filter((unit) => unit.company === fleet) : units;
+  const status = filters.some((filter) => filter.value === params.status)
+    ? (params.status as "all" | MaintenanceStatus)
+    : "all";
   const counts = alerts.reduce(
     (result, alert) => ({ ...result, [alert.status]: result[alert.status] + 1 }),
     { overdue: 0, "due-soon": 0, upcoming: 0 },
@@ -40,7 +46,7 @@ export default async function MaintenancePage({
           <summary className="cursor-pointer list-none rounded-md bg-zinc-950 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-zinc-800">+ Add schedule</summary>
           <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 lg:absolute lg:left-1/2 lg:z-10 lg:w-[min(68rem,calc(100vw-2rem))] lg:-translate-x-1/2 lg:shadow-xl">
             <div className="mb-3 flex justify-end"><DetailsCloseButton /></div>
-            <MaintenanceReminderForm action={addMaintenanceReminder} units={units} submitLabel="Add schedule" />
+            <MaintenanceReminderForm action={addMaintenanceReminder} units={filteredUnits} submitLabel="Add schedule" />
           </div>
         </details>
       </div>
@@ -55,7 +61,11 @@ export default async function MaintenancePage({
         {filters.map((filter) => (
           <Link
             key={filter.value}
-            href={`/maintenance?status=${filter.value}${params.unit ? `&unit=${params.unit}` : ""}`}
+            href={`/maintenance?${new URLSearchParams({
+              status: filter.value,
+              ...(fleet ? { fleet } : {}),
+              ...(params.unit ? { unit: params.unit } : {}),
+            }).toString()}`}
             className={status === filter.value
               ? "rounded-full bg-zinc-950 px-4 py-2 text-sm font-medium text-white"
               : "rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"}
@@ -63,8 +73,15 @@ export default async function MaintenancePage({
             {filter.label}
           </Link>
         ))}
-        {params.unit ? <Link href={`/maintenance?status=${status}`} className="rounded-full px-4 py-2 text-sm font-medium text-zinc-600 underline">Clear unit filter</Link> : null}
+        {params.unit ? <Link href={`/maintenance?${new URLSearchParams({ status, ...(fleet ? { fleet } : {}) }).toString()}`} className="rounded-full px-4 py-2 text-sm font-medium text-zinc-600 underline">Clear unit filter</Link> : null}
       </nav>
+
+      <FleetScopeTabs
+        basePath="/maintenance"
+        companies={fleetCompanies}
+        selectedFleet={fleet}
+        params={{ status }}
+      />
 
       <section className="grid gap-4">
         {visible.map((alert) => <MaintenanceReminderCard key={alert.id} alert={alert} />)}

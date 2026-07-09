@@ -3,6 +3,7 @@ import { ActionForm } from "@/components/action-form";
 import { BookkeepingExpenseForm } from "@/components/bookkeeping-expense-form";
 import { DetailsCloseButton } from "@/components/details-close-button";
 import { ExportMenu } from "@/components/export-menu";
+import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
 import { Field, Input, Select } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import {
@@ -13,6 +14,7 @@ import {
   uploadBookkeepingReceipt,
 } from "@/lib/actions/bookkeeping";
 import { expenseCategoryTone, receiptAccept } from "@/lib/bookkeeping";
+import { getFleetCompanies } from "@/lib/data/fleet";
 import {
   getBookkeepingExpenses,
   getBookkeepingOptions,
@@ -31,7 +33,10 @@ function linkedMaintenance(expense: BookkeepingExpense) {
 }
 
 function linkedUnit(expense: BookkeepingExpense) {
-  return expense.fleet_units ? `${expense.fleet_units.unit_type} ${expense.fleet_units.unit_number}` : null;
+  if (!expense.fleet_units) return null;
+  return expense.fleet_units.company
+    ? `${expense.fleet_units.company} - ${expense.fleet_units.unit_type} ${expense.fleet_units.unit_number}`
+    : `${expense.fleet_units.unit_type} ${expense.fleet_units.unit_number}`;
 }
 
 function linkedItems(expense: BookkeepingExpense) {
@@ -173,13 +178,16 @@ function ExpenseCard({ expense, options }: { expense: BookkeepingExpense; option
 export default async function BookkeepingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; category?: string; unit?: string; load?: string; driver?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; category?: string; unit?: string; load?: string; driver?: string; fleet?: string }>;
 }) {
   const params = await searchParams;
-  const [expenses, options] = await Promise.all([
-    getBookkeepingExpenses(params),
+  const [options, fleetCompanies] = await Promise.all([
     getBookkeepingOptions(),
+    getFleetCompanies(),
   ]);
+  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
+  const expenses = await getBookkeepingExpenses({ ...params, fleet: fleet || undefined });
+  const filteredUnits = fleet ? options.units.filter((unit) => unit.company === fleet) : options.units;
   const category = normalizeExpenseCategory(params.category);
   const total = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
   const fuelTotal = expenses
@@ -194,6 +202,7 @@ export default async function BookkeepingPage({
   if (params.from) exportParams.set("from", params.from);
   if (params.to) exportParams.set("to", params.to);
   if (category) exportParams.set("category", category);
+  if (fleet) exportParams.set("fleet", fleet);
   if (params.unit) exportParams.set("unit", params.unit);
   if (params.load) exportParams.set("load", params.load);
   if (params.driver) exportParams.set("driver", params.driver);
@@ -219,6 +228,7 @@ export default async function BookkeepingPage({
       </div>
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-6">
+        {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <Field label="From">
           <Input type="date" name="from" defaultValue={params.from ?? ""} />
         </Field>
@@ -235,12 +245,12 @@ export default async function BookkeepingPage({
             ))}
           </Select>
         </Field>
-        <Field label="Truck / Trailer">
+        <Field label="Fleet / Truck / Trailer">
           <Select name="unit" defaultValue={params.unit ?? ""}>
             <option value="">All</option>
-            {options.units.map((unit) => (
+            {filteredUnits.map((unit) => (
               <option key={unit.id} value={unit.id}>
-                {unit.unit_type} {unit.unit_number}
+                {unit.company ? `${unit.company} - ` : ""}{unit.unit_type} {unit.unit_number}
               </option>
             ))}
           </Select>
@@ -262,6 +272,17 @@ export default async function BookkeepingPage({
           </Link>
         </div>
       </form>
+
+      <FleetScopeTabs
+        basePath="/bookkeeping"
+        companies={fleetCompanies}
+        selectedFleet={fleet}
+        params={{
+          from: params.from,
+          to: params.to,
+          category: category ?? undefined,
+        }}
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="Total expenses" value={currency(total)} />

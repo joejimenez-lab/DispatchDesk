@@ -20,6 +20,7 @@ export type MaintenanceAlert = MaintenanceReminderRow & {
     unit_number: string;
     unit_type: UnitType;
     odometer: number | null;
+    company?: string | null;
   };
   status: MaintenanceStatus;
   daysRemaining: number | null;

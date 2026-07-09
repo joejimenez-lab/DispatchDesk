@@ -14,6 +14,7 @@ import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 const PERIODS: WeeklyFinancialPeriod[] = ["this", "last", "all", "custom"];
 const REPORTS = ["weekly-payroll", "weekly-financial", "client-billing", "maintenance", "yearly-financial"] as const;
 type Report = (typeof REPORTS)[number];
+type RouteSupabase = Extract<Awaited<ReturnType<typeof createAuthenticatedRouteClient>>, { supabase: unknown }>["supabase"];
 
 function normalizePeriod(value: string | null): WeeklyFinancialPeriod {
   return PERIODS.includes(value as WeeklyFinancialPeriod) ? (value as WeeklyFinancialPeriod) : "all";
@@ -31,6 +32,22 @@ function download(csv: string, report: Report) {
 }
 
 type Unit = { unit_number: string; unit_type: string; company: string | null } | null;
+
+async function truckNumbersForFleet(
+  supabase: RouteSupabase,
+  fleet: string | null,
+) {
+  if (!fleet) return null;
+
+  const { data, error } = await supabase
+    .from("fleet_units")
+    .select("unit_number")
+    .eq("unit_type", "Truck")
+    .eq("company", fleet);
+
+  if (error) throw error;
+  return new Set((data ?? []).map((unit) => unit.unit_number?.trim()).filter(Boolean));
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ report: string }> }) {
   const url = new URL(request.url);
@@ -50,6 +67,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
   }
   const report = rawReport as Report;
   const { searchParams } = url;
+  const fleet = searchParams.get("fleet")?.trim() || null;
 
   try {
     if (report === "weekly-payroll" || report === "weekly-financial") {
@@ -58,25 +76,27 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         from: searchParams.get("from") ?? undefined,
         to: searchParams.get("to") ?? undefined,
         driver: searchParams.get("driver") ?? undefined,
+        fleet: fleet ?? undefined,
       });
       return download(report === "weekly-payroll" ? weeklyPayrollCsv(summaries) : weeklyFinancialCsv(summaries), report);
     }
 
     if (report === "yearly-financial") {
-      const { summaries } = await getWeeklyDriverFinancialSummary({ period: "all" });
+      const { summaries } = await getWeeklyDriverFinancialSummary({ period: "all", fleet: fleet ?? undefined });
       return download(yearlyFinancialCsv(summaries), report);
     }
 
     if (report === "client-billing") {
+      const fleetTruckNumbers = await truckNumbersForFleet(supabase, fleet);
       const { data, error } = await supabase
         .from("loads")
-        .select("load_number, status, pickup_date, delivery_date, created_at, load_rate, brokers(company_name), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
+        .select("load_number, status, pickup_date, delivery_date, created_at, load_rate, brokers(company_name), drivers(truck_number), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
         .neq("status", "Cancelled")
         .order("delivery_date", { ascending: false, nullsFirst: false })
         .order("pickup_date", { ascending: false, nullsFirst: false });
       if (error) throw error;
 
-      const csv = clientBillingCsv(((data ?? []) as unknown as {
+      const rows = ((data ?? []) as unknown as {
         load_number: string;
         status: string;
         pickup_date: string | null;
@@ -84,8 +104,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         created_at: string;
         load_rate: number;
         brokers: { company_name: string | null } | null;
+        drivers: { truck_number: string | null } | null;
         payments: { invoice_sent: boolean; invoice_sent_date: string | null; client_paid: boolean; client_amount_received: number; client_date_received: string | null } | null;
-      }[]).map((load) => ({
+      }[]).filter((load) => {
+        if (!fleetTruckNumbers) return true;
+        const truckNumber = load.drivers?.truck_number?.trim();
+        return Boolean(truckNumber && fleetTruckNumbers.has(truckNumber));
+      }).map((load) => ({
         loadNumber: load.load_number,
         loadDate: load.delivery_date ?? load.pickup_date ?? load.created_at.slice(0, 10),
         broker: load.brokers?.company_name ?? null,
@@ -97,7 +122,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         amountReceived: Number(load.payments?.client_amount_received ?? 0),
         dateReceived: load.payments?.client_date_received ?? null,
         outstanding: clientOutstanding(load.load_rate, load.payments),
-      })));
+      }));
+      const csv = clientBillingCsv(rows);
       return download(csv, report);
     }
 
@@ -130,7 +156,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
       ...((bookkeepingExpenses.data ?? []) as unknown as { expense_date: string; category: string; amount: number; vendor: string | null; notes: string | null; fleet_units: Unit }[]).map((row) => ({
         ...unitFields(row.fleet_units), recordType: `Bookkeeping ${row.category}`, date: row.expense_date, odometer: null, description: row.vendor ? `${row.category} - ${row.vendor}` : row.category, result: null, cost: Number(row.amount), status: "Recorded", notes: row.notes,
       })),
-    ].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || a.unitNumber.localeCompare(b.unitNumber));
+    ].filter((row) => !fleet || row.company === fleet)
+      .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || a.unitNumber.localeCompare(b.unitNumber));
 
     return download(maintenanceCsv(rows), report);
   } catch {

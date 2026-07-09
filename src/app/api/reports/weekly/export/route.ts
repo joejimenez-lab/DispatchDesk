@@ -29,6 +29,7 @@ export async function GET(request: Request) {
     from: searchParams.get("from") ?? undefined,
     to: searchParams.get("to") ?? undefined,
     driver: searchParams.get("driver") ?? undefined,
+    fleet: searchParams.get("fleet") ?? undefined,
   });
 
   const headers = [

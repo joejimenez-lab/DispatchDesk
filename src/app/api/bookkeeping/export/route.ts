@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { bookkeepingCsv } from "@/lib/bookkeeping";
 import {
+  bookkeepingExpenseMatchesFleet,
   bookkeepingExpenseToExportRow,
   normalizeExpenseCategory,
   type BookkeepingExpense,
 } from "@/lib/data/bookkeeping";
+import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -36,6 +38,8 @@ export async function GET(request: Request) {
   const unit = validUuid(searchParams.get("unit"));
   const load = validUuid(searchParams.get("load"));
   const driver = validUuid(searchParams.get("driver"));
+  const fleet = searchParams.get("fleet")?.trim() || null;
+  const fleetTruckNumbers = fleet ? new Set(await getFleetTruckNumbers(fleet)) : null;
 
   let query = supabase
     .from("bookkeeping_expenses")
@@ -43,8 +47,8 @@ export async function GET(request: Request) {
       *,
       bookkeeping_receipts(*),
       fleet_units(id, unit_number, unit_type, company),
-      loads(id, load_number, pickup_location, delivery_location),
-      drivers(id, name),
+      loads(id, load_number, pickup_location, delivery_location, drivers(truck_number)),
+      drivers(id, name, truck_number),
       service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
       inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),
       repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company))
@@ -63,7 +67,9 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: "Could not export bookkeeping expenses." }, { status: 500 });
 
   const csv = bookkeepingCsv(
-    ((data ?? []) as unknown as BookkeepingExpense[]).map(bookkeepingExpenseToExportRow),
+    ((data ?? []) as unknown as BookkeepingExpense[])
+      .filter((expense) => !fleet || !fleetTruckNumbers || bookkeepingExpenseMatchesFleet(expense, fleet, fleetTruckNumbers))
+      .map(bookkeepingExpenseToExportRow),
   );
   const stamp = new Date().toISOString().slice(0, 10);
 

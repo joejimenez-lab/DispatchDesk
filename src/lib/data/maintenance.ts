@@ -12,11 +12,13 @@ type ReminderJoin = ReminderRow & {
     unit_number: string;
     unit_type: UnitType;
     odometer: number | null;
+    company: string | null;
   } | {
     id: string;
     unit_number: string;
     unit_type: UnitType;
     odometer: number | null;
+    company: string | null;
   }[] | null;
 };
 
@@ -32,23 +34,24 @@ export function mapMaintenanceAlerts(rows: unknown[], today?: string) {
   return sortMaintenanceAlerts(alerts);
 }
 
-export async function getMaintenanceAlerts() {
+export async function getMaintenanceAlerts(fleet?: string) {
   const { supabase } = await createAuthenticatedClient();
   const { data, error } = await supabase
     .from("maintenance_reminders")
-    .select("*, fleet_units!inner(id, unit_number, unit_type, odometer)")
+    .select("*, fleet_units!inner(id, unit_number, unit_type, odometer, company)")
     .is("completed_at", null)
     .order("due_date", { ascending: true, nullsFirst: false });
 
   if (error) throw error;
-  return mapMaintenanceAlerts((data ?? []) as unknown[]);
+  const alerts = mapMaintenanceAlerts((data ?? []) as unknown[]);
+  return fleet ? alerts.filter((alert) => alert.unit.company === fleet) : alerts;
 }
 
 export async function getMaintenanceReminder(reminderId: string) {
   const { supabase } = await createAuthenticatedClient();
   const { data, error } = await supabase
     .from("maintenance_reminders")
-    .select("*, fleet_units!inner(id, unit_number, unit_type, odometer)")
+    .select("*, fleet_units!inner(id, unit_number, unit_type, odometer, company)")
     .eq("id", reminderId)
     .single();
 

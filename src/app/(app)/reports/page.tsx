@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
 import { Field, Input, Select } from "@/components/field";
 import { ExportMenu, type ExportMenuItem } from "@/components/export-menu";
 import { SummaryTotals, WeeklySummaryList } from "@/components/weekly-report";
+import { getFleetCompanies } from "@/lib/data/fleet";
 import { getFormOptions } from "@/lib/data/options";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
 
@@ -19,12 +21,15 @@ function normalizePeriod(value: string | undefined): WeeklyFinancialPeriod {
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string; fleet?: string }>;
 }) {
   const params = await searchParams;
   const period = normalizePeriod(params.period);
+  const [options, fleetCompanies] = await Promise.all([getFormOptions(), getFleetCompanies()]);
+  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
   const exportParams = new URLSearchParams();
   exportParams.set("period", period);
+  if (fleet) exportParams.set("fleet", fleet);
   if (params.from) exportParams.set("from", params.from);
   if (params.to) exportParams.set("to", params.to);
   if (params.driver) exportParams.set("driver", params.driver);
@@ -32,20 +37,18 @@ export default async function ReportsPage({
   const pdfExportHref = `/api/reports/weekly/pdf?${exportParams.toString()}`;
   const filteredExportHref = (report: "weekly-payroll" | "weekly-financial") =>
     `/api/reports/exports/${report}?${exportParams.toString()}`;
-  const [{ summaries }, options] = await Promise.all([
-    getWeeklyDriverFinancialSummary({
-      period,
-      from: params.from,
-      to: params.to,
-      driver: params.driver || undefined,
-    }),
-    getFormOptions(),
-  ]);
+  const { summaries } = await getWeeklyDriverFinancialSummary({
+    period,
+    from: params.from,
+    to: params.to,
+    driver: params.driver || undefined,
+    fleet: fleet || undefined,
+  });
   const exports: ExportMenuItem[] = [
     {
       title: "Loads",
       description: "Complete operational and payment detail for every load.",
-      formats: [{ label: "CSV", href: "/api/loads/export", type: "csv" }],
+      formats: [{ label: "CSV", href: `/api/loads/export?${exportParams.toString()}`, type: "csv" }],
     },
     {
       title: "Weekly driver payroll",
@@ -64,7 +67,7 @@ export default async function ReportsPage({
     {
       title: "Client billing",
       description: "Invoice status, collections, and outstanding balances.",
-      formats: [{ label: "CSV", href: "/api/reports/exports/client-billing", type: "csv" }],
+      formats: [{ label: "CSV", href: `/api/reports/exports/client-billing?${exportParams.toString()}`, type: "csv" }],
     },
     {
       title: "Bookkeeping expenses",
@@ -74,12 +77,12 @@ export default async function ReportsPage({
     {
       title: "Maintenance",
       description: "Fleet service, inspection, repair, and reminder history.",
-      formats: [{ label: "CSV", href: "/api/reports/exports/maintenance", type: "csv" }],
+      formats: [{ label: "CSV", href: `/api/reports/exports/maintenance?${exportParams.toString()}`, type: "csv" }],
     },
     {
       title: "Yearly financial summary",
       description: "Annual revenue, costs, load count, and estimated profit.",
-      formats: [{ label: "CSV", href: "/api/reports/exports/yearly-financial", type: "csv" }],
+      formats: [{ label: "CSV", href: `/api/reports/exports/yearly-financial?${exportParams.toString()}`, type: "csv" }],
     },
   ];
 
@@ -94,6 +97,7 @@ export default async function ReportsPage({
       </div>
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-5">
+        {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <Field label="Period">
           <Select name="period" defaultValue={period}>
             {PERIODS.map((option) => (
@@ -128,13 +132,20 @@ export default async function ReportsPage({
         <p className="-mt-3 text-xs text-zinc-500">Custom range uses the From and To dates above. Leave a side blank to leave it open-ended.</p>
       ) : null}
 
+      <FleetScopeTabs
+        basePath="/reports"
+        companies={fleetCompanies}
+        selectedFleet={fleet}
+        params={{ period, from: params.from, to: params.to, driver: params.driver }}
+      />
+
       <SummaryTotals summaries={summaries} />
 
       <WeeklySummaryList
         summaries={summaries}
         linkDrivers
         emptyTitle="No reportable loads"
-        emptyMessage="No non-cancelled loads match the selected period and driver."
+        emptyMessage="No non-cancelled loads match the selected filters."
       />
     </div>
   );

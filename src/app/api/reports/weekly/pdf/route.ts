@@ -28,6 +28,7 @@ export async function GET(request: Request) {
       from: searchParams.get("from") ?? undefined,
       to: searchParams.get("to") ?? undefined,
       driver: searchParams.get("driver") ?? undefined,
+      fleet: searchParams.get("fleet") ?? undefined,
     });
     const pdf = await renderWeeklySummaryPdf(summaries, range);
     const stamp = new Date().toISOString().slice(0, 10);
