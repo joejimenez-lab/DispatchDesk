@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { CompanyFleetField } from "@/components/company-fleet-field";
+import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
 import { Field, Input, Select, Textarea } from "@/components/field";
 import { SubmitButton } from "@/components/form-buttons";
 import { createUnit } from "@/lib/actions/fleet";
@@ -89,10 +90,13 @@ function UnitGroup({ title, units, maintenanceByUnit }: { title: string; units: 
 export default async function FleetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; fleet?: string }>;
 }) {
   const params = await searchParams;
-  const [units, companies, maintenanceAlerts] = await Promise.all([getUnits(params.q), getFleetCompanies(), getMaintenanceAlerts()]);
+  const [allUnits, companies] = await Promise.all([getUnits(params.q), getFleetCompanies()]);
+  const fleet = normalizeFleetScope(params.fleet, companies);
+  const [maintenanceAlerts] = await Promise.all([getMaintenanceAlerts(fleet || undefined)]);
+  const units = fleet ? allUnits.filter((unit) => unit.company === fleet) : allUnits;
   const maintenanceByUnit = maintenanceAlerts.reduce((byUnit, alert) => {
     const counts = byUnit.get(alert.unit_id) ?? emptyMaintenanceCounts();
     if (alert.snoozed) counts.snoozed += 1;
@@ -148,6 +152,7 @@ export default async function FleetPage({
       </div>
 
       <form className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:flex-row sm:items-end">
+        {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <Field label="Search fleet" className="flex-1">
           <Input name="q" defaultValue={params.q ?? ""} placeholder="Search by unit number or company" />
         </Field>
@@ -155,11 +160,18 @@ export default async function FleetPage({
           Search
         </button>
         {params.q ? (
-          <Link href="/fleet" className="inline-flex h-10 items-center justify-center rounded-md px-3 text-sm font-medium text-zinc-600 hover:bg-zinc-100">
+          <Link href={fleet ? `/fleet?fleet=${encodeURIComponent(fleet)}` : "/fleet"} className="inline-flex h-10 items-center justify-center rounded-md px-3 text-sm font-medium text-zinc-600 hover:bg-zinc-100">
             Clear
           </Link>
         ) : null}
       </form>
+
+      <FleetScopeTabs
+        basePath="/fleet"
+        companies={companies}
+        selectedFleet={fleet}
+        params={{ q: params.q }}
+      />
 
       <UnitGroup title="Trucks" units={trucks} maintenanceByUnit={maintenanceByUnit} />
       <UnitGroup title="Trailers" units={trailers} maintenanceByUnit={maintenanceByUnit} />
