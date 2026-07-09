@@ -10,4 +10,10 @@
 
 Version 1 uses one authenticated admin account. RLS is still enabled on every table and storage object so the anonymous public client cannot access business data.
 
+## Recoverable document cleanup
+
+Load and document deletion first queue affected Storage paths in `storage_cleanup_jobs`, then delete the database rows in an RPC transaction. After the database commit, the server removes queued objects from the private `load-documents` bucket and clears the queue rows only after Storage confirms deletion.
+
+If Storage deletion or cleanup finalization fails, the server logs the failure and leaves the queue row with the bucket and path needed for retry. A retry should remove the listed object path from Storage and then delete the matching `storage_cleanup_jobs` row only after successful removal.
+
 For a fresh database, `001_initial_schema.sql` already includes the current schema. If an existing database was created before a later migration, run the later numbered migration files as well, such as `003_add_fuel_cost_to_loads.sql`.

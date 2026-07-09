@@ -4,12 +4,93 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { errorState, successState, type ActionState } from "@/lib/actions/state";
 import { validateUploadedDocument } from "@/lib/document-security";
+import { logError } from "@/lib/logger";
 import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import { documentSchema, loadSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
 import { loadStatuses, type Database, type LoadStatus } from "@/types/database";
 
 type PaymentFlag = "invoice_sent" | "client_paid" | "driver_paid" | "dispatcher_paid";
 type PaymentUpdate = Database["public"]["Tables"]["payments"]["Update"];
+type AuthenticatedSupabase = Awaited<ReturnType<typeof createAuthenticatedClient>>["supabase"];
+type StorageCleanupJob = {
+  job_id: string;
+  bucket_id: string;
+  storage_path: string;
+  load_id: string;
+};
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error && "message" in error) return String(error.message);
+  return String(error);
+}
+
+async function markStorageCleanupFailure(
+  supabase: AuthenticatedSupabase,
+  jobs: StorageCleanupJob[],
+  error: unknown,
+  context: Record<string, unknown>,
+) {
+  const jobIds = jobs.map((job) => job.job_id);
+  const { error: updateError } = await supabase
+    .from("storage_cleanup_jobs")
+    .update({ last_error: errorMessage(error), last_attempted_at: new Date().toISOString() })
+    .in("id", jobIds);
+
+  if (updateError) {
+    logError("storage_cleanup.failure_record_failed", updateError, { ...context, jobIds });
+  }
+}
+
+async function queueUploadedStorageCleanup(
+  supabase: AuthenticatedSupabase,
+  storagePath: string,
+  error: unknown,
+) {
+  const { error: queueError } = await supabase.from("storage_cleanup_jobs").insert({
+    bucket_id: "load-documents",
+    storage_path: storagePath,
+    source: "upload_document",
+    last_error: errorMessage(error),
+    last_attempted_at: new Date().toISOString(),
+  });
+
+  if (queueError) {
+    logError("document_upload.compensation_queue_failed", queueError, { storagePath });
+  }
+}
+
+async function removeQueuedStorageObjects(
+  supabase: AuthenticatedSupabase,
+  jobs: StorageCleanupJob[],
+  context: Record<string, unknown>,
+) {
+  if (!jobs.length) return null;
+
+  const jobsByBucket = new Map<string, StorageCleanupJob[]>();
+  for (const job of jobs) {
+    jobsByBucket.set(job.bucket_id, [...(jobsByBucket.get(job.bucket_id) ?? []), job]);
+  }
+
+  for (const [bucketId, bucketJobs] of jobsByBucket) {
+    const paths = bucketJobs.map((job) => job.storage_path);
+    const { error } = await supabase.storage.from(bucketId).remove(paths);
+    if (error) {
+      logError("storage_cleanup.remove_failed", error, { ...context, bucketId, paths });
+      await markStorageCleanupFailure(supabase, bucketJobs, error, { ...context, bucketId, paths });
+      return errorState(error, "Could not remove stored documents. Cleanup can be retried from the storage cleanup queue.");
+    }
+  }
+
+  const jobIds = jobs.map((job) => job.job_id);
+  const { error } = await supabase.from("storage_cleanup_jobs").delete().in("id", jobIds);
+  if (error) {
+    logError("storage_cleanup.clear_failed", error, { ...context, jobIds });
+    return errorState(error, "Could not finalize document cleanup. Cleanup can be retried from the storage cleanup queue.");
+  }
+
+  return null;
+}
 
 function value(formData: FormData, key: string) {
   return formData.get(key) ?? "";
@@ -84,15 +165,15 @@ export async function updateLoad(loadId: string, _state: ActionState, formData: 
     const load = loadPayload(formData);
     const payment = paymentPayload(formData);
 
-    const { error: loadError } = await supabase.from("loads").update(load).eq("id", loadId);
-    if (loadError) return errorState(loadError, "Could not save load.");
-
-    const { error: paymentError } = await supabase
-      .from("payments")
-      .upsert({ load_id: loadId, ...payment }, { onConflict: "load_id" });
-    if (paymentError) return errorState(paymentError, "Could not save payment details.");
-
-    await supabase.from("activity_logs").insert({ load_id: loadId, action: "Load and payment details updated" });
+    const { error } = await supabase.rpc("update_load_with_payment", {
+      p_load_id: loadId,
+      p_load: load,
+      p_payment: payment,
+    });
+    if (error) {
+      logError("load.update_failed", error, { loadId });
+      return errorState(error, "Could not save load.");
+    }
   } catch (error) {
     return errorState(error, "Could not save load.");
   }
@@ -177,13 +258,20 @@ export async function deleteLoad(loadId: string, _state: ActionState): Promise<A
 
   try {
     const { supabase } = await createAuthenticatedClient();
-    const { data: docs } = await supabase.from("documents").select("storage_path").eq("load_id", loadId);
-    if (docs?.length) {
-      await supabase.storage.from("load-documents").remove(docs.map((doc) => doc.storage_path));
+
+    const { data: cleanupJobs, error } = await supabase.rpc("delete_load_with_document_cleanup", {
+      p_load_id: loadId,
+    });
+    if (error) {
+      logError("load.delete_failed", error, { loadId });
+      return errorState(error, "Could not delete load.");
     }
 
-    const { error } = await supabase.from("loads").delete().eq("id", loadId);
-    if (error) return errorState(error, "Could not delete load.");
+    const cleanupError = await removeQueuedStorageObjects(supabase, cleanupJobs ?? [], {
+      operation: "deleteLoad",
+      loadId,
+    });
+    if (cleanupError) return cleanupError;
   } catch (error) {
     return errorState(error, "Could not delete load.");
   }
@@ -234,7 +322,10 @@ export async function uploadDocument(_state: ActionState, formData: FormData): P
       .from("load-documents")
       .upload(storagePath, file, { contentType: document.mimeType, upsert: false });
 
-    if (uploadError) return errorState(uploadError, "Could not upload document.");
+    if (uploadError) {
+      logError("document_upload.storage_upload_failed", uploadError, { loadId: parsed.load_id, storagePath });
+      return errorState(uploadError, "Could not upload document.");
+    }
 
     const { error } = await supabase.from("documents").insert({
       load_id: parsed.load_id,
@@ -245,7 +336,12 @@ export async function uploadDocument(_state: ActionState, formData: FormData): P
     });
 
     if (error) {
-      await supabase.storage.from("load-documents").remove([storagePath]);
+      logError("document_upload.record_insert_failed", error, { loadId: parsed.load_id, storagePath });
+      const { error: removeError } = await supabase.storage.from("load-documents").remove([storagePath]);
+      if (removeError) {
+        logError("document_upload.compensation_remove_failed", removeError, { storagePath });
+        await queueUploadedStorageCleanup(supabase, storagePath, removeError);
+      }
       return errorState(error, "Could not save document record.");
     }
 
@@ -253,22 +349,46 @@ export async function uploadDocument(_state: ActionState, formData: FormData): P
     revalidatePath(`/loads/${parsed.load_id}`);
     return successState("Document uploaded.");
   } catch (error) {
-    if (storagePath) await supabase.storage.from("load-documents").remove([storagePath]);
+    if (storagePath) {
+      const { error: removeError } = await supabase.storage.from("load-documents").remove([storagePath]);
+      if (removeError) {
+        logError("document_upload.compensation_remove_failed", removeError, { storagePath });
+        await queueUploadedStorageCleanup(supabase, storagePath, removeError);
+      }
+    }
     return errorState(error, "Could not upload document.");
   }
 }
 
-export async function deleteDocument(documentId: string, loadId: string, storagePath: string, _state: ActionState): Promise<ActionState> {
+export async function deleteDocument(documentId: string, _state: ActionState): Promise<ActionState> {
   void _state;
 
   try {
     const { supabase } = await createAuthenticatedClient();
-    await supabase.storage.from("load-documents").remove([storagePath]);
 
-    const { error } = await supabase.from("documents").delete().eq("id", documentId);
-    if (error) return errorState(error, "Could not delete document.");
+    const { data: cleanupJobs, error } = await supabase.rpc("delete_document_with_cleanup", {
+      p_document_id: documentId,
+    });
+    if (error) {
+      logError("document.delete_failed", error, { documentId });
+      return errorState(error, "Could not delete document.");
+    }
 
-    await supabase.from("activity_logs").insert({ load_id: loadId, action: "Document deleted" });
+    const [cleanupJob] = cleanupJobs ?? [];
+    const loadId = cleanupJob?.load_id;
+    if (!loadId) {
+      const missingLoadError = new Error("Document cleanup did not return a load id.");
+      logError("document.delete_missing_load_id", missingLoadError, { documentId });
+      return errorState(missingLoadError, "Could not delete document.");
+    }
+
+    const cleanupError = await removeQueuedStorageObjects(supabase, cleanupJobs ?? [], {
+      operation: "deleteDocument",
+      documentId,
+      loadId,
+    });
+    if (cleanupError) return cleanupError;
+
     revalidatePath(`/loads/${loadId}`);
     return successState("Document deleted.");
   } catch (error) {
