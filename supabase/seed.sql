@@ -1,0 +1,4 @@
+-- Intentionally empty for now.
+-- Supabase CLI runs this after `supabase db reset` because seeding is enabled
+-- in config.toml. Keep the file so local resets work, then add safe local-only
+-- sample data here later if needed.
