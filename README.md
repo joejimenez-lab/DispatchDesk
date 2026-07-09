@@ -27,11 +27,16 @@ Local full-stack truck dispatcher/load management application built with Next.js
    npm install
    ```
 
-2. Create a Supabase project and run the migrations in `supabase/migrations/` in numeric order.
+2. Start Supabase locally and reset the database from migrations:
 
-3. Create one admin user in Supabase Authentication.
+   ```bash
+   npm run supabase:start
+   npm run db:reset
+   ```
 
-4. Copy `.env.example` to `.env.local` and fill in:
+3. Create one admin user in local Supabase Authentication.
+
+4. Copy `.env.example` to `.env.local` and fill in the local Supabase values printed by `npm run supabase:start`:
 
    ```bash
    NEXT_PUBLIC_SUPABASE_URL=...
@@ -52,6 +57,8 @@ Local full-stack truck dispatcher/load management application built with Next.js
 
 - The migration creates normalized tables: `profiles`, `drivers`, `brokers`, `loads`, `payments`, `documents`, `notes`, and `activity_logs`.
 - `001_initial_schema.sql` is the full fresh-install schema. Later numbered migrations, such as `003_add_fuel_cost_to_loads.sql`, are for existing databases that already ran the initial schema.
+- Use `npm run db:push` after `supabase link --project-ref <project-ref>` to apply migrations to the hosted project.
+- Use `npm run db:types` after local schema changes to regenerate `src/types/database.ts`.
 - Every business table has RLS enabled.
 - Version 1 allows any authenticated user to manage records, matching the single-admin requirement.
 - The `load-documents` storage bucket is private. The `/api/documents/[id]/view` and `/api/documents/[id]/download` routes check auth, then fetch the file from Storage and stream it back to the browser (inline or as an attachment). The storage path is never exposed to the client.
