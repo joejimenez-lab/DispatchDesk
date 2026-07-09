@@ -33,7 +33,10 @@ function linkedMaintenance(expense: BookkeepingExpense) {
 }
 
 function linkedUnit(expense: BookkeepingExpense) {
-  return expense.fleet_units ? `${expense.fleet_units.unit_type} ${expense.fleet_units.unit_number}` : null;
+  if (!expense.fleet_units) return null;
+  return expense.fleet_units.company
+    ? `${expense.fleet_units.company} - ${expense.fleet_units.unit_type} ${expense.fleet_units.unit_number}`
+    : `${expense.fleet_units.unit_type} ${expense.fleet_units.unit_number}`;
 }
 
 function linkedItems(expense: BookkeepingExpense) {
@@ -242,12 +245,12 @@ export default async function BookkeepingPage({
             ))}
           </Select>
         </Field>
-        <Field label="Truck / Trailer">
+        <Field label="Fleet / Truck / Trailer">
           <Select name="unit" defaultValue={params.unit ?? ""}>
             <option value="">All</option>
             {filteredUnits.map((unit) => (
               <option key={unit.id} value={unit.id}>
-                {unit.unit_type} {unit.unit_number}
+                {unit.company ? `${unit.company} - ` : ""}{unit.unit_type} {unit.unit_number}
               </option>
             ))}
           </Select>

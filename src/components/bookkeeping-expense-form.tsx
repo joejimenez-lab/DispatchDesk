@@ -25,6 +25,12 @@ function maintenanceRecordValue(expense: BookkeepingExpense | undefined) {
   return "";
 }
 
+function unitOptionLabel(unit: BookkeepingOptions["units"][number]) {
+  return unit.company
+    ? `${unit.company} - ${unit.unit_type} ${unit.unit_number}`
+    : `${unit.unit_type} ${unit.unit_number}`;
+}
+
 export function BookkeepingExpenseForm({
   action,
   options,
@@ -61,12 +67,12 @@ export function BookkeepingExpenseForm({
         <Input name="vendor" defaultValue={expense?.vendor ?? ""} />
       </Field>
 
-      <Field label="Truck / Trailer">
+      <Field label="Fleet / Truck / Trailer">
         <Select name="unit_id" defaultValue={expense?.unit_id ?? ""}>
           <option value="">None</option>
           {options.units.map((unit) => (
             <option key={unit.id} value={unit.id}>
-              {unit.unit_type} {unit.unit_number}
+              {unitOptionLabel(unit)}
             </option>
           ))}
         </Select>

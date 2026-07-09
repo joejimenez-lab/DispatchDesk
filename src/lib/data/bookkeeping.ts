@@ -75,7 +75,10 @@ export function normalizeExpenseCategory(value: string | undefined): ExpenseCate
 }
 
 function unitLabel(unit: UnitLink | null | undefined) {
-  return unit ? `${unit.unit_type} ${unit.unit_number}` : null;
+  if (!unit) return null;
+  return unit.company
+    ? `${unit.company} - ${unit.unit_type} ${unit.unit_number}`
+    : `${unit.unit_type} ${unit.unit_number}`;
 }
 
 function maintenanceRecordLabel(expense: BookkeepingExpense) {
