@@ -1,17 +1,17 @@
 import Link from "next/link";
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
+import { forwardRef, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const styles =
   "inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60";
 
-export function Button({
-  className,
-  variant = "primary",
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" }) {
+export const Button = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" }
+>(function Button({ className, variant = "primary", ...props }, ref) {
   return (
     <button
+      ref={ref}
       className={cn(
         styles,
         variant === "primary" && "bg-zinc-950 text-white hover:bg-zinc-800",
@@ -22,7 +22,7 @@ export function Button({
       {...props}
     />
   );
-}
+});
 
 export function LinkButton({
   className,
