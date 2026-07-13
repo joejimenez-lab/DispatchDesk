@@ -87,8 +87,9 @@ export function LoadForm({ action, drivers, brokers, load, payment, showPayments
         <Field label="Dispatcher Fee">
           <Input type="number" step="0.01" min="0" name="dispatcher_fee" defaultValue={load?.dispatcher_fee ?? 0} />
         </Field>
-        <Field label="Fuel Cost">
+        <Field label="Load fuel estimate / allocation">
           <Input type="number" step="0.01" min="0" name="fuel_cost" defaultValue={load?.fuel_cost ?? 0} />
+          <span className="mt-1 block text-xs text-zinc-500">Used only for estimated load profitability. Actual fuel spending is recorded through IFTA and Bookkeeping.</span>
         </Field>
         <Field label="Notes" className="md:col-span-2">
           <Textarea name="notes" defaultValue={load?.notes ?? ""} />

@@ -2,68 +2,47 @@
 
 import { revalidatePath } from "next/cache";
 import { errorState, successState, type ActionState } from "@/lib/actions/state";
-import { parseMaintenanceRecord, type MaintenanceRecordLink } from "@/lib/bookkeeping";
-import { validateUploadedDocument } from "@/lib/document-security";
+import {
+  compensateReceiptUpload,
+  prepareBookkeepingReceipt,
+  removeReceiptCleanupJobs,
+  type PreparedReceipt,
+  type ReceiptCleanupJob,
+} from "@/lib/actions/bookkeeping-storage";
+import { parseMaintenanceRecord } from "@/lib/bookkeeping";
 import { logInfo } from "@/lib/logger";
 import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import { bookkeepingExpenseSchema } from "@/lib/validation/schemas";
-import type { Database } from "@/types/database";
-
-type SupabaseClient = Awaited<ReturnType<typeof createAuthenticatedClient>>["supabase"];
-type ExpenseInsert = Database["public"]["Tables"]["bookkeeping_expenses"]["Insert"];
-
-const receiptBucket = "bookkeeping-receipts";
+import type { ExpenseCategory, Json } from "@/types/database";
 
 function value(formData: FormData, key: string) {
   return formData.get(key) ?? "";
 }
 
-function optionalFile(formData: FormData) {
-  const file = formData.get("file");
-  return file instanceof File && file.size > 0 ? file : null;
+function operationId(formData: FormData) {
+  const id = String(value(formData, "operation_id"));
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error("This form expired. Refresh the page and try again.");
+  }
+  return id;
 }
 
 function revalidateBookkeeping(unitId?: string | null) {
   revalidatePath("/bookkeeping");
   revalidatePath("/reports");
   revalidatePath("/maintenance");
+  revalidatePath("/ifta");
   if (unitId) revalidatePath(`/fleet/${unitId}`);
 }
 
-async function maintenanceRecordFields(
-  supabase: SupabaseClient,
-  link: MaintenanceRecordLink | null,
-  selectedUnitId: string | null,
-): Promise<Pick<ExpenseInsert, "unit_id" | "service_record_id" | "inspection_record_id" | "repair_log_id">> {
-  const empty = {
-    unit_id: selectedUnitId,
-    service_record_id: null,
-    inspection_record_id: null,
-    repair_log_id: null,
-  };
-  if (!link) return empty;
-
-  const table = link.table;
-  const { data, error } = await supabase.from(table).select("unit_id").eq("id", link.id).single();
-  if (error || !data) throw new Error("Maintenance record not found.");
-  const unitId = data.unit_id as string | null;
-  if (selectedUnitId && unitId && selectedUnitId !== unitId) {
-    throw new Error("The selected maintenance record belongs to a different truck or trailer.");
-  }
-
-  return {
-    unit_id: unitId ?? selectedUnitId,
-    service_record_id: table === "service_records" ? link.id : null,
-    inspection_record_id: table === "inspection_records" ? link.id : null,
-    repair_log_id: table === "repair_logs" ? link.id : null,
-  };
-}
-
-async function expensePayload(supabase: SupabaseClient, formData: FormData): Promise<ExpenseInsert> {
-  const parsed = bookkeepingExpenseSchema.parse({
+function parsedExpense(formData: FormData) {
+  return bookkeepingExpenseSchema.parse({
     expense_date: value(formData, "expense_date"),
     category: value(formData, "category"),
     amount: value(formData, "amount"),
+    cost_mode: value(formData, "cost_mode") || "total",
+    labor_cost: value(formData, "labor_cost"),
+    parts_cost: value(formData, "parts_cost"),
     vendor: value(formData, "vendor"),
     unit_id: value(formData, "unit_id"),
     load_id: value(formData, "load_id"),
@@ -71,124 +50,102 @@ async function expensePayload(supabase: SupabaseClient, formData: FormData): Pro
     maintenance_record: value(formData, "maintenance_record"),
     notes: value(formData, "notes"),
   });
-  const maintenanceRecord = parseMaintenanceRecord(parsed.maintenance_record);
-  const maintenanceFields = await maintenanceRecordFields(supabase, maintenanceRecord, parsed.unit_id);
-
-  return {
-    expense_date: parsed.expense_date,
-    category: parsed.category,
-    amount: parsed.amount,
-    vendor: parsed.vendor,
-    notes: parsed.notes,
-    load_id: parsed.load_id,
-    driver_id: parsed.driver_id,
-    ...maintenanceFields,
-  };
 }
 
-async function uploadReceiptFile(supabase: SupabaseClient, expenseId: string, file: File) {
-  const document = await validateUploadedDocument(file);
-  const storagePath = `${expenseId}/${crypto.randomUUID()}-${document.safeName}`;
-  const { error: uploadError } = await supabase.storage
-    .from(receiptBucket)
-    .upload(storagePath, file, { contentType: document.mimeType, upsert: false });
+function expenseHeader(parsed: ReturnType<typeof parsedExpense>) {
+  const maintenance = parseMaintenanceRecord(parsed.maintenance_record);
+  return {
+    expense_date: parsed.expense_date,
+    vendor: parsed.vendor,
+    notes: parsed.notes,
+    unit_id: parsed.unit_id,
+    load_id: parsed.load_id,
+    driver_id: parsed.driver_id,
+    category: parsed.category,
+    amount: parsed.amount,
+    maintenance_table: maintenance?.table ?? null,
+    maintenance_id: maintenance?.id ?? null,
+  } satisfies Json;
+}
 
-  if (uploadError) throw uploadError;
-
-  const { error } = await supabase.from("bookkeeping_receipts").insert({
-    expense_id: expenseId,
-    file_name: file.name,
-    storage_path: storagePath,
-    content_type: document.mimeType,
-    file_size: file.size,
-  });
-
-  if (error) {
-    await supabase.storage.from(receiptBucket).remove([storagePath]);
-    throw error;
+function expenseLines(parsed: ReturnType<typeof parsedExpense>, sourceType: string) {
+  if (sourceType === "maintenance" && parsed.cost_mode === "breakdown") {
+    return [
+      parsed.labor_cost > 0 ? { category: "Maintenance" as ExpenseCategory, amount: parsed.labor_cost, line_type: "labor" } : null,
+      parsed.parts_cost > 0 ? { category: "Parts" as ExpenseCategory, amount: parsed.parts_cost, line_type: "parts" } : null,
+    ].filter((line): line is NonNullable<typeof line> => line !== null);
   }
-
-  return storagePath;
+  return [{ category: parsed.category, amount: parsed.amount, line_type: "total" }];
 }
 
 export async function addBookkeepingExpense(_state: ActionState, formData: FormData): Promise<ActionState> {
-  let expenseId: string | null = null;
-  let unitId: string | null = null;
-  let cleanupClient: SupabaseClient | null = null;
-
+  let groupId = "";
+  let prepared: PreparedReceipt | null = null;
   try {
+    groupId = operationId(formData);
     const { supabase, user } = await createAuthenticatedClient();
-    cleanupClient = supabase;
-    const payload = await expensePayload(supabase, formData);
-    unitId = payload.unit_id ?? null;
-    const { data, error } = await supabase.from("bookkeeping_expenses").insert({
-      ...payload,
-      created_by: user.id,
-      created_by_email: user.email ?? null,
-    }).select("id").single();
-    if (error || !data) return errorState(error, "Could not add expense.");
-    expenseId = data.id;
-
-    const file = optionalFile(formData);
-    if (file) await uploadReceiptFile(supabase, expenseId, file);
-
-    logInfo("bookkeeping.expense.created", { expenseId, category: payload.category, userId: user.id });
-    revalidateBookkeeping(unitId);
-    return successState(file ? "Expense and receipt saved." : "Expense saved.");
+    const parsed = parsedExpense(formData);
+    prepared = await prepareBookkeepingReceipt(supabase, groupId, formData, { idempotencyKey: "initial" });
+    const { error } = await supabase.rpc("create_manual_bookkeeping_expense", {
+      p_group_id: groupId,
+      p_expense: expenseHeader(parsed),
+      p_receipt: prepared?.metadata ?? null,
+    });
+    if (error) {
+      await compensateReceiptUpload(supabase, prepared, error);
+      return errorState(error, "Could not add expense.");
+    }
+    logInfo("bookkeeping.expense.created", { groupId, category: parsed.category, userId: user.id });
+    revalidateBookkeeping(parsed.unit_id);
+    return successState(prepared ? "Expense and receipt saved." : "Expense saved.");
   } catch (error) {
-    if (expenseId && cleanupClient) {
-      await cleanupClient.from("bookkeeping_expenses").delete().eq("id", expenseId);
+    if (prepared) {
+      const { supabase } = await createAuthenticatedClient();
+      await compensateReceiptUpload(supabase, prepared, error);
     }
     return errorState(error, "Could not add expense.");
   }
 }
 
 export async function updateBookkeepingExpense(
-  expenseId: string,
+  groupId: string,
   _state: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   try {
     const { supabase, user } = await createAuthenticatedClient();
-    const payload = await expensePayload(supabase, formData);
-    const { data, error } = await supabase
-      .from("bookkeeping_expenses")
-      .update(payload)
-      .eq("id", expenseId)
-      .select("id")
+    const parsed = parsedExpense(formData);
+    const { data: group, error: groupError } = await supabase
+      .from("bookkeeping_expense_groups")
+      .select("source_type")
+      .eq("id", groupId)
       .single();
-    if (error || !data) return errorState(error, "Expense not found.");
-    logInfo("bookkeeping.expense.updated", { expenseId, userId: user.id });
-    revalidateBookkeeping(payload.unit_id ?? null);
-    return successState("Expense updated.");
+    if (groupError || !group) return errorState(groupError, "Bookkeeping transaction not found.");
+    const lines = expenseLines(parsed, group.source_type);
+    const { error } = await supabase.rpc("update_bookkeeping_expense_group", {
+      p_group_id: groupId,
+      p_expense: expenseHeader(parsed),
+      p_lines: lines,
+    });
+    if (error) return errorState(error, "Could not update expense.");
+    logInfo("bookkeeping.expense.updated", { groupId, userId: user.id });
+    revalidateBookkeeping(parsed.unit_id);
+    return successState("Expense updated everywhere it appears.");
   } catch (error) {
     return errorState(error, "Could not update expense.");
   }
 }
 
-export async function deleteBookkeepingExpense(expenseId: string, _state: ActionState): Promise<ActionState> {
+export async function deleteBookkeepingExpense(groupId: string, _state: ActionState): Promise<ActionState> {
   void _state;
-
   try {
     const { supabase, user } = await createAuthenticatedClient();
-    const { data: receipts, error: receiptError } = await supabase
-      .from("bookkeeping_receipts")
-      .select("storage_path")
-      .eq("expense_id", expenseId);
-    if (receiptError) return errorState(receiptError, "Could not delete expense receipts.");
-    if (receipts?.length) {
-      await supabase.storage.from(receiptBucket).remove(receipts.map((receipt) => receipt.storage_path));
-    }
-
-    const { data, error } = await supabase
-      .from("bookkeeping_expenses")
-      .delete()
-      .eq("id", expenseId)
-      .select("id, unit_id")
-      .single();
-    if (error || !data) return errorState(error, "Expense not found.");
-    logInfo("bookkeeping.expense.deleted", { expenseId, userId: user.id });
-    revalidateBookkeeping(data.unit_id);
+    const { data, error } = await supabase.rpc("queue_bookkeeping_group_delete", { p_group_id: groupId });
+    if (error) return errorState(error, "Could not delete expense.");
+    const cleanupError = await removeReceiptCleanupJobs(supabase, (data ?? []) as ReceiptCleanupJob[]);
+    if (cleanupError) return errorState(cleanupError, "Expense was removed, but receipt cleanup is queued for retry.");
+    logInfo("bookkeeping.expense.deleted", { groupId, userId: user.id });
+    revalidateBookkeeping();
     return successState("Expense deleted.");
   } catch (error) {
     return errorState(error, "Could not delete expense.");
@@ -196,50 +153,67 @@ export async function deleteBookkeepingExpense(expenseId: string, _state: Action
 }
 
 export async function uploadBookkeepingReceipt(
-  expenseId: string,
+  groupId: string,
   _state: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  let prepared = null;
   try {
     const { supabase, user } = await createAuthenticatedClient();
-    const file = optionalFile(formData);
-    if (!file) return errorState(new Error("Choose a receipt before uploading."));
-    await uploadReceiptFile(supabase, expenseId, file);
-
-    const { data } = await supabase.from("bookkeeping_expenses").select("unit_id").eq("id", expenseId).single();
-    logInfo("bookkeeping.receipt.uploaded", { expenseId, userId: user.id });
-    revalidateBookkeeping(data?.unit_id ?? null);
+    prepared = await prepareBookkeepingReceipt(supabase, groupId, formData);
+    if (!prepared) return errorState(new Error("Choose a receipt before uploading."));
+    const metadata = prepared.metadata as Record<string, Json>;
+    const { error } = await supabase.from("bookkeeping_receipts").insert({
+      group_id: groupId,
+      file_name: String(metadata.file_name),
+      storage_path: String(metadata.storage_path),
+      content_type: String(metadata.content_type),
+      file_size: Number(metadata.file_size),
+    });
+    if (error) {
+      await compensateReceiptUpload(supabase, prepared, error);
+      return errorState(error, "Could not save receipt.");
+    }
+    logInfo("bookkeeping.receipt.uploaded", { groupId, userId: user.id });
+    revalidateBookkeeping();
     return successState("Receipt uploaded.");
   } catch (error) {
+    if (prepared) {
+      const { supabase } = await createAuthenticatedClient();
+      await compensateReceiptUpload(supabase, prepared, error);
+    }
     return errorState(error, "Could not upload receipt.");
   }
 }
 
-export async function deleteBookkeepingReceipt(
-  receiptId: string,
-  storagePath: string,
-  _state: ActionState,
-): Promise<ActionState> {
+export async function deleteBookkeepingReceipt(receiptId: string, _state: ActionState): Promise<ActionState> {
   void _state;
-
   try {
     const { supabase, user } = await createAuthenticatedClient();
-    await supabase.storage.from(receiptBucket).remove([storagePath]);
-    const { data, error } = await supabase
-      .from("bookkeeping_receipts")
-      .delete()
-      .eq("id", receiptId)
-      .select("expense_id, bookkeeping_expenses(unit_id)")
-      .single();
-    if (error || !data) return errorState(error, "Receipt not found.");
-
-    const expense = Array.isArray(data.bookkeeping_expenses)
-      ? data.bookkeeping_expenses[0]
-      : data.bookkeeping_expenses;
-    logInfo("bookkeeping.receipt.deleted", { receiptId, expenseId: data.expense_id, userId: user.id });
-    revalidateBookkeeping(expense?.unit_id ?? null);
+    const { data, error } = await supabase.rpc("queue_bookkeeping_receipt_delete", { p_receipt_id: receiptId });
+    if (error) return errorState(error, "Could not delete receipt.");
+    const jobs = (data ?? []) as ReceiptCleanupJob[];
+    const cleanupError = await removeReceiptCleanupJobs(supabase, jobs);
+    if (cleanupError) return errorState(cleanupError, "Receipt was removed, but file cleanup is queued for retry.");
+    logInfo("bookkeeping.receipt.deleted", { receiptId, groupId: jobs[0]?.expense_group_id, userId: user.id });
+    revalidateBookkeeping();
     return successState("Receipt deleted.");
   } catch (error) {
     return errorState(error, "Could not delete receipt.");
+  }
+}
+
+export async function reconcileOperationalExpenses(_state: ActionState): Promise<ActionState> {
+  void _state;
+  try {
+    const { supabase, user } = await createAuthenticatedClient();
+    const { data, error } = await supabase.rpc("reconcile_operational_expenses", { p_apply: true });
+    if (error) return errorState(error, "Could not reconcile historical expenses.");
+    const result = data as { created: number; matched: number; skipped: number; ambiguous: number };
+    logInfo("bookkeeping.reconciled", { ...result, userId: user.id });
+    revalidateBookkeeping();
+    return successState(`Reconciliation complete: ${result.created} created, ${result.matched} matched, ${result.skipped} already linked, ${result.ambiguous} need review.`);
+  } catch (error) {
+    return errorState(error, "Could not reconcile historical expenses.");
   }
 }

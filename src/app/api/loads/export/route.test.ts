@@ -56,6 +56,7 @@ describe("/api/loads/export", () => {
     const { GET } = await import("./route");
 
     const response = await GET(new Request("http://localhost/api/loads/export"));
+    if (!response) throw new Error("Expected the export route to return a response");
     const csv = await response.text();
 
     expect(csv).toContain("'=LOAD");

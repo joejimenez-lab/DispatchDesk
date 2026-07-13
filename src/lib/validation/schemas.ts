@@ -109,6 +109,7 @@ export const inspectionRecordSchema = z.object({
   odometer: optionalOdometer,
   inspector: optionalText,
   result: z.string().trim().min(1, "Inspection result is required"),
+  cost: money,
   notes: optionalText,
 });
 
@@ -137,8 +138,16 @@ export const maintenanceReminderSchema = z.object({
 export const maintenanceCompletionSchema = z.object({
   completed_date: requiredDate,
   odometer: optionalOdometer,
-  cost: money,
+  cost_mode: z.enum(["total", "breakdown"]),
+  total_cost: money,
+  labor_cost: money,
+  parts_cost: money,
+  vendor: optionalText,
   notes: optionalText,
+}).superRefine((value, context) => {
+  if (value.cost_mode === "breakdown" && value.labor_cost + value.parts_cost <= 0) {
+    context.addIssue({ code: "custom", path: ["labor_cost"], message: "Enter labor, parts, or switch to total cost" });
+  }
 });
 
 export const maintenanceSnoozeSchema = z.object({
@@ -168,12 +177,13 @@ export const iftaStateMilesSchema = z
   );
 
 export const iftaFuelPurchaseSchema = z.object({
-  truck_number: z.string().trim().min(1, "Truck number is required"),
+  unit_id: z.string().uuid("Choose a fleet truck"),
   purchase_date: requiredDate,
   city: optionalText,
   state: iftaState,
   gallons: z.coerce.number().positive("Gallons must be greater than zero"),
-  amount_paid: money,
+  amount_paid: positiveMoney,
+  vendor: optionalText,
   notes: optionalText,
 });
 
@@ -181,10 +191,17 @@ export const bookkeepingExpenseSchema = z.object({
   expense_date: requiredDate,
   category: z.enum(expenseCategories),
   amount: positiveMoney,
+  cost_mode: z.enum(["total", "breakdown"]).default("total"),
+  labor_cost: money,
+  parts_cost: money,
   vendor: optionalText,
   unit_id: optionalUuid,
   load_id: optionalUuid,
   driver_id: optionalUuid,
   maintenance_record: optionalText,
   notes: optionalText,
+}).superRefine((value, context) => {
+  if (value.cost_mode === "breakdown" && value.labor_cost + value.parts_cost <= 0) {
+    context.addIssue({ code: "custom", path: ["labor_cost"], message: "Enter labor or parts" });
+  }
 });

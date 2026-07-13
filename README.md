@@ -7,10 +7,11 @@ Local full-stack truck dispatcher/load management application built with Next.js
 - Email/password admin login through Supabase Auth
 - Dashboard metrics for active, delivered, unpaid, closed, revenue, pending payments, operational status mix, current loads, upcoming deliveries, and maintenance due alerts
 - Load CRUD with broker, driver, lane, operational status, financial fields, and notes
-- Fuel cost tracking and profit calculation per load
+- Load-level fuel estimates/allocations for projected load profit; actual fuel purchases are entered once through IFTA and linked to Bookkeeping
 - Fleet maintenance reminders for monthly truck service, 90-day and annual inspections, oil changes, and repair follow-ups, plus manual daily repair-log history
 - Automatic date/mileage recurrence, maintenance completion history, audit attribution, snoozing, and overdue/due-soon/upcoming maintenance views
 - IFTA fuel tax tracking: trips with miles per state, fuel purchases with gallons and amount paid per state, quarterly per-state totals, saved-route mile prefill, and CSV exports for quarterly filing
+- Unified expense ledger: Maintenance and IFTA create linked Bookkeeping transactions, receipts are shared at the transaction level, and operational edits update the same financial record
 - Driver and broker management
 - Invoice, client payment, driver payment, and dispatcher fee tracking
 - Private document uploads per load through Supabase Storage

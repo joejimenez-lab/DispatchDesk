@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { bookkeepingCsv } from "@/lib/bookkeeping";
 import {
   bookkeepingExpenseMatchesFleet,
-  bookkeepingExpenseToExportRow,
+  bookkeepingExpenseToExportRows,
   normalizeExpenseCategory,
   type BookkeepingExpense,
 } from "@/lib/data/bookkeeping";
@@ -42,21 +42,22 @@ export async function GET(request: Request) {
   const fleetTruckNumbers = fleet ? new Set(await getFleetTruckNumbers(fleet)) : null;
 
   let query = supabase
-    .from("bookkeeping_expenses")
+    .from("bookkeeping_expense_groups")
     .select(`
       *,
+      bookkeeping_expenses(*),
       bookkeeping_receipts(*),
       fleet_units(id, unit_number, unit_type, company),
       loads(id, load_number, pickup_location, delivery_location, drivers(truck_number)),
       drivers(id, name, truck_number),
       service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
       inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),
-      repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company))
+      repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company)),
+      ifta_fuel_purchases(id, purchase_date, state, city, gallons, truck_number)
     `)
     .order("expense_date", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (category) query = query.eq("category", category);
   if (from) query = query.gte("expense_date", from);
   if (to) query = query.lte("expense_date", to);
   if (unit) query = query.eq("unit_id", unit);
@@ -69,7 +70,8 @@ export async function GET(request: Request) {
   const csv = bookkeepingCsv(
     ((data ?? []) as unknown as BookkeepingExpense[])
       .filter((expense) => !fleet || !fleetTruckNumbers || bookkeepingExpenseMatchesFleet(expense, fleet, fleetTruckNumbers))
-      .map(bookkeepingExpenseToExportRow),
+      .filter((expense) => !category || expense.bookkeeping_expenses.some((line) => line.category === category))
+      .flatMap((expense) => bookkeepingExpenseToExportRows(expense, category)),
   );
   const stamp = new Date().toISOString().slice(0, 10);
 

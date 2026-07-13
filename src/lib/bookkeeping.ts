@@ -53,6 +53,8 @@ export type BookkeepingExportRow = {
   receiptCount: number;
   receiptFiles: string;
   notes: string | null;
+  source: string;
+  lineType: string;
 };
 
 export function bookkeepingCsv(rows: BookkeepingExportRow[]) {
@@ -69,6 +71,8 @@ export function bookkeepingCsv(rows: BookkeepingExportRow[]) {
       "Receipt Count",
       "Receipt Files",
       "Notes",
+      "Source",
+      "Cost Line",
     ]),
     ...rows.map((row) => csvRow([
       row.expenseDate,
@@ -82,6 +86,8 @@ export function bookkeepingCsv(rows: BookkeepingExportRow[]) {
       row.receiptCount,
       row.receiptFiles,
       row.notes,
+      row.source,
+      row.lineType,
     ])),
   ].join("\n");
 }

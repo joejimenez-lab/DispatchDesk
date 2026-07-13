@@ -43,7 +43,7 @@ describe("route auth guard", () => {
     const result = await createAuthenticatedRouteClient(context);
 
     expect("response" in result).toBe(true);
-    if ("response" in result) {
+    if (result.response) {
       expect(result.response.status).toBe(401);
       await expect(result.response.json()).resolves.toEqual({ error: "Unauthorized" });
     }
@@ -59,7 +59,7 @@ describe("route auth guard", () => {
     const result = await createAuthenticatedRouteClient(context);
 
     expect("response" in result).toBe(true);
-    if ("response" in result) {
+    if (result.response) {
       expect(result.response.status).toBe(503);
       await expect(result.response.json()).resolves.toEqual({ error: "Authentication service unavailable" });
     }
