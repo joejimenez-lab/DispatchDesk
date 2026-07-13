@@ -7,7 +7,9 @@ type TripRow = Database["public"]["Tables"]["ifta_trips"]["Row"];
 type FuelPurchaseRow = Database["public"]["Tables"]["ifta_fuel_purchases"]["Row"];
 
 export type IftaTripWithMiles = TripRow & { ifta_trip_miles: IftaStateMilesEntry[] };
-export type IftaFuelPurchase = FuelPurchaseRow;
+export type IftaFuelPurchase = FuelPurchaseRow & {
+  bookkeeping_expense_groups?: { id: string; bookkeeping_receipts: { id: string }[] }[];
+};
 
 export type IftaPeriodFilters = {
   start: string;
@@ -48,7 +50,7 @@ export async function getIftaFuelPurchases({ start, end, truck, fleet }: IftaPer
 
   let query = supabase
     .from("ifta_fuel_purchases")
-    .select("*")
+    .select("*, bookkeeping_expense_groups(id, bookkeeping_receipts(id))")
     .gte("purchase_date", start)
     .lte("purchase_date", end)
     .order("purchase_date", { ascending: false })
@@ -58,6 +60,15 @@ export async function getIftaFuelPurchases({ start, end, truck, fleet }: IftaPer
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as IftaFuelPurchase[];
+}
+
+export async function getIftaTruckOptions(fleet?: string) {
+  const supabase = await createClient();
+  let query = supabase.from("fleet_units").select("id, unit_number, company").eq("unit_type", "Truck").order("unit_number");
+  if (fleet) query = query.eq("company", fleet);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function getIftaTruckNumbers(fleet?: string) {

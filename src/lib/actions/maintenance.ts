@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { compensateReceiptUpload, prepareBookkeepingReceipt, type PreparedReceipt } from "@/lib/actions/bookkeeping-storage";
 import { errorState, successState, type ActionState } from "@/lib/actions/state";
 import { calculateInitialTargets, isMaintenanceTypeAllowedForUnit, localDateString } from "@/lib/maintenance";
 import { logInfo } from "@/lib/logger";
@@ -10,6 +11,7 @@ import {
   maintenanceReminderSchema,
   maintenanceSnoozeSchema,
 } from "@/lib/validation/schemas";
+import type { Json } from "@/types/database";
 
 function value(formData: FormData, key: string) {
   return formData.get(key) ?? "";
@@ -184,12 +186,18 @@ export async function completeMaintenanceReminder(
   _state: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const groupId = reminderId;
+  let prepared: PreparedReceipt | null = null;
   try {
     const { supabase, user } = await createAuthenticatedClient();
     const payload = maintenanceCompletionSchema.parse({
       completed_date: value(formData, "completed_date"),
       odometer: value(formData, "odometer"),
-      cost: value(formData, "cost"),
+      cost_mode: value(formData, "cost_mode"),
+      total_cost: value(formData, "total_cost"),
+      labor_cost: value(formData, "labor_cost"),
+      parts_cost: value(formData, "parts_cost"),
+      vendor: value(formData, "vendor"),
       notes: value(formData, "notes"),
     });
     const { data: reminder, error: reminderError } = await supabase
@@ -206,21 +214,107 @@ export async function completeMaintenanceReminder(
       return errorState(new Error("Enter the current odometer to schedule the next mileage reminder."));
     }
 
-    const { data: nextReminderId, error } = await supabase.rpc("complete_maintenance_reminder", {
+    const finalCost = payload.cost_mode === "breakdown"
+      ? payload.labor_cost + payload.parts_cost
+      : payload.total_cost;
+    prepared = await prepareBookkeepingReceipt(supabase, groupId, formData, { idempotencyKey: "completion" });
+    if (prepared && finalCost === 0) {
+      await compensateReceiptUpload(supabase, prepared, new Error("A receipt requires a positive expense amount."));
+      return errorState(new Error("Enter a positive cost before attaching a receipt."));
+    }
+    const { data: completion, error } = await supabase.rpc("complete_maintenance_with_expense", {
       p_reminder_id: reminderId,
       p_completed_date: payload.completed_date,
-      p_odometer: payload.odometer,
-      p_notes: payload.notes,
-      p_cost: payload.cost,
+      p_odometer: payload.odometer as number,
+      p_notes: payload.notes ?? "",
+      p_cost_mode: payload.cost_mode,
+      p_total_cost: payload.total_cost,
+      p_labor_cost: payload.labor_cost,
+      p_parts_cost: payload.parts_cost,
+      p_vendor: payload.vendor ?? "",
+      p_group_id: groupId,
+      p_receipt: prepared?.metadata ?? null,
     });
-    if (error) return errorState(error, "Could not complete maintenance.");
+    if (error) {
+      await compensateReceiptUpload(supabase, prepared, error);
+      return errorState(error, "Could not complete maintenance.");
+    }
+    const result = completion as { next_reminder_id?: string | null } | null;
     logInfo("maintenance.completed", { reminderId, unitId, userId: user.id });
     revalidateMaintenance(unitId);
-    return successState(nextReminderId
-      ? "Maintenance completed and the next occurrence was scheduled."
-      : "Maintenance completed.");
+    revalidatePath("/bookkeeping");
+    revalidatePath("/reports");
+    return successState(result?.next_reminder_id
+      ? "Maintenance completed, spending recorded, and the next occurrence was scheduled."
+      : finalCost > 0 ? "Maintenance completed and spending recorded in Bookkeeping." : "Maintenance completed with no expense.");
   } catch (error) {
+    if (prepared) {
+      const { supabase } = await createAuthenticatedClient();
+      await compensateReceiptUpload(supabase, prepared, error);
+    }
     return errorState(error, "Could not complete maintenance.");
+  }
+}
+
+type MaintenanceRecordTable = "service_records" | "inspection_records" | "repair_logs";
+
+export async function updateMaintenanceSpending(
+  table: MaintenanceRecordTable,
+  recordId: string,
+  unitId: string,
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const { supabase, user } = await createAuthenticatedClient();
+    const payload = maintenanceCompletionSchema.parse({
+      completed_date: value(formData, "completed_date"),
+      odometer: value(formData, "odometer"),
+      cost_mode: value(formData, "cost_mode"),
+      total_cost: value(formData, "total_cost"),
+      labor_cost: value(formData, "labor_cost"),
+      parts_cost: value(formData, "parts_cost"),
+      vendor: value(formData, "vendor"),
+      notes: value(formData, "notes"),
+    });
+    const sourceColumn = table === "service_records" ? "service_record_id" : table === "inspection_records" ? "inspection_record_id" : "repair_log_id";
+    const { data: group, error: groupError } = await supabase
+      .from("bookkeeping_expense_groups")
+      .select("id, load_id, driver_id")
+      .eq(sourceColumn, recordId)
+      .single();
+    if (groupError || !group) return errorState(groupError, "This history record is not linked yet. Run Bookkeeping reconciliation first.");
+    const lines = payload.cost_mode === "breakdown"
+      ? [
+        payload.labor_cost > 0 ? { category: "Maintenance", amount: payload.labor_cost, line_type: "labor" } : null,
+        payload.parts_cost > 0 ? { category: "Parts", amount: payload.parts_cost, line_type: "parts" } : null,
+      ].filter((line) => line !== null)
+      : [{ category: "Maintenance", amount: payload.total_cost, line_type: "total" }];
+    const finalCost = payload.cost_mode === "breakdown"
+      ? payload.labor_cost + payload.parts_cost
+      : payload.total_cost;
+    if (finalCost <= 0) return errorState(new Error("Linked maintenance spending must stay greater than zero."));
+    const expense = {
+      expense_date: payload.completed_date,
+      vendor: payload.vendor,
+      notes: payload.notes,
+      unit_id: unitId,
+      load_id: group.load_id,
+      driver_id: group.driver_id,
+      category: "Maintenance",
+      amount: finalCost,
+      maintenance_table: table,
+      maintenance_id: recordId,
+    } satisfies Json;
+    const { error } = await supabase.rpc("update_bookkeeping_expense_group", { p_group_id: group.id, p_expense: expense, p_lines: lines });
+    if (error) return errorState(error, "Could not update maintenance spending.");
+    logInfo("maintenance.spending.updated", { recordId, table, groupId: group.id, userId: user.id });
+    revalidateMaintenance(unitId);
+    revalidatePath("/bookkeeping");
+    revalidatePath("/reports");
+    return successState("Maintenance and Bookkeeping were updated together.");
+  } catch (error) {
+    return errorState(error, "Could not update maintenance spending.");
   }
 }
 

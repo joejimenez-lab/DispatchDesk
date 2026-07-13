@@ -1,10 +1,10 @@
 import { ActionForm } from "@/components/action-form";
+import { BookkeepingAmountFields } from "@/components/bookkeeping-amount-fields";
 import { Field, Input, Select, Textarea } from "@/components/field";
 import { SubmitButton } from "@/components/form-buttons";
 import { encodeMaintenanceRecord, receiptAccept } from "@/lib/bookkeeping";
 import type { ActionState } from "@/lib/actions/state";
 import type { BookkeepingExpense, BookkeepingOptions } from "@/lib/data/bookkeeping";
-import { expenseCategories } from "@/types/database";
 
 type ExpenseFormAction = (state: ActionState, formData: FormData) => Promise<ActionState> | ActionState;
 
@@ -46,23 +46,19 @@ export function BookkeepingExpenseForm({
   pendingText?: string;
   includeReceipt?: boolean;
 }) {
+  const sourceType = (expense?.source_type ?? "manual") as "manual" | "maintenance" | "ifta";
   return (
     <ActionForm action={action} className="grid gap-3 md:grid-cols-4">
+      {!expense ? <input type="hidden" name="operation_id" value={crypto.randomUUID()} /> : null}
       <Field label="Date">
         <Input type="date" name="expense_date" required defaultValue={expense?.expense_date ?? today()} />
       </Field>
-      <Field label="Category">
-        <Select name="category" required defaultValue={expense?.category ?? "Fuel"}>
-          {expenseCategories.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      <Field label="Amount">
-        <Input type="number" min="0.01" step="0.01" name="amount" required defaultValue={expense?.amount ?? ""} />
-      </Field>
+      <BookkeepingAmountFields
+        sourceType={sourceType}
+        category={expense?.category ?? "Fuel"}
+        amount={expense?.amount ?? ""}
+        lines={expense?.bookkeeping_expenses}
+      />
       <Field label="Vendor">
         <Input name="vendor" defaultValue={expense?.vendor ?? ""} />
       </Field>
@@ -97,7 +93,7 @@ export function BookkeepingExpenseForm({
           ))}
         </Select>
       </Field>
-      <Field label="Maintenance record">
+      {sourceType === "manual" ? <Field label="Maintenance record">
         <Select name="maintenance_record" defaultValue={maintenanceRecordValue(expense)}>
           <option value="">None</option>
           {options.maintenanceRecords.map((record) => (
@@ -106,7 +102,7 @@ export function BookkeepingExpenseForm({
             </option>
           ))}
         </Select>
-      </Field>
+      </Field> : <input type="hidden" name="maintenance_record" value={maintenanceRecordValue(expense)} />}
 
       {includeReceipt ? (
         <Field label="Receipt" className="md:col-span-2">

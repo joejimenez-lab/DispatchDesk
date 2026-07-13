@@ -49,6 +49,7 @@ describe("/api/reports/weekly/export", () => {
     const { GET } = await import("./route");
 
     const response = await GET(new Request("http://localhost/api/reports/weekly/export"));
+    if (!response) throw new Error("Expected the weekly export route to return a response");
     const csv = await response.text();
 
     expect(csv).toContain("'=Driver");

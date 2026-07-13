@@ -8,7 +8,8 @@ import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import { createClient } from "@/lib/supabase/server";
 import { expenseCategories, type Database, type ExpenseCategory, type UnitType } from "@/types/database";
 
-type ExpenseRow = Database["public"]["Tables"]["bookkeeping_expenses"]["Row"];
+type ExpenseGroupRow = Database["public"]["Tables"]["bookkeeping_expense_groups"]["Row"];
+export type BookkeepingExpenseLine = Database["public"]["Tables"]["bookkeeping_expenses"]["Row"];
 type ReceiptRow = Database["public"]["Tables"]["bookkeeping_receipts"]["Row"];
 
 type UnitLink = { id: string; unit_number: string; unit_type: UnitType; company?: string | null };
@@ -24,7 +25,8 @@ type ServiceLink = { id: string; service_date: string | null; description: strin
 type InspectionLink = { id: string; inspection_date: string | null; result: string | null; fleet_units?: UnitLink | null };
 type RepairLink = { id: string; repair_date: string | null; description: string; log_type: string; fleet_units?: UnitLink | null };
 
-export type BookkeepingExpense = ExpenseRow & {
+export type BookkeepingExpense = ExpenseGroupRow & {
+  bookkeeping_expenses: BookkeepingExpenseLine[];
   bookkeeping_receipts: ReceiptRow[];
   fleet_units: UnitLink | null;
   loads: LoadLink | null;
@@ -32,6 +34,9 @@ export type BookkeepingExpense = ExpenseRow & {
   service_records: ServiceLink | null;
   inspection_records: InspectionLink | null;
   repair_logs: RepairLink | null;
+  ifta_fuel_purchases: { id: string; purchase_date: string; state: string; city: string | null; gallons: number; truck_number: string } | null;
+  amount: number;
+  category: ExpenseCategory;
 };
 
 export type BookkeepingFilters = {
@@ -142,6 +147,38 @@ export function bookkeepingExpenseToExportRow(expense: BookkeepingExpense): Book
     receiptCount: expense.bookkeeping_receipts.length,
     receiptFiles: expense.bookkeeping_receipts.map((receipt) => receipt.file_name).join("; "),
     notes: expense.notes,
+    source: expense.source_type,
+    lineType: expense.bookkeeping_expenses[0]?.line_type ?? "total",
+  };
+}
+
+export function bookkeepingExpenseToExportRows(expense: BookkeepingExpense, category?: ExpenseCategory | null): BookkeepingExportRow[] {
+  return expense.bookkeeping_expenses
+    .filter((line) => !category || line.category === category)
+    .map((line, index) => ({
+    expenseDate: expense.expense_date,
+    category: line.category,
+    amount: Number(line.amount),
+    vendor: expense.vendor,
+    unit: unitLabel(expense.fleet_units),
+    loadNumber: expense.loads?.load_number ?? null,
+    driver: expense.drivers?.name ?? null,
+    maintenanceRecord: maintenanceRecordLabel(expense),
+    receiptCount: index === 0 ? expense.bookkeeping_receipts.length : 0,
+    receiptFiles: index === 0 ? expense.bookkeeping_receipts.map((receipt) => receipt.file_name).join("; ") : "",
+    notes: expense.notes,
+    source: expense.source_type,
+    lineType: line.line_type,
+    }));
+}
+
+function normalizeExpense(raw: Omit<BookkeepingExpense, "amount" | "category">): BookkeepingExpense {
+  const lines = [...raw.bookkeeping_expenses].sort((a, b) => a.line_type.localeCompare(b.line_type));
+  return {
+    ...raw,
+    bookkeeping_expenses: lines,
+    amount: lines.reduce((sum, line) => sum + Number(line.amount), 0),
+    category: lines[0]?.category ?? "Other",
   };
 }
 
@@ -159,21 +196,22 @@ export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
   if ((filters.unit && !unit) || (filters.load && !load) || (filters.driver && !driver)) return [];
 
   let query = supabase
-    .from("bookkeeping_expenses")
+    .from("bookkeeping_expense_groups")
     .select(`
       *,
+      bookkeeping_expenses(*),
       bookkeeping_receipts(*),
       fleet_units(id, unit_number, unit_type, company),
       loads(id, load_number, pickup_location, delivery_location, drivers(truck_number)),
       drivers(id, name, truck_number),
       service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
       inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),
-      repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company))
+      repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company)),
+      ifta_fuel_purchases(id, purchase_date, state, city, gallons, truck_number)
     `)
     .order("expense_date", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (category) query = query.eq("category", category);
   if (from) query = query.gte("expense_date", from);
   if (to) query = query.lte("expense_date", to);
   if (unit) query = query.eq("unit_id", unit);
@@ -182,10 +220,9 @@ export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
 
   const { data, error } = await query;
   if (error) throw error;
-  const expenses = (data ?? []) as unknown as BookkeepingExpense[];
-  return fleet && fleetTruckNumbers
-    ? expenses.filter((expense) => bookkeepingExpenseMatchesFleet(expense, fleet, fleetTruckNumbers))
-    : expenses;
+  let expenses = ((data ?? []) as unknown as Omit<BookkeepingExpense, "amount" | "category">[]).map(normalizeExpense);
+  if (category) expenses = expenses.filter((expense) => expense.bookkeeping_expenses.some((line) => line.category === category));
+  return fleet && fleetTruckNumbers ? expenses.filter((expense) => bookkeepingExpenseMatchesFleet(expense, fleet, fleetTruckNumbers)) : expenses;
 }
 
 export async function getBookkeepingOptions(): Promise<BookkeepingOptions> {
@@ -290,4 +327,13 @@ export async function getBookkeepingOptions(): Promise<BookkeepingOptions> {
     drivers: (drivers.data ?? []) as DriverLink[],
     maintenanceRecords: [...serviceOptions, ...inspectionOptions, ...repairOptions],
   };
+}
+
+export type ReconciliationSummary = { created: number; matched: number; skipped: number; ambiguous: number; applied: boolean };
+
+export async function getOperationalReconciliation(): Promise<ReconciliationSummary> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("reconcile_operational_expenses", { p_apply: false });
+  if (error) throw error;
+  return data as ReconciliationSummary;
 }

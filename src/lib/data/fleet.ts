@@ -9,6 +9,17 @@ type ServiceRow = Database["public"]["Tables"]["service_records"]["Row"];
 type InspectionRow = Database["public"]["Tables"]["inspection_records"]["Row"];
 type RepairRow = Database["public"]["Tables"]["repair_logs"]["Row"];
 type ReminderRow = Database["public"]["Tables"]["maintenance_reminders"]["Row"];
+export type BookkeepingLink = {
+  id: string;
+  expense_date: string;
+  vendor: string | null;
+  notes: string | null;
+  bookkeeping_expenses: { id: string; category: string; amount: number; line_type: string }[];
+  bookkeeping_receipts: { id: string }[];
+};
+export type ServiceWithExpense = ServiceRow & { bookkeeping_expense_groups: BookkeepingLink[] };
+export type InspectionWithExpense = InspectionRow & { bookkeeping_expense_groups: BookkeepingLink[] };
+export type RepairWithExpense = RepairRow & { bookkeeping_expense_groups: BookkeepingLink[] };
 
 const FLEET_SEARCH_COLUMNS = ["unit_number", "company"];
 
@@ -75,22 +86,25 @@ export async function getUnit(unitId: string) {
 
 export async function getUnitRecords(unitId: string) {
   const supabase = await createClient();
-  const [service, inspections, repairs, reminders] = await Promise.all([
-    supabase.from("service_records").select("*").eq("unit_id", unitId).order("service_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
-    supabase.from("inspection_records").select("*").eq("unit_id", unitId).order("inspection_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
-    supabase.from("repair_logs").select("*").eq("unit_id", unitId).order("repair_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
+  const [service, inspections, repairs, reminders, financialLinks] = await Promise.all([
+    supabase.from("service_records").select("*, bookkeeping_expense_groups(id, expense_date, vendor, notes, bookkeeping_expenses(id, category, amount, line_type), bookkeeping_receipts(id))").eq("unit_id", unitId).order("service_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
+    supabase.from("inspection_records").select("*, bookkeeping_expense_groups(id, expense_date, vendor, notes, bookkeeping_expenses(id, category, amount, line_type), bookkeeping_receipts(id))").eq("unit_id", unitId).order("inspection_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
+    supabase.from("repair_logs").select("*, bookkeeping_expense_groups(id, expense_date, vendor, notes, bookkeeping_expenses(id, category, amount, line_type), bookkeeping_receipts(id))").eq("unit_id", unitId).order("repair_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
     supabase.from("maintenance_reminders").select("*").eq("unit_id", unitId).order("completed_at", { ascending: true, nullsFirst: true }).order("due_date", { ascending: true, nullsFirst: false }),
+    supabase.from("bookkeeping_expense_groups").select("id", { count: "exact", head: true }).eq("unit_id", unitId),
   ]);
 
   if (service.error) throw service.error;
   if (inspections.error) throw inspections.error;
   if (repairs.error) throw repairs.error;
   if (reminders.error) throw reminders.error;
+  if (financialLinks.error) throw financialLinks.error;
 
   return {
-    service: (service.data ?? []) as ServiceRow[],
-    inspections: (inspections.data ?? []) as InspectionRow[],
-    repairs: (repairs.data ?? []) as RepairRow[],
+    service: (service.data ?? []) as unknown as ServiceWithExpense[],
+    inspections: (inspections.data ?? []) as unknown as InspectionWithExpense[],
+    repairs: (repairs.data ?? []) as unknown as RepairWithExpense[],
     reminders: (reminders.data ?? []) as ReminderRow[],
+    financialLinkCount: financialLinks.count ?? 0,
   };
 }

@@ -33,7 +33,7 @@ export function MaintenanceReminderForm({
   const initialUnit = unitId ? null : units[0] ?? null;
   const [selectedUnitType, setSelectedUnitType] = useState<UnitType | null>(unitType ?? initialUnit?.unit_type ?? null);
   const allowedTypes = maintenanceTypesForUnit(selectedUnitType);
-  const [type, setType] = useState<MaintenanceReminderType>(reminder?.reminder_type ?? allowedTypes[0]);
+  const [type, setType] = useState<MaintenanceReminderType>((reminder?.reminder_type as MaintenanceReminderType | undefined) ?? allowedTypes[0]);
 
   function changeUnit(nextUnitId: string) {
     const nextUnitType = units.find((unit) => unit.id === nextUnitId)?.unit_type ?? null;

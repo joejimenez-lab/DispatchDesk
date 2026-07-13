@@ -110,6 +110,7 @@ export async function addInspectionRecord(_state: ActionState, formData: FormDat
       odometer: value(formData, "odometer"),
       inspector: value(formData, "inspector"),
       result: value(formData, "result"),
+      cost: value(formData, "cost"),
       notes: value(formData, "notes"),
     });
 

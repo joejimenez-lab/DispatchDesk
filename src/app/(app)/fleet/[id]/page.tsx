@@ -4,6 +4,7 @@ import { ActionForm } from "@/components/action-form";
 import { CompanyFleetField } from "@/components/company-fleet-field";
 import { MaintenanceReminderCard } from "@/components/maintenance-reminder-card";
 import { MaintenanceReminderForm } from "@/components/maintenance-reminder-form";
+import { MaintenanceSpendingEditor } from "@/components/maintenance-spending-editor";
 import { Field, Input, Select, Textarea } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import {
@@ -106,16 +107,20 @@ export default async function UnitDetailPage({
             <div className="mt-6 border-t border-zinc-200 pt-5">
               <div className="mb-3">
                 <h3 className="text-sm font-semibold text-zinc-950">Delete this unit</h3>
-                <p className="text-sm text-zinc-600">This permanently removes the unit and all of its records.</p>
+                <p className="text-sm text-zinc-600">
+                  {records.financialLinkCount
+                    ? `${records.financialLinkCount} Bookkeeping transaction${records.financialLinkCount === 1 ? " refers" : "s refer"} to this unit. Reassign those transactions before deleting it.`
+                    : "This permanently removes the unit and its non-financial maintenance records."}
+                </p>
               </div>
-              <ActionForm action={deleteUnit.bind(null, id)} successMessage={false}>
+              {!records.financialLinkCount ? <ActionForm action={deleteUnit.bind(null, id)} successMessage={false}>
                 <ConfirmSubmitButton
-                  message={`Delete ${unit.unit_type.toLowerCase()} ${unit.unit_number}? This also removes its service, inspection, and repair history.`}
+                  message={`Delete ${unit.unit_type.toLowerCase()} ${unit.unit_number} and its non-financial service, inspection, and repair history?`}
                   variant="danger"
                 >
                   Delete unit
                 </ConfirmSubmitButton>
-              </ActionForm>
+              </ActionForm> : null}
             </div>
           </div>
         ) : (
@@ -203,10 +208,11 @@ export default async function UnitDetailPage({
                   {` · ${currency(record.cost)}`}
                 </div>
                 {record.notes ? <p className="mt-1 text-sm text-zinc-600">{record.notes}</p> : null}
+                <MaintenanceSpendingEditor table="service_records" recordId={record.id} unitId={id} date={record.service_date} odometer={record.odometer} notes={record.notes} cost={Number(record.cost)} expense={record.bookkeeping_expense_groups[0]} />
               </div>
-              <ActionForm action={deleteFleetRecord.bind(null, "service_records", record.id, id)} successMessage={false}>
+              {!record.bookkeeping_expense_groups.length ? <ActionForm action={deleteFleetRecord.bind(null, "service_records", record.id, id)} successMessage={false}>
                 <ConfirmSubmitButton message="Delete this service record?" variant="secondary">Delete</ConfirmSubmitButton>
-              </ActionForm>
+              </ActionForm> : null}
             </div>
           ))}
           {!records.service.length ? <p className="py-4 text-sm text-zinc-500">No service records yet.</p> : null}
@@ -226,6 +232,7 @@ export default async function UnitDetailPage({
               <Field label="Odometer"><Input type="number" min="0" name="odometer" /></Field>
               <Field label="Inspector"><Input name="inspector" /></Field>
               <Field label="Result"><Input name="result" placeholder="Pass / Fail" required /></Field>
+              <Field label="Cost"><Input type="number" min="0" step="0.01" name="cost" /></Field>
               <Field label="Notes" className="md:col-span-4"><Textarea name="notes" /></Field>
               <SubmitButton className="md:w-fit" pendingText="Adding...">Add inspection</SubmitButton>
             </ActionForm>
@@ -239,12 +246,14 @@ export default async function UnitDetailPage({
                   {formatDate(record.inspection_date)}
                   {record.inspector ? ` · ${record.inspector}` : ""}
                   {odometer(record.odometer) ? ` · ${odometer(record.odometer)}` : ""}
+                  {` · ${currency(record.cost)}`}
                 </div>
                 {record.notes ? <p className="mt-1 text-sm text-zinc-600">{record.notes}</p> : null}
+                <MaintenanceSpendingEditor table="inspection_records" recordId={record.id} unitId={id} date={record.inspection_date} odometer={record.odometer} notes={record.notes} cost={Number(record.cost)} expense={record.bookkeeping_expense_groups[0]} />
               </div>
-              <ActionForm action={deleteFleetRecord.bind(null, "inspection_records", record.id, id)} successMessage={false}>
+              {!record.bookkeeping_expense_groups.length ? <ActionForm action={deleteFleetRecord.bind(null, "inspection_records", record.id, id)} successMessage={false}>
                 <ConfirmSubmitButton message="Delete this inspection record?" variant="secondary">Delete</ConfirmSubmitButton>
-              </ActionForm>
+              </ActionForm> : null}
             </div>
           ))}
           {!records.inspections.length ? <p className="py-4 text-sm text-zinc-500">No inspection records yet.</p> : null}
@@ -287,10 +296,11 @@ export default async function UnitDetailPage({
                   {` · ${currency(record.cost)}`}
                 </div>
                 {record.notes ? <p className="mt-1 text-sm text-zinc-600">{record.notes}</p> : null}
+                <MaintenanceSpendingEditor table="repair_logs" recordId={record.id} unitId={id} date={record.repair_date} odometer={record.odometer} notes={record.notes} cost={Number(record.cost)} expense={record.bookkeeping_expense_groups[0]} />
               </div>
-              <ActionForm action={deleteFleetRecord.bind(null, "repair_logs", record.id, id)} successMessage={false}>
+              {!record.bookkeeping_expense_groups.length ? <ActionForm action={deleteFleetRecord.bind(null, "repair_logs", record.id, id)} successMessage={false}>
                 <ConfirmSubmitButton message="Delete this repair log?" variant="secondary">Delete</ConfirmSubmitButton>
-              </ActionForm>
+              </ActionForm> : null}
             </div>
           ))}
           {!records.repairs.length ? <p className="py-4 text-sm text-zinc-500">No repairs or daily logs yet.</p> : null}

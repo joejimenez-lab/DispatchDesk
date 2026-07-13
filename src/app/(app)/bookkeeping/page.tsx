@@ -11,6 +11,7 @@ import {
   addBookkeepingExpense,
   deleteBookkeepingExpense,
   deleteBookkeepingReceipt,
+  reconcileOperationalExpenses,
   updateBookkeepingExpense,
   uploadBookkeepingReceipt,
 } from "@/lib/actions/bookkeeping";
@@ -19,6 +20,7 @@ import { getFleetCompanies } from "@/lib/data/fleet";
 import {
   getBookkeepingExpenses,
   getBookkeepingOptions,
+  getOperationalReconciliation,
   normalizeExpenseCategory,
   type BookkeepingExpense,
   type BookkeepingOptions,
@@ -63,6 +65,9 @@ function ExpenseCard({ expense, options }: { expense: BookkeepingExpense; option
   const maintenanceLinked = Boolean(
     expense.service_record_id || expense.inspection_record_id || expense.repair_log_id,
   );
+  const sourceHref = expense.source_type === "maintenance" && expense.unit_id
+    ? `/fleet/${expense.unit_id}`
+    : expense.source_type === "ifta" ? "/ifta" : null;
 
   return (
     <article className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
@@ -80,6 +85,9 @@ function ExpenseCard({ expense, options }: { expense: BookkeepingExpense; option
                 Maintenance linked
               </span>
             ) : null}
+            <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold capitalize text-zinc-700">
+              {expense.source_type === "manual" ? "Manual entry" : `${expense.source_type} source`}
+            </span>
             <span className="text-sm text-zinc-500">{formatDate(expense.expense_date)}</span>
           </div>
           <h2 className="mt-2 break-words text-lg font-semibold text-zinc-950">
@@ -91,13 +99,19 @@ function ExpenseCard({ expense, options }: { expense: BookkeepingExpense; option
             <p className="mt-1 text-sm text-zinc-500">No linked truck, trailer, load, driver, or maintenance record.</p>
           )}
           {expense.notes ? <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">{expense.notes}</p> : null}
+          {expense.bookkeeping_expenses.length > 1 ? (
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-700">
+              {expense.bookkeeping_expenses.map((line) => <span key={line.id} className="rounded-md bg-zinc-100 px-2 py-1 capitalize">{line.line_type}: {currency(line.amount)}</span>)}
+            </div>
+          ) : null}
+          {sourceHref ? <Link href={sourceHref} className="mt-3 inline-block text-sm font-medium text-blue-700 underline">Open source record</Link> : null}
         </div>
 
-        <ActionForm action={deleteBookkeepingExpense.bind(null, expense.id)} successMessage={false}>
+        {expense.source_type === "manual" ? <ActionForm action={deleteBookkeepingExpense.bind(null, expense.id)} successMessage={false}>
           <ConfirmSubmitButton message={`Delete this ${expense.category.toLowerCase()} expense?`} variant="secondary">
             Delete
           </ConfirmSubmitButton>
-        </ActionForm>
+        </ActionForm> : <span className="text-xs text-zinc-500">Delete from {expense.source_type.toUpperCase()}</span>}
       </div>
 
       <div className="mt-4 border-t border-zinc-100 pt-4">
@@ -120,7 +134,7 @@ function ExpenseCard({ expense, options }: { expense: BookkeepingExpense; option
                 >
                   Download
                 </Link>
-                <ActionForm action={deleteBookkeepingReceipt.bind(null, receipt.id, receipt.storage_path)} successMessage={false}>
+                <ActionForm action={deleteBookkeepingReceipt.bind(null, receipt.id)} successMessage={false}>
                   <ConfirmSubmitButton message={`Delete receipt ${receipt.file_name}?`} variant="secondary">
                     Delete
                   </ConfirmSubmitButton>
@@ -179,21 +193,21 @@ export default async function BookkeepingPage({
   searchParams: Promise<{ from?: string; to?: string; category?: string; unit?: string; load?: string; driver?: string; fleet?: string }>;
 }) {
   const params = await searchParams;
-  const [options, fleetCompanies] = await Promise.all([
+  const [options, fleetCompanies, reconciliation] = await Promise.all([
     getBookkeepingOptions(),
     getFleetCompanies(),
+    getOperationalReconciliation(),
   ]);
   const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
   const expenses = await getBookkeepingExpenses({ ...params, fleet: fleet || undefined });
   const filteredUnits = fleet ? options.units.filter((unit) => unit.company === fleet) : options.units;
   const category = normalizeExpenseCategory(params.category);
-  const total = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
-  const fuelTotal = expenses
-    .filter((expense) => expense.category === "Fuel")
-    .reduce((sum, expense) => sum + Number(expense.amount), 0);
-  const maintenanceTotal = expenses
-    .filter((expense) => expense.category === "Maintenance" || linkedMaintenance(expense))
-    .reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const lines = expenses
+    .flatMap((expense) => expense.bookkeeping_expenses)
+    .filter((line) => !category || line.category === category);
+  const total = lines.reduce((sum, line) => sum + Number(line.amount), 0);
+  const fuelTotal = lines.filter((line) => line.category === "Fuel").reduce((sum, line) => sum + Number(line.amount), 0);
+  const maintenanceTotal = lines.filter((line) => line.category === "Maintenance" || line.category === "Parts").reduce((sum, line) => sum + Number(line.amount), 0);
   const receiptCount = expenses.reduce((sum, expense) => sum + expense.bookkeeping_receipts.length, 0);
 
   const exportParams = new URLSearchParams();
@@ -288,6 +302,18 @@ export default async function BookkeepingPage({
         <SummaryCard label="Maintenance linked" value={currency(maintenanceTotal)} />
         <SummaryCard label="Receipts" value={receiptCount} />
       </section>
+
+      {reconciliation.created || reconciliation.matched || reconciliation.ambiguous ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h2 className="font-semibold text-amber-950">Historical expense reconciliation</h2>
+          <p className="mt-1 text-sm text-amber-900">
+            Dry run: {reconciliation.created} can be created, {reconciliation.matched} exact manual matches can be linked, and {reconciliation.ambiguous} need review. {reconciliation.skipped} are already linked.
+          </p>
+          <ActionForm action={reconcileOperationalExpenses} className="mt-3">
+            <ConfirmSubmitButton message="Apply the safe historical matches and create missing expenses? Ambiguous records will be skipped." variant="secondary">Apply safe reconciliation</ConfirmSubmitButton>
+          </ActionForm>
+        </section>
+      ) : null}
 
       <details className="group">
         <summary className="w-fit cursor-pointer list-none rounded-md bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800">

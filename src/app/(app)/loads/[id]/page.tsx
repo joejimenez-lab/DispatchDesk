@@ -175,7 +175,7 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
               <Detail label="Load Rate" value={currency(load.load_rate)} />
               <Detail label="Driver Pay" value={currency(load.driver_pay)} />
               <Detail label="Dispatcher Fee" value={currency(load.dispatcher_fee)} />
-              <Detail label="Fuel Cost" value={currency(load.fuel_cost)} />
+              <Detail label="Load fuel estimate" value={currency(load.fuel_cost)} />
               <Detail label="Profit" value={<span className={profit >= 0 ? "text-green-700" : "text-red-700"}>{currency(profit)}</span>} />
               <Detail label="Client Collected" value={currency(collected)} />
               <Detail label="Client Outstanding" value={currency(outstanding)} />

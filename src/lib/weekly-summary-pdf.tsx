@@ -208,7 +208,7 @@ export function WeeklySummaryPdf({
               </View>
             )) : <Text style={styles.empty}>No driver payroll in this period.</Text>}
           </View>
-          <Text style={styles.note}>Estimated profit is revenue less driver pay, dispatcher fees, and recorded fuel costs. Profit margin for this period: {margin.toFixed(1)}%.</Text>
+          <Text style={styles.note}>Estimated profit is revenue less driver pay, dispatcher fees, and load-level fuel estimates. Actual fuel purchases live in IFTA and Bookkeeping and are not added again here. Profit margin for this period: {margin.toFixed(1)}%.</Text>
         </View>
 
         <View style={styles.footer} fixed>

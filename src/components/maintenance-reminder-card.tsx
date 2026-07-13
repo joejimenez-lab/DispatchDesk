@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { DetailsCloseButton } from "@/components/details-close-button";
 import { MaintenanceReminderForm } from "@/components/maintenance-reminder-form";
+import { MaintenanceCostFields } from "@/components/maintenance-cost-fields";
 import { Field, Input, Textarea } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import {
@@ -80,7 +81,7 @@ export function MaintenanceReminderCard({ alert }: { alert: MaintenanceAlert }) 
             <ActionForm action={completeMaintenanceReminder.bind(null, alert.id, unitId)} className="grid gap-3 sm:grid-cols-2">
               <Field label="Completed date"><Input type="date" name="completed_date" required defaultValue={localDateString()} /></Field>
               <Field label="Current odometer"><Input type="number" min="0" name="odometer" defaultValue={alert.unit.odometer ?? ""} /></Field>
-              <Field label="Cost"><Input type="number" min="0" step="0.01" name="cost" defaultValue="0" /></Field>
+              <MaintenanceCostFields />
               <Field label="Completion notes" className="sm:col-span-2"><Textarea name="notes" /></Field>
               <SubmitButton className="sm:w-fit" pendingText="Completing...">
                 {maintenanceWillRepeat(alert) ? "Complete and schedule next" : "Complete maintenance"}
