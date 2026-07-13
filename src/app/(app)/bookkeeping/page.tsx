@@ -6,6 +6,7 @@ import { ExportMenu } from "@/components/export-menu";
 import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
 import { Field, Input, Select } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
+import { ReceiptPreviewDialog } from "@/components/receipt-preview-dialog";
 import {
   addBookkeepingExpense,
   deleteBookkeepingExpense,
@@ -109,13 +110,10 @@ function ExpenseCard({ expense, options }: { expense: BookkeepingExpense; option
                 <div className="text-xs text-zinc-500">{new Date(receipt.created_at).toLocaleString()}</div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Link
-                  href={`/api/bookkeeping/receipts/${receipt.id}/view`}
-                  target="_blank"
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium"
-                >
-                  View
-                </Link>
+                <ReceiptPreviewDialog
+                  fileName={receipt.file_name}
+                  viewHref={`/api/bookkeeping/receipts/${receipt.id}/view`}
+                />
                 <Link
                   href={`/api/bookkeeping/receipts/${receipt.id}/download`}
                   className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium"
