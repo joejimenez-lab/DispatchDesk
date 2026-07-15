@@ -4,7 +4,11 @@ import { logError, logInfo } from "@/lib/logger";
 export function register() {
   logInfo("application.started", {
     runtime: process.env.NEXT_RUNTIME ?? "unknown",
-    release: process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.APP_RELEASE ?? "local",
+    release:
+      process.env.VERCEL_GIT_COMMIT_SHA ??
+      process.env.RENDER_GIT_COMMIT ??
+      process.env.APP_RELEASE ??
+      "local",
   });
 }
 
