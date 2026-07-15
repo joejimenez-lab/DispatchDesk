@@ -3,7 +3,7 @@ import { forwardRef, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type 
 import { cn } from "@/lib/utils";
 
 const styles =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6757e8] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
 export const Button = forwardRef<
   HTMLButtonElement,
@@ -14,8 +14,8 @@ export const Button = forwardRef<
       ref={ref}
       className={cn(
         styles,
-        variant === "primary" && "bg-zinc-950 text-white hover:bg-zinc-800",
-        variant === "secondary" && "border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50",
+        variant === "primary" && "bg-[#6757e8] text-white shadow-[0_8px_18px_rgba(103,87,232,0.18)] hover:bg-[#5143c2]",
+        variant === "secondary" && "border border-[#dfe1ed] bg-white text-[#45475d] shadow-sm hover:border-[#b9bbcd] hover:bg-[#f7f6fc]",
         variant === "danger" && "bg-red-600 text-white hover:bg-red-700",
         className,
       )}
@@ -38,8 +38,8 @@ export function LinkButton({
     <Link
       className={cn(
         styles,
-        variant === "primary" && "bg-zinc-950 text-white hover:bg-zinc-800",
-        variant === "secondary" && "border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50",
+        variant === "primary" && "bg-[#6757e8] text-white shadow-[0_8px_18px_rgba(103,87,232,0.18)] hover:bg-[#5143c2]",
+        variant === "secondary" && "border border-[#dfe1ed] bg-white text-[#45475d] shadow-sm hover:border-[#b9bbcd] hover:bg-[#f7f6fc]",
         variant === "danger" && "bg-red-600 text-white hover:bg-red-700",
         className,
       )}

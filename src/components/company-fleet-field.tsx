@@ -38,7 +38,7 @@ export function CompanyFleetField({ companies, defaultValue = "" }: Props) {
 
   return (
     <div className="relative" onBlur={closeWhenFocusLeaves}>
-      <label htmlFor={inputId} className="block text-sm font-medium text-zinc-700">Company / Fleet</label>
+      <label htmlFor={inputId} className="block text-sm font-medium text-zinc-700">Fleet company</label>
       <div className="relative">
         <Input
           id={inputId}

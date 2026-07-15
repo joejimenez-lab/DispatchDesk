@@ -77,7 +77,7 @@ export default async function DriverReportPage({
           <Input type="date" name="to" defaultValue={query.to ?? ""} />
         </Field>
         <div className="flex items-end gap-2">
-          <button className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-medium text-white">Filter</button>
+          <button className="h-10 rounded-[10px] bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Filter</button>
           <Link href={`/reports/drivers/${id}`} className="flex h-10 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium">Reset</Link>
         </div>
       </form>

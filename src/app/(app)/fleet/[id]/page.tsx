@@ -81,7 +81,7 @@ export default async function UnitDetailPage({
             href={isEditing ? `/fleet/${id}` : `/fleet/${id}?edit=1`}
             className={isEditing
               ? "inline-flex rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-              : "inline-flex rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"}
+              : "inline-flex rounded-[10px] bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"}
           >
             {isEditing ? "Cancel" : "Edit unit"}
           </Link>
@@ -126,7 +126,7 @@ export default async function UnitDetailPage({
         ) : (
           <div className="grid gap-5 sm:grid-cols-3">
             <div>
-              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Company / Fleet</div>
+              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Fleet company</div>
               <div className="mt-1 text-sm font-medium text-zinc-950">{unit.company ?? "Not set"}</div>
             </div>
             <div>

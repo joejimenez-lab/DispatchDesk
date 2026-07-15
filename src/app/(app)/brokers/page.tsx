@@ -8,7 +8,7 @@ import { getBrokers } from "@/lib/data/contacts";
 function DetailItem({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className="text-[12px] font-medium uppercase tracking-wide text-zinc-500">{label}</div>
       <div className="mt-1 text-sm font-medium text-zinc-950">{value?.trim() || "Not set"}</div>
     </div>
   );
@@ -30,7 +30,7 @@ export default async function BrokersPage({
           <p className="text-sm text-zinc-600">Maintain broker and customer contact records.</p>
         </div>
         <details className="group w-full sm:w-auto open:sm:w-full">
-          <summary className="cursor-pointer list-none rounded-md bg-zinc-950 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-zinc-800">
+          <summary className="cursor-pointer list-none rounded-[10px] bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
             <span className="group-open:hidden">+ Add broker</span>
             <span className="hidden group-open:inline">Cancel</span>
           </summary>
@@ -97,7 +97,7 @@ export default async function BrokersPage({
               <DetailItem label="Phone" value={broker.phone} />
               <DetailItem label="Email" value={broker.email} />
               <div className="min-w-0 sm:col-span-2 lg:col-span-1">
-                <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Notes</div>
+                <div className="text-[12px] font-medium uppercase tracking-wide text-zinc-500">Notes</div>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">{broker.notes?.trim() || "No notes"}</p>
               </div>
             </div>

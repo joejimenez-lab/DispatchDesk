@@ -75,7 +75,7 @@ export default async function LoadsPage({
           </Select>
         </Field>
         <div className="flex items-end gap-2">
-          <button className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-medium text-white">Filter</button>
+          <button className="h-10 rounded-[10px] bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Filter</button>
           <Link href="/loads" className="flex h-10 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium">Reset</Link>
         </div>
       </form>
@@ -90,7 +90,7 @@ export default async function LoadsPage({
               <th className="px-4 py-3">Pickup</th>
               <th className="px-4 py-3">Delivery</th>
               <th className="px-4 py-3">Rate</th>
-              <th className="min-w-36 px-4 py-3">Status / Payment</th>
+              <th className="min-w-36 px-4 py-3">Status and payment</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
@@ -153,7 +153,7 @@ export default async function LoadsPage({
                   <div className="mt-1 text-sm text-zinc-500">Adjust the filters or create a new load.</div>
                   <div className="mt-4 flex justify-center gap-2">
                     <Link href="/loads" className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium">Reset filters</Link>
-                    <Link href="/loads/new" className="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white">Create load</Link>
+                    <Link href="/loads/new" className="rounded-[10px] bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Create load</Link>
                   </div>
                 </td>
               </tr>

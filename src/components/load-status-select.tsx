@@ -43,7 +43,7 @@ export function LoadStatusSelect({ loadId, status }: { loadId: string; status: L
       disabled={isPending}
       onChange={(event) => changeStatus(event.target.value as LoadStatus)}
       className={cn(
-        "h-8 rounded-full border px-3 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-zinc-200 disabled:cursor-wait disabled:opacity-70",
+        "h-9 rounded-xl border px-3 text-[12px] font-semibold tracking-[0.01em] outline-none transition focus:ring-2 focus:ring-[#6757e8]/25 disabled:cursor-wait disabled:opacity-70",
         tones[selectedStatus],
       )}
     >
