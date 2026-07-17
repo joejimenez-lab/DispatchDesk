@@ -118,11 +118,17 @@ enabled = true
 file_size_limit = "50MiB"
 
 # Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+[storage.buckets.load-documents]
+public = false
+file_size_limit = "10MiB"
+allowed_mime_types = ["application/pdf", "image/png", "image/jpeg", "image/heic", "image/heif"]
+objects_path = "../output/pdf/load-documents"
+
+[storage.buckets.bookkeeping-receipts]
+public = false
+file_size_limit = "10MiB"
+allowed_mime_types = ["application/pdf", "image/png", "image/jpeg", "image/heic", "image/heif"]
+objects_path = "../output/pdf/bookkeeping-receipts"
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]

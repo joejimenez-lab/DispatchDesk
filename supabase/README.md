@@ -26,6 +26,40 @@
    npm run db:test
    ```
 
+## Grand demo data
+
+The committed seed replaces business data with a fictional, date-relative demo
+covering only the `RD` and `RC` fleet scopes. It includes all load statuses,
+payment edge cases, maintenance alert states, IFTA trips, unified bookkeeping,
+and private Storage documents.
+
+The generated sample PDFs are committed with the demo assets. Reset the local
+database and upload both private Storage buckets in one command:
+
+```bash
+npm run demo:reset
+```
+
+The final PDFs are generated under `output/pdf/`. Database rows use stable UUIDs
+that match the generated Storage object paths. Run the reset again any time you
+want a clean demonstration state with dates recalculated relative to that day.
+
+Audit the row counts, fleet isolation, operational reconciliation, and Storage
+references with `npm run demo:audit:local` (or `npm run demo:audit:linked` for
+the explicitly linked demo project).
+
+To redesign the PDF fixtures, install `reportlab` in your Python environment and
+run `npm run demo:pdfs` before resetting.
+
+The seed does not delete real authentication accounts. It adds one fictional,
+non-login audit user (`Andres Castillo`) so seeded created-by fields remain
+readable. Continue signing in with the normal admin account.
+
+`supabase db query --linked --file supabase/seed.sql` and
+`supabase seed buckets --linked` target the linked hosted project and are
+destructive to its business data. Use them only when the linked project is the
+intended demo environment and after verifying locally.
+
 ## Hosted project setup
 
 1. Create a Supabase project.
