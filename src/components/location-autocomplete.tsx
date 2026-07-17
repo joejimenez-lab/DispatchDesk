@@ -16,6 +16,8 @@ type LocationAutocompleteProps = {
   placeholder?: string;
 };
 
+const MANUAL_ENTRY_MESSAGE = "Autocomplete is unavailable. Enter the location manually.";
+
 export function LocationAutocomplete({
   name,
   defaultValue,
@@ -53,7 +55,7 @@ export function LocationAutocomplete({
         });
         const data = (await response.json()) as { locations?: LocationOption[]; message?: string };
         if (!response.ok) {
-          setMessage(data.message ?? "Location lookup is temporarily unavailable.");
+          setMessage(MANUAL_ENTRY_MESSAGE);
           setOptions([]);
           setOpen(true);
           return;
@@ -64,7 +66,7 @@ export function LocationAutocomplete({
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
           setOptions([]);
-          setMessage("Location lookup is temporarily unavailable.");
+          setMessage(MANUAL_ENTRY_MESSAGE);
           setOpen(true);
         }
       } finally {
@@ -104,7 +106,9 @@ export function LocationAutocomplete({
       {open && (loading || options.length > 0 || message) ? (
         <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg">
           {loading ? <div className="px-3 py-2 text-sm text-zinc-500">Searching...</div> : null}
-          {!loading && message ? <div className="px-3 py-2 text-sm text-zinc-500">{message}</div> : null}
+          {!loading && message ? (
+            <div role="status" className="px-3 py-2 text-sm text-zinc-500">{message}</div>
+          ) : null}
           {!loading
             ? options.map((option) => (
                 <button

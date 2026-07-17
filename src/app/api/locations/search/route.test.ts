@@ -11,6 +11,7 @@ describe("location search route", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     if (originalPhotonApiUrl === undefined) {
       delete process.env.PHOTON_API_URL;
     } else {
@@ -29,8 +30,21 @@ describe("location search route", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns a configuration error when the Photon endpoint is missing", async () => {
+  it("uses the low-volume Photon demo fallback in development", async () => {
     delete process.env.PHOTON_API_URL;
+    vi.stubEnv("NODE_ENV", "development");
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ features: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(new Request("http://localhost/api/locations/search?q=Portland"));
+
+    expect(response.status).toBe(200);
+    expect(new URL(fetchMock.mock.calls[0][0]).origin).toBe("https://photon.komoot.io");
+  });
+
+  it("keeps the public fallback disabled in production", async () => {
+    delete process.env.PHOTON_API_URL;
+    vi.stubEnv("NODE_ENV", "production");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -39,7 +53,7 @@ describe("location search route", () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       locations: [],
-      message: "Location lookup is not configured.",
+      message: "Autocomplete is unavailable. Enter the location manually.",
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
