@@ -13,7 +13,11 @@
     "db:reset": "supabase db reset",
     "db:push": "supabase db push",
     "db:test": "supabase test db --local supabase/tests",
-    "db:types": "supabase gen types --local --schema public > src/types/database.ts"
+    "db:types": "supabase gen types --local --schema public > src/types/database.ts",
+    "demo:pdfs": "python3 scripts/generate-demo-pdfs.py",
+    "demo:reset": "supabase db reset --local && supabase seed buckets --local",
+    "demo:audit:local": "supabase db query --local --file supabase/demo-audit.sql",
+    "demo:audit:linked": "supabase db query --linked --file supabase/demo-audit.sql"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
