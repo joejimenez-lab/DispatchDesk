@@ -56,6 +56,7 @@ describe("document response security", () => {
     expect(headers["Content-Disposition"]).toBe("inline; filename=\"invoice.pdf\"");
     expect(headers["X-Content-Type-Options"]).toBe("nosniff");
     expect(headers["Content-Security-Policy"]).toContain("sandbox");
+    expect(headers["Content-Security-Policy"]).toContain("frame-ancestors 'self'");
   });
 
   it.each([

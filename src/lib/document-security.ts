@@ -129,7 +129,7 @@ export function inlineDocumentContentType(fileName: string, reportedMimeType: st
 export function documentSecurityHeaders() {
   return {
     "X-Content-Type-Options": "nosniff",
-    "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data: blob:; style-src 'unsafe-inline'",
+    "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data: blob:; style-src 'unsafe-inline'; frame-ancestors 'self'",
     "Referrer-Policy": "no-referrer",
   };
 }

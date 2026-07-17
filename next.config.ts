@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: securityHeaders.map((header) => ({ ...header })),
       },
+      {
+        source: "/api/bookkeeping/receipts/:id/view",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
     ];
   },
 };
