@@ -27,9 +27,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <>
+    <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <AppNav />
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
-    </>
+      <main id="main-content" className="app-content">{children}</main>
+    </div>
   );
 }

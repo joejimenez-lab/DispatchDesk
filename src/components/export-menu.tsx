@@ -52,13 +52,13 @@ export function ExportMenu({
       onToggle={(event) => setOpen(event.currentTarget.open)}
       className="group relative"
     >
-      <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-medium text-white transition hover:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+      <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-xl bg-[#6757e8] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(103,87,232,0.18)] transition hover:bg-[#5143c2] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6757e8] focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
         <Download aria-hidden="true" className="size-4" />
         Export reports
         <ChevronDown aria-hidden="true" className="size-4 transition group-open:rotate-180" />
       </summary>
 
-      <div className="absolute right-0 z-30 mt-2 w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl">
+      <div className="absolute right-0 z-30 mt-2 w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[#e3e8ef] bg-white shadow-xl">
         <div className="border-b border-zinc-200 px-4 py-3">
           <p className="text-sm font-semibold text-zinc-950">{heading}</p>
           <p className="mt-0.5 text-xs text-zinc-500">{description}</p>

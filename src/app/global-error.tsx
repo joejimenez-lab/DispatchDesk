@@ -15,8 +15,8 @@ export default function GlobalError({
       <body className="min-h-screen bg-zinc-100 text-zinc-950">
         <title>Application error | DispatchDesk</title>
         <FallbackPanel
-          title="DispatchDesk hit an application error"
-          message="The app shell could not recover from this failure. Try again, and use the reference value when matching the failure to server logs."
+          title="Something went wrong"
+          message="DispatchDesk could not load. Try again. If the problem continues, share the reference number below with support."
           digest={error.digest}
           retry={unstable_retry}
           showBack={false}

@@ -43,7 +43,7 @@ export default async function MaintenancePage({
           <p className="text-sm text-zinc-600">All active date- and mileage-based fleet schedules.</p>
         </div>
         <details className="group w-full sm:w-auto">
-          <summary className="cursor-pointer list-none rounded-md bg-zinc-950 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-zinc-800">+ Add schedule</summary>
+          <summary className="cursor-pointer list-none rounded-[10px] bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-700">+ Add schedule</summary>
           <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 lg:absolute lg:left-1/2 lg:z-10 lg:w-[min(68rem,calc(100vw-2rem))] lg:-translate-x-1/2 lg:shadow-xl">
             <div className="mb-3 flex justify-end"><DetailsCloseButton /></div>
             <MaintenanceReminderForm action={addMaintenanceReminder} units={filteredUnits} submitLabel="Add schedule" />
@@ -67,7 +67,7 @@ export default async function MaintenancePage({
               ...(params.unit ? { unit: params.unit } : {}),
             }).toString()}`}
             className={status === filter.value
-              ? "rounded-full bg-zinc-950 px-4 py-2 text-sm font-medium text-white"
+              ? "rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm"
               : "rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"}
           >
             {filter.label}

@@ -91,7 +91,7 @@ function ExpenseCard({ expense, options }: { expense: BookkeepingExpense; option
             <span className="text-sm text-zinc-500">{formatDate(expense.expense_date)}</span>
           </div>
           <h2 className="mt-2 break-words text-lg font-semibold text-zinc-950">
-            {expense.vendor || "No vendor"} <span className="text-zinc-400">/</span> {currency(expense.amount)}
+            {expense.vendor || "No vendor"} <span className="text-zinc-400">·</span> {currency(expense.amount)}
           </h2>
           {links.length ? (
             <p className="mt-1 text-sm text-zinc-600">{links.join(" | ")}</p>
@@ -278,7 +278,7 @@ export default async function BookkeepingPage({
           </Select>
         </Field>
         <div className="flex items-end gap-2">
-          <button className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-medium text-white">Filter</button>
+          <button className="h-10 rounded-[10px] bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Filter</button>
           <Link href="/bookkeeping" className="flex h-10 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium">
             Reset
           </Link>
@@ -316,7 +316,7 @@ export default async function BookkeepingPage({
       ) : null}
 
       <details className="group">
-        <summary className="w-fit cursor-pointer list-none rounded-md bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800">
+        <summary className="w-fit cursor-pointer list-none rounded-[10px] bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
           + Add expense
         </summary>
         <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 lg:absolute lg:left-1/2 lg:z-10 lg:w-[min(68rem,calc(100vw-2rem))] lg:-translate-x-1/2 lg:shadow-xl">

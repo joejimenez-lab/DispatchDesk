@@ -46,12 +46,12 @@ function UnitGroup({ title, units, maintenanceByUnit }: { title: string; units: 
             <Link
               key={unit.id}
               href={`/fleet/${unit.id}`}
-              className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md"
+              className="unit-card group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-zinc-400"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 gap-6">
                   <div className="min-w-0">
-                    <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Company / Fleet</div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Fleet company</div>
                     <div className="mt-1 truncate text-xl font-semibold text-zinc-950">{unit.company ?? "Not set"}</div>
                   </div>
                   <div>
@@ -117,7 +117,7 @@ export default async function FleetPage({
           <p className="text-sm text-zinc-600">Manage trucks, trailers, and their maintenance history.</p>
         </div>
         <details className="group w-full rounded-xl border border-transparent open:border-zinc-200 open:bg-white open:p-5 sm:w-auto sm:min-w-36 open:sm:w-full">
-          <summary className="cursor-pointer list-none rounded-md bg-zinc-950 px-4 py-2.5 text-center text-sm font-medium text-white shadow-sm hover:bg-zinc-800 group-open:mb-5 group-open:bg-zinc-100 group-open:text-zinc-700 group-open:shadow-none">
+          <summary className="cursor-pointer list-none rounded-[10px] bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-700 group-open:mb-5 group-open:bg-slate-100 group-open:text-slate-700 group-open:shadow-none">
             <span className="group-open:hidden">+ Add unit</span>
             <span className="hidden group-open:inline">Cancel</span>
           </summary>
@@ -156,7 +156,7 @@ export default async function FleetPage({
         <Field label="Search fleet" className="flex-1">
           <Input name="q" defaultValue={params.q ?? ""} placeholder="Search by unit number or company" />
         </Field>
-        <button type="submit" className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-medium text-white hover:bg-zinc-800">
+        <button type="submit" className="h-10 rounded-[10px] bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
           Search
         </button>
         {params.q ? (

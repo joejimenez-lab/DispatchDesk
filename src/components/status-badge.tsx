@@ -13,7 +13,8 @@ const tones: Partial<Record<LoadStatus, string>> = {
 
 export function StatusBadge({ status }: { status: LoadStatus }) {
   return (
-    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1", tones[status])}>
+    <span className={cn("inline-flex items-center rounded-md px-2 py-1 text-[12px] font-semibold tracking-[0.01em] ring-1 ring-inset", tones[status])}>
+      <span className="mr-1.5 size-1.5 rounded-full bg-current opacity-70" aria-hidden="true" />
       {status}
     </span>
   );

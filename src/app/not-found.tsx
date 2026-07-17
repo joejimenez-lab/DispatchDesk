@@ -9,8 +9,8 @@ export default function NotFound() {
   return (
     <FallbackPanel
       tone="not-found"
-      title="We could not find that DispatchDesk page"
-      message="The route may have changed, or the record may no longer be available. Use the main dispatch areas below to get back to work."
+      title="Page not found"
+      message="The link may be out of date, or the record may have been deleted. Choose a page below to continue."
     />
   );
 }

@@ -2,7 +2,7 @@ import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTML
 import { cn } from "@/lib/utils";
 
 const control =
-  "mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-200";
+  "mt-1.5 h-10 w-full rounded-xl border border-[#dfe1ed] bg-white px-3 text-sm text-[#24263a] shadow-sm outline-none transition placeholder:text-[#9a9caf] hover:border-[#b9bbcd] focus:border-[#6757e8] focus:ring-2 focus:ring-[#dcd7ff]/70";
 
 export function Field({
   label,
@@ -14,7 +14,7 @@ export function Field({
   className?: string;
 }) {
   return (
-    <label className={cn("block text-sm font-medium text-zinc-700", className)}>
+    <label className={cn("field-label block text-[13px] font-semibold text-[#45475d]", className)}>
       {label}
       {children}
     </label>
@@ -38,8 +38,8 @@ export function Checkbox({
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   return (
-    <label className="flex items-center gap-2 text-sm font-medium text-zinc-700">
-      <input type="checkbox" className="h-4 w-4 rounded border-zinc-300" {...props} />
+    <label className="flex items-center gap-2.5 text-sm font-medium text-[#45475d]">
+      <input type="checkbox" className="size-4 rounded border-[#dfe1ed] text-[#6757e8] focus:ring-[#6757e8]" {...props} />
       {label}
     </label>
   );

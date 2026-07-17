@@ -131,7 +131,7 @@ export default async function IftaPage({
           </Select>
         </Field>
         <div className="flex items-end gap-2">
-          <button className="h-10 rounded-md bg-zinc-950 px-4 text-sm font-medium text-white">Filter</button>
+          <button className="h-10 rounded-[10px] bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Filter</button>
           <Link href="/ifta" className="flex h-10 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium">Reset</Link>
         </div>
       </form>
@@ -200,7 +200,7 @@ export default async function IftaPage({
             <p className="text-sm text-zinc-600">One row per trip with the miles driven in each state.</p>
           </div>
           <details className="group w-full sm:w-auto">
-            <summary className="cursor-pointer list-none rounded-md bg-zinc-950 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-zinc-800">+ Add trip</summary>
+            <summary className="cursor-pointer list-none rounded-[10px] bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-700">+ Add trip</summary>
             <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 lg:absolute lg:left-1/2 lg:z-10 lg:w-[min(68rem,calc(100vw-2rem))] lg:-translate-x-1/2 lg:shadow-xl">
               <div className="mb-3 flex justify-end"><DetailsCloseButton /></div>
               <IftaTripForm action={addIftaTrip} truckNumbers={truckNumbers} routes={routes} />
@@ -266,7 +266,7 @@ export default async function IftaPage({
             <p className="text-sm text-zinc-600">One row per fuel stop: gallons pumped and amount paid, by state.</p>
           </div>
           <details className="group w-full sm:w-auto">
-            <summary className="cursor-pointer list-none rounded-md bg-zinc-950 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-zinc-800">+ Add fuel purchase</summary>
+            <summary className="cursor-pointer list-none rounded-[10px] bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-700">+ Add fuel purchase</summary>
             <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 lg:absolute lg:left-1/2 lg:z-10 lg:w-[min(68rem,calc(100vw-2rem))] lg:-translate-x-1/2 lg:shadow-xl">
               <div className="mb-3 flex justify-end"><DetailsCloseButton /></div>
               <IftaFuelForm action={addIftaFuelPurchase} trucks={fuelTrucks} />

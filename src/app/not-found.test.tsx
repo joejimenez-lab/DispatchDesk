@@ -7,7 +7,7 @@ describe("not found page", () => {
     const html = renderToStaticMarkup(<NotFound />);
 
     expect(html).toContain("DispatchDesk");
-    expect(html).toContain("We could not find that DispatchDesk page");
+    expect(html).toContain("Page not found");
     expect(html).toContain("href=\"/dashboard\"");
     expect(html).toContain("href=\"/loads\"");
     expect(html).toContain("href=\"/reports\"");

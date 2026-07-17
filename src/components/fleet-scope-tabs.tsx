@@ -42,8 +42,8 @@ export function FleetScopeTabs({ basePath, companies, selectedFleet, params }: F
             key={option.value || "all"}
             href={fleetScopedHref(basePath, option.value, params)}
             className={[
-              "flex h-10 items-center rounded-md border px-4 text-sm font-medium",
-              active ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400",
+              "flex h-10 items-center rounded-lg border px-4 text-sm font-semibold transition",
+              active ? "border-[#c8c1ff] bg-[#efedff] text-[#5143c2]" : "border-[#dfe1ed] bg-white text-[#5f6176] hover:border-[#b9bbcd] hover:bg-[#f7f6fc]",
             ].join(" ")}
             aria-current={active ? "page" : undefined}
           >

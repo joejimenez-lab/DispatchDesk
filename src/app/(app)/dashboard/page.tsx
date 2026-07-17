@@ -1,15 +1,23 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
+import {
+  CircleCheckBig,
+  CircleDollarSign,
+  Clock3,
+  Truck,
+  type LucideIcon,
+} from "lucide-react";
 import { LinkButton } from "@/components/button";
 import { StatusBadge } from "@/components/status-badge";
 import { currency, formatDate } from "@/lib/utils";
 import { getDashboardMetrics } from "@/lib/data/dashboard";
 
-function daysAgo(value: string | null) {
-  if (!value) return "No date";
+function overdueAge(value: string | null) {
+  if (!value) return "Delivery date unavailable";
   const then = new Date(`${value}T00:00:00`).getTime();
   const now = new Date(new Date().toDateString()).getTime();
   const days = Math.max(0, Math.floor((now - then) / 86_400_000));
-  return `${days} day${days === 1 ? "" : "s"}`;
+  return `Overdue by ${days} day${days === 1 ? "" : "s"}`;
 }
 
 function ProgressBar({ label, value, max }: { label: string; value: number; max: number }) {
@@ -21,8 +29,8 @@ function ProgressBar({ label, value, max }: { label: string; value: number; max:
         <span className="font-medium text-zinc-700">{label}</span>
         <span className="text-zinc-500">{value}</span>
       </div>
-      <div className="h-2 rounded-full bg-zinc-100">
-        <div className="h-2 rounded-full bg-zinc-950" style={{ width: `${width}%` }} />
+      <div className="h-1 overflow-hidden rounded-full bg-[#e2e0ee]">
+        <div className="h-full rounded-full bg-[#6757e8]" style={{ width: width + "%" }} />
       </div>
     </div>
   );
@@ -34,45 +42,52 @@ export default async function DashboardPage() {
   const totalRevenue = Math.max(metrics.totalRevenue, 1);
   const collectedWidth = Math.round((metrics.collectedRevenue / totalRevenue) * 100);
   const outstandingWidth = Math.round((metrics.outstandingRevenue / totalRevenue) * 100);
-  const cards = [
-    ["Active Loads", metrics.activeLoads],
-    ["Delivered Loads", metrics.deliveredLoads],
-    ["Unpaid Loads", metrics.unpaidLoads],
-    ["Closed Loads", metrics.closedLoads],
-    ["Total Revenue", currency(metrics.totalRevenue)],
-    ["Outstanding Revenue", currency(metrics.outstandingRevenue)],
-    ["Pending Driver Payments", currency(metrics.pendingDriverPayments)],
-    ["Pending Dispatcher Fees", currency(metrics.pendingDispatcherFees)],
+  const cards: Array<{ label: string; value: string | number; icon: LucideIcon; color: string }> = [
+    { label: "Active loads", value: metrics.activeLoads, icon: Truck, color: "#6757e8" },
+    { label: "Delivered loads", value: metrics.deliveredLoads, icon: CircleCheckBig, color: "#39805d" },
+    { label: "Unpaid loads", value: metrics.unpaidLoads, icon: Clock3, color: "#bc5262" },
+    { label: "Total revenue", value: currency(metrics.totalRevenue), icon: CircleDollarSign, color: "#303047" },
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-zinc-950">Dashboard</h1>
-          <p className="text-sm text-zinc-600">Operational, payment, and maintenance summary.</p>
-        </div>
-        <LinkButton href="/loads/new">Create load</LinkButton>
-      </div>
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map(([label, value]) => (
-          <div key={label} className="rounded-lg border border-zinc-200 bg-white p-5">
-            <div className="text-sm font-medium text-zinc-500">{label}</div>
-            <div className="mt-2 text-2xl font-semibold text-zinc-950">{value}</div>
+    <div className="space-y-5">
+      <section className="dashboard-hero">
+        <div className="dashboard-hero-heading">
+          <div>
+            <h1>Dashboard</h1>
+            <p>Overview of loads, payments, revenue, and maintenance.</p>
           </div>
-        ))}
+          <LinkButton href="/loads/new">
+            <span aria-hidden="true">+</span> Create load
+          </LinkButton>
+        </div>
+        <div className="dashboard-metrics" aria-label="Operating summary">
+          {cards.map(({ label, value, icon: Icon, color }, index) => (
+            <div
+              key={label}
+              className={`dashboard-metric dashboard-metric-${index + 1}`}
+              style={{ "--metric-color": color } as CSSProperties}
+            >
+              <div className="dashboard-metric-header">
+                <div className="dashboard-metric-label">{label}</div>
+                <Icon className="dashboard-metric-icon" aria-hidden="true" />
+              </div>
+              <div className="dashboard-metric-value">{value}</div>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="dispatch-panel lg:col-span-2">
+          <div className="panel-heading">
             <div>
-              <h2 className="text-lg font-semibold text-zinc-950">Current Loads</h2>
-              <p className="text-sm text-zinc-500">Open work ordered by delivery date.</p>
+              <h2>Current loads</h2>
+              <p>Active loads ordered by delivery date.</p>
             </div>
-            <Link href="/loads" className="text-sm font-medium text-zinc-950 underline">View all</Link>
+            <Link href="/loads" className="panel-link">View all loads</Link>
           </div>
-          <div className="divide-y divide-zinc-100">
+          <div className="divide-y divide-zinc-200 px-5">
             {metrics.currentLoads.map((load) => {
               const returnLocation = load.return_location || load.pickup_location;
 
@@ -80,7 +95,7 @@ export default async function DashboardPage() {
                 <Link
                   key={load.id}
                   href={`/loads/${load.id}`}
-                  className="grid gap-x-8 gap-y-2 py-4 hover:bg-zinc-50 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                  className="load-ledger-row grid gap-x-8 gap-y-2 py-4 md:grid-cols-[150px_minmax(0,1fr)_minmax(0,1fr)_auto]"
                 >
                   <div className="font-semibold text-zinc-950">
                     {load.load_number}
@@ -115,38 +130,38 @@ export default async function DashboardPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
-            <h2 className="text-lg font-semibold text-zinc-950">Payment Alerts</h2>
-            <p className="mb-4 text-sm text-zinc-500">Client payments overdue 30+ days.</p>
-            <div className="space-y-3">
+          <div className="dispatch-panel">
+            <div className="panel-heading"><div><h2>Overdue payments</h2><p>Client payments overdue by 30 days or more.</p></div></div>
+            <div className="dispatch-panel-inner space-y-3">
               {metrics.unpaidAlerts.map((load) => (
                 <Link key={load.id} href={`/loads/${load.id}`} className="block rounded-md border border-red-100 bg-red-50 p-3 hover:bg-red-100">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-semibold text-red-950">{load.load_number}</span>
-                    <span className="text-xs font-semibold text-red-700">{daysAgo(load.delivery_date ?? load.pickup_date)} old</span>
+                    <span className="text-xs font-semibold text-red-700">{overdueAge(load.delivery_date ?? load.pickup_date)}</span>
                   </div>
                   <div className="mt-1 text-sm text-red-900">{currency(load.outstandingAmount)} outstanding</div>
                   <div className="text-xs text-red-700">Delivery: {formatDate(load.delivery_date)}</div>
                 </Link>
               ))}
-              {!metrics.unpaidAlerts.length ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">No 30+ day unpaid client loads.</p> : null}
+              {!metrics.unpaidAlerts.length ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">No client payments are more than 30 days overdue.</p> : null}
             </div>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
-            <div className="flex items-start justify-between gap-3">
+          <div className="dispatch-panel">
+            <div className="panel-heading">
               <div>
-                <h2 className="text-lg font-semibold text-zinc-950">Maintenance Alerts</h2>
-                <p className="text-sm text-zinc-500">Date and mileage schedules needing attention.</p>
+                <h2>Maintenance alerts</h2>
+                <p>Scheduled service that needs attention.</p>
               </div>
-              <Link href="/maintenance" className="text-sm font-medium text-zinc-950 underline">View all</Link>
+              <Link href="/maintenance" className="panel-link">View maintenance</Link>
             </div>
-            <div className="my-4 grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="rounded-md bg-red-50 p-2 text-red-800"><div className="text-lg font-semibold">{metrics.maintenanceCounts.overdue}</div>Overdue</div>
-              <div className="rounded-md bg-amber-50 p-2 text-amber-800"><div className="text-lg font-semibold">{metrics.maintenanceCounts["due-soon"]}</div>Due soon</div>
-              <div className="rounded-md bg-blue-50 p-2 text-blue-800"><div className="text-lg font-semibold">{metrics.maintenanceCounts.upcoming}</div>Upcoming</div>
-            </div>
-            <div className="space-y-3">
+            <div className="dispatch-panel-inner">
+              <div className="maintenance-tally">
+                <div data-tone="danger"><strong>{metrics.maintenanceCounts.overdue}</strong><span>Overdue</span></div>
+                <div data-tone="warning"><strong>{metrics.maintenanceCounts["due-soon"]}</strong><span>Due soon</span></div>
+                <div data-tone="info"><strong>{metrics.maintenanceCounts.upcoming}</strong><span>Upcoming</span></div>
+              </div>
+              <div className="mt-4 space-y-3">
               {metrics.maintenanceAlerts.map((reminder) => {
                 const overdue = reminder.status === "overdue";
                 const remaining = reminder.daysRemaining != null
@@ -179,21 +194,26 @@ export default async function DashboardPage() {
                   </Link>
                 );
               })}
-              {!metrics.maintenanceAlerts.length ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">No unsnoozed maintenance needs attention.</p> : null}
+              {!metrics.maintenanceAlerts.length ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">No maintenance alerts right now.</p> : null}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-lg font-semibold text-zinc-950">Revenue Split</h2>
-          <p className="mb-4 text-sm text-zinc-500">Collected versus still outstanding.</p>
-          <div className="flex h-4 overflow-hidden rounded-full bg-zinc-100">
-            <div className="bg-green-600" style={{ width: `${collectedWidth}%` }} />
-            <div className="bg-amber-500" style={{ width: `${outstandingWidth}%` }} />
+        <div className="dispatch-panel">
+          <div className="panel-heading"><div><h2>Revenue</h2><p>Collected and outstanding revenue.</p></div></div>
+          <div className="dispatch-panel-inner">
+          <div className="flex h-2 overflow-hidden bg-zinc-200">
+            <div className="bg-emerald-700" style={{ width: `${collectedWidth}%` }} />
+            <div className="bg-amber-600" style={{ width: `${outstandingWidth}%` }} />
           </div>
-          <div className="mt-4 grid gap-3 text-sm">
+          <div className="mt-5 grid gap-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-600">Total revenue</span>
+              <span className="font-semibold text-zinc-950">{currency(metrics.totalRevenue)}</span>
+            </div>
             <div className="flex items-center justify-between">
               <span className="text-zinc-600">Collected</span>
               <span className="font-semibold text-zinc-950">{currency(metrics.collectedRevenue)}</span>
@@ -202,13 +222,20 @@ export default async function DashboardPage() {
               <span className="text-zinc-600">Outstanding</span>
               <span className="font-semibold text-zinc-950">{currency(metrics.outstandingRevenue)}</span>
             </div>
-          </div>
+            <div className="mt-1 border-t border-zinc-200 pt-3 flex items-center justify-between">
+              <span className="text-zinc-600">Pending driver payments</span>
+              <span className="font-semibold text-zinc-950">{currency(metrics.pendingDriverPayments)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-600">Pending dispatcher fees</span>
+              <span className="font-semibold text-zinc-950">{currency(metrics.pendingDispatcherFees)}</span>
+            </div>
+          </div></div>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-lg font-semibold text-zinc-950">Load Statuses</h2>
-          <p className="mb-4 text-sm text-zinc-500">Where loads are sitting.</p>
-          <div className="space-y-3">
+        <div className="dispatch-panel">
+          <div className="panel-heading"><div><h2>Loads by status</h2><p>Number of loads in each status.</p></div></div>
+          <div className="dispatch-panel-inner space-y-3">
             {metrics.statusCounts.map(([status, count]) => (
               <ProgressBar key={status} label={status} value={count} max={maxStatusCount} />
             ))}
@@ -216,20 +243,19 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-lg font-semibold text-zinc-950">Upcoming Deliveries</h2>
-          <p className="mb-4 text-sm text-zinc-500">Next delivery dates to watch.</p>
-          <div className="divide-y divide-zinc-100">
+        <div className="dispatch-panel">
+          <div className="panel-heading"><div><h2>Upcoming deliveries</h2><p>Loads with the nearest delivery dates.</p></div></div>
+          <div className="divide-y divide-zinc-200 px-5">
             {metrics.upcomingDeliveries.map((load) => (
               <Link key={load.id} href={`/loads/${load.id}`} className="block py-3 hover:bg-zinc-50">
                 <div className="font-semibold text-zinc-950">{load.load_number}</div>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                  <div className="min-w-0 rounded-md bg-zinc-50 p-2">
+                  <div className="min-w-0 border-l-2 border-zinc-300 bg-zinc-50 p-2">
                     <div className="text-xs font-semibold uppercase text-zinc-500">Pickup</div>
                     <div className="break-words text-sm font-medium text-zinc-900">{load.pickup_location}</div>
                     <div className="text-xs text-zinc-500">{formatDate(load.pickup_date)}</div>
                   </div>
-                  <div className="min-w-0 rounded-md bg-zinc-50 p-2">
+                  <div className="min-w-0 border-l-2 border-[#6757e8] bg-zinc-50 p-2">
                     <div className="text-xs font-semibold uppercase text-zinc-500">Delivery</div>
                     <div className="break-words text-sm font-medium text-zinc-900">{load.delivery_location}</div>
                     <div className="text-xs text-zinc-500">{formatDate(load.delivery_date)}</div>

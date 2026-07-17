@@ -91,7 +91,7 @@ export function MaintenanceReminderCard({ alert }: { alert: MaintenanceAlert }) 
         </details>
 
         <details>
-          <summary className="cursor-pointer list-none rounded-md border border-zinc-300 px-3 py-2 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50">Edit / reschedule</summary>
+          <summary className="cursor-pointer list-none rounded-md border border-zinc-300 px-3 py-2 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50">Edit schedule</summary>
           <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:col-span-2 lg:absolute lg:left-1/2 lg:z-10 lg:w-[min(60rem,calc(100vw-2rem))] lg:-translate-x-1/2 lg:shadow-xl">
             <div className="mb-3 flex justify-end"><DetailsCloseButton /></div>
             <MaintenanceReminderForm
