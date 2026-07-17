@@ -12,6 +12,43 @@ afterEach(() => {
 });
 
 describe("LocationAutocomplete", () => {
+  it("keeps suggestions closed after a location is selected", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockImplementation(() => Response.json({
+      locations: [{
+        id: "R:207359",
+        label: "Los Angeles, California",
+        fullLabel: "Los Angeles, California, United States",
+        type: "city",
+      }],
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<LocationAutocomplete name="pickup_location" />);
+
+    const input = screen.getByPlaceholderText("Start typing a city or address");
+    fireEvent.change(input, { target: { value: "Los Ange" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Los Angeles, California/ }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+
+    expect(input).toHaveProperty("value", "Los Angeles, California");
+    expect(screen.queryByRole("button", { name: /Los Angeles, California/ })).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(input, { target: { value: "Los Angeles C" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: /Los Angeles, California/ })).toBeTruthy();
+  });
+
   it("keeps manual entry available when autocomplete is not configured", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(

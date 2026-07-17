@@ -30,6 +30,7 @@ export function LocationAutocomplete({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const selectedValueRef = useRef<string | null>(null);
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
@@ -42,6 +43,9 @@ export function LocationAutocomplete({
 
   useEffect(() => {
     const query = value.trim();
+    if (query === selectedValueRef.current) {
+      return;
+    }
     if (query.length < 3) {
       return;
     }
@@ -88,6 +92,7 @@ export function LocationAutocomplete({
         value={value}
         onChange={(event) => {
           const nextValue = event.target.value;
+          selectedValueRef.current = null;
           setValue(nextValue);
           if (nextValue.trim().length < 3) {
             setOptions([]);
@@ -115,7 +120,10 @@ export function LocationAutocomplete({
                   key={option.id}
                   type="button"
                   onClick={() => {
+                    selectedValueRef.current = option.label;
                     setValue(option.label);
+                    setOptions([]);
+                    setMessage("");
                     setOpen(false);
                   }}
                   className="block w-full px-3 py-2 text-left hover:bg-zinc-50"
