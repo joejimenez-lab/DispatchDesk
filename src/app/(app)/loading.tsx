@@ -7,6 +7,10 @@ export default function Loading() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-2">
+          <div className="flex items-center gap-3 text-sm font-semibold text-[#6757e8]" role="status" aria-live="polite">
+            <span className="loading-spinner" aria-hidden="true" />
+            <span>Loading workspace</span>
+          </div>
           <SkeletonBlock className="h-7 w-48" />
           <SkeletonBlock className="h-4 w-72" />
         </div>

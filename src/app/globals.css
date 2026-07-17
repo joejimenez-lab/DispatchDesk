@@ -228,6 +228,23 @@ select {
   white-space: nowrap;
 }
 
+.nav-link-pending {
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 120ms ease 120ms, transform 120ms ease 120ms;
+}
+
+.nav-link-pending-active {
+  opacity: 0.72;
+  transform: scale(1);
+}
+
 .module-link:hover {
   background: rgb(255 255 255 / 68%);
   color: var(--ink);
@@ -242,6 +259,22 @@ select {
 .module-link-active:hover {
   background: var(--signal-dark);
   color: white;
+}
+
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 2px solid rgb(103 87 232 / 22%);
+  border-top-color: var(--signal);
+  border-radius: 999px;
+  animation: loading-spin 800ms linear infinite;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .workspace-bar {

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import {
   BarChart3,
   BookOpenText,
@@ -31,6 +31,12 @@ const links: NavItem[] = [
   { label: "Reports", href: "/reports", icon: BarChart3 },
   { label: "IFTA", href: "/ifta", icon: Fuel },
 ];
+
+function LinkPendingIndicator() {
+  const { pending } = useLinkStatus();
+
+  return <span className={pending ? "nav-link-pending nav-link-pending-active" : "nav-link-pending"} aria-hidden="true" />;
+}
 
 export function AppNav() {
   const pathname = usePathname();
@@ -64,6 +70,7 @@ export function AppNav() {
                 >
                   <Icon className="size-[18px]" aria-hidden="true" />
                   <span>{label}</span>
+                  <LinkPendingIndicator />
                 </Link>
               );
             })}
@@ -86,6 +93,7 @@ export function AppNav() {
       <Link href="/loads/new" className="workspace-create">
         <Plus aria-hidden="true" />
         <span>New load</span>
+        <LinkPendingIndicator />
       </Link>
       </header>
     </>
