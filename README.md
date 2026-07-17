@@ -42,8 +42,8 @@ Local full-stack truck dispatcher/load management application built with Next.js
    ```bash
    NEXT_PUBLIC_SUPABASE_URL=...
    NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-   # Full API endpoint for your self-hosted Photon instance:
-   PHOTON_API_URL=http://127.0.0.1:2322/api
+   # Optional locally; required in production for your self-hosted Photon instance:
+   # PHOTON_API_URL=http://127.0.0.1:2322/api
    ```
 
 5. Start the app:
@@ -63,7 +63,7 @@ Local full-stack truck dispatcher/load management application built with Next.js
 - Every business table has RLS enabled.
 - Version 1 allows any authenticated user to manage records, matching the single-admin requirement.
 - The `load-documents` storage bucket is private. The `/api/documents/[id]/view` and `/api/documents/[id]/download` routes check auth, then fetch the file from Storage and stream it back to the browser (inline or as an attachment). The storage path is never exposed to the client.
-- Location autocomplete uses a configured, self-hosted Photon instance through `/api/locations/search` and limits results to US locations. See [`docs/photon-geocoding.md`](docs/photon-geocoding.md) for setup and operations.
+- Location autocomplete uses Photon through `/api/locations/search` and limits results to US locations. Development has a low-volume demo fallback; production requires a configured, self-hosted instance. See [`docs/photon-geocoding.md`](docs/photon-geocoding.md) for setup and operations.
 - The schema is structured so roles and multi-company support can be added later by introducing organization ownership columns and narrower RLS policies.
 
 ## Production notes

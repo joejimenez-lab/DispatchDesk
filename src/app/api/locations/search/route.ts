@@ -3,6 +3,8 @@ import { z } from "zod";
 
 const PHOTON_TIMEOUT_MS = 5_000;
 const PHOTON_RESULT_LIMIT = 6;
+const PHOTON_DEVELOPMENT_API_URL = "https://photon.komoot.io/api";
+const MANUAL_ENTRY_MESSAGE = "Autocomplete is unavailable. Enter the location manually.";
 
 const photonResponseSchema = z.object({
   features: z.array(
@@ -76,7 +78,8 @@ function formatLocation(feature: PhotonFeature) {
 }
 
 function getPhotonApiUrl() {
-  const configuredUrl = process.env.PHOTON_API_URL?.trim();
+  const configuredUrl = process.env.PHOTON_API_URL?.trim()
+    || (process.env.NODE_ENV === "development" ? PHOTON_DEVELOPMENT_API_URL : "");
   if (!configuredUrl) return null;
 
   try {
@@ -107,7 +110,7 @@ export async function GET(request: Request) {
 
   const url = getPhotonApiUrl();
   if (!url) {
-    return unavailableResponse(503, "Location lookup is not configured.");
+    return unavailableResponse(503, MANUAL_ENTRY_MESSAGE);
   }
 
   url.searchParams.set("q", query);

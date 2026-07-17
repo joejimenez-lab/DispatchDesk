@@ -31,6 +31,8 @@ PHOTON_API_URL=http://127.0.0.1:2322/api
 
 The value may point to a private hostname or a reverse-proxy path, for example `https://photon.internal.example/api`. It must use HTTP or HTTPS and must not contain credentials. Restart the Next.js server after changing it.
 
+`PHOTON_API_URL` is required in production. When it is omitted during local development, DispatchDesk uses Photon's public demo for low-volume testing. The fallback is intentionally disabled in production because the demo has no availability guarantee and may throttle requests.
+
 The application adds these search parameters on each request:
 
 - `q`: the user's search text
