@@ -34,7 +34,7 @@ select lives_ok(
   $$select public.complete_maintenance_with_expense(
     '47000000-0000-4000-8000-000000000010', current_date, 101000, 'Oil and filters',
     'breakdown', 0, 180, 70, 'Quality Shop', '47000000-0000-4000-8000-000000000020',
-    '{"file_name":"oil.pdf","storage_path":"issue47/oil.pdf","content_type":"application/pdf","file_size":100}'::jsonb
+    '{"file_name":"oil.pdf","storage_path":"47000000-0000-4000-8000-000000000020/oil.pdf","content_type":"application/pdf","file_size":100}'::jsonb
   )$$,
   'maintenance completion atomically creates history, expense lines, receipt, and recurrence'
 );
@@ -69,7 +69,7 @@ select lives_ok(
   $$select public.complete_maintenance_with_expense(
     '47000000-0000-4000-8000-000000000010', current_date, 101000, null,
     'breakdown', 0, 180, 70, 'Quality Shop', '47000000-0000-4000-8000-000000000020',
-    '{"file_name":"oil.pdf","storage_path":"issue47/oil.pdf","content_type":"application/pdf","file_size":100}'::jsonb
+    '{"file_name":"oil.pdf","storage_path":"47000000-0000-4000-8000-000000000020/oil.pdf","content_type":"application/pdf","file_size":100}'::jsonb
   )$$,
   'retry returns the completed maintenance transaction without duplicating it'
 );
@@ -166,7 +166,7 @@ select lives_ok(
   'receipt metadata deletion atomically queues object cleanup'
 );
 select is((select count(*) from public.bookkeeping_receipts where group_id = '47000000-0000-4000-8000-000000000020'), 0::bigint, 'deleted receipt metadata is gone');
-select is((select count(*) from public.storage_cleanup_jobs where expense_group_id = '47000000-0000-4000-8000-000000000020' and storage_path = 'issue47/oil.pdf'), 1::bigint, 'deleted receipt object is queued exactly once');
+select is((select count(*) from public.storage_cleanup_jobs where expense_group_id = '47000000-0000-4000-8000-000000000020' and storage_path = '47000000-0000-4000-8000-000000000020/oil.pdf'), 1::bigint, 'deleted receipt object is queued exactly once');
 
 insert into public.service_records (id, unit_id, service_date, description, cost)
 values ('47000000-0000-4000-8000-000000000040', '47000000-0000-4000-8000-000000000001', current_date, 'Manual history', 99);

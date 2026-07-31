@@ -224,16 +224,61 @@ export default async function BookkeepingPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">Bookkeeping</h1>
-          <p className="text-sm text-zinc-600">Expense records, receipt uploads, and CSV export for tax review.</p>
+          <p className="text-sm text-zinc-600">Expense records, receipt uploads, and flexible exports for tax review.</p>
         </div>
         <ExportMenu
           heading="Bookkeeping export"
-          description="The CSV uses the filters on this page."
+          description="Every export uses the filters on this page."
+          filters={[
+            {
+              key: "category",
+              label: "Expense category",
+              allLabel: "All expense categories",
+              defaultValue: category ?? "",
+              options: expenseCategories.map((expenseCategory) => ({ label: expenseCategory, value: expenseCategory })),
+            },
+            {
+              key: "fleet",
+              label: "Fleet",
+              allLabel: "All fleets",
+              defaultValue: fleet,
+              options: fleetCompanies.map((company) => ({ label: company, value: company })),
+            },
+            {
+              key: "unit",
+              label: "Truck / trailer",
+              allLabel: "All trucks and trailers",
+              defaultValue: params.unit ?? "",
+              options: options.units.map((unit) => ({
+                value: unit.id,
+                label: `${unit.company ? `${unit.company} - ` : ""}${unit.unit_type} ${unit.unit_number}`,
+              })),
+            },
+            {
+              key: "driver",
+              label: "Driver",
+              allLabel: "All drivers",
+              defaultValue: params.driver ?? "",
+              options: options.drivers.map((driver) => ({ label: driver.name, value: driver.id })),
+            },
+            {
+              key: "load",
+              label: "Load",
+              allLabel: "All loads",
+              defaultValue: params.load ?? "",
+              options: options.loads.map((load) => ({ label: load.load_number, value: load.id })),
+            },
+          ]}
           items={[
             {
               title: "Expenses",
-              description: "Expense records with linked units, loads, drivers, maintenance records, and receipt filenames.",
-              formats: [{ label: "CSV", href: `/api/bookkeeping/export?${exportParams.toString()}`, type: "csv" }],
+              description: "Choose category totals for review or line-level records for accounting and receipt matching.",
+              formats: [
+                { label: "Summary CSV", description: "Category totals, expense-line counts, receipts, and total spend.", href: `/api/bookkeeping/export?${exportParams.toString()}&view=summary&format=csv`, type: "csv" },
+                { label: "Detailed CSV", description: "One accounting row per cost line with all linked records.", href: `/api/bookkeeping/export?${exportParams.toString()}&view=detailed&format=csv`, type: "csv" },
+                { label: "Summary PDF", description: "Print-ready category totals for review or tax preparation.", href: `/api/bookkeeping/export?${exportParams.toString()}&view=summary&format=pdf`, type: "pdf" },
+                { label: "Detailed PDF", description: "Expense-level report with vendors, units, loads, drivers, and receipts.", href: `/api/bookkeeping/export?${exportParams.toString()}&view=detailed&format=pdf`, type: "pdf" },
+              ],
             },
           ]}
         />

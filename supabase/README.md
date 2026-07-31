@@ -75,13 +75,16 @@ intended demo environment and after verifying locally.
    npm run db:push
    ```
 
-4. In Authentication, create one admin user with email/password.
+4. In Authentication, create approved client users with email/password. Each new user automatically receives an isolated, empty organization.
 5. Copy `.env.example` to `.env.local` and fill in:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 6. The migrations create the private `load-documents` storage bucket and RLS policies.
 
-Version 1 uses one authenticated admin account. RLS is still enabled on every table and storage object so the anonymous public client cannot access business data.
+RLS isolates every business row and private Storage object by organization. The
+`dispatchdesk123@maildrop.cc` login is attached to the fictional demo
+organization; other users, including `dcgemscorp@gmail.com`, receive separate
+workspaces.
 
 ## Recoverable document cleanup
 

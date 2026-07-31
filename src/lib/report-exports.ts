@@ -1,7 +1,7 @@
 import { csvRow } from "./csv";
 import type { WeeklyDriverFinancialSummary } from "./data/weekly-financials";
 
-type BillingRow = {
+export type BillingRow = {
   loadNumber: string;
   loadDate: string;
   broker: string | null;
@@ -13,6 +13,16 @@ type BillingRow = {
   amountReceived: number;
   dateReceived: string | null;
   outstanding: number;
+};
+
+export type YearlyFinancialRow = {
+  year: string;
+  loadCount: number;
+  revenue: number;
+  driverPay: number;
+  dispatcherFees: number;
+  fuelCost: number;
+  profit: number;
 };
 
 export type MaintenanceExportRow = {
@@ -84,7 +94,7 @@ export function weeklyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
   );
 }
 
-export function yearlyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
+export function yearlyFinancialRows(summaries: WeeklyDriverFinancialSummary[]): YearlyFinancialRow[] {
   const years = new Map<string, { loadCount: number; revenue: number; driverPay: number; dispatcherFees: number; fuelCost: number; profit: number }>();
 
   for (const summary of summaries) {
@@ -101,11 +111,15 @@ export function yearlyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
     }
   }
 
+  return [...years.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([year, total]) => ({ year, ...total }));
+}
+
+export function yearlyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
   return csv(
     ["Year", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Estimated Profit"],
-    [...years.entries()]
-      .sort(([a], [b]) => b.localeCompare(a))
-      .map(([year, total]) => [year, total.loadCount, total.revenue, total.driverPay, total.dispatcherFees, total.fuelCost, total.profit]),
+    yearlyFinancialRows(summaries).map((row) => [row.year, row.loadCount, row.revenue, row.driverPay, row.dispatcherFees, row.fuelCost, row.profit]),
   );
 }
 

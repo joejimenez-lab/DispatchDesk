@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
+import { renderBusinessReportPdf, type BusinessReportPdfData } from "@/lib/business-report-pdf";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
 import { clientOutstanding } from "@/lib/financials";
 import {
   clientBillingCsv,
   maintenanceCsv,
+  type BillingRow,
   type MaintenanceExportRow,
   weeklyFinancialCsv,
   weeklyPayrollCsv,
   yearlyFinancialCsv,
+  yearlyFinancialRows,
 } from "@/lib/report-exports";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
+
+export const runtime = "nodejs";
 
 const PERIODS: WeeklyFinancialPeriod[] = ["this", "last", "all", "custom"];
 const REPORTS = ["weekly-payroll", "weekly-financial", "client-billing", "maintenance", "yearly-financial"] as const;
@@ -20,7 +25,7 @@ function normalizePeriod(value: string | null): WeeklyFinancialPeriod {
   return PERIODS.includes(value as WeeklyFinancialPeriod) ? (value as WeeklyFinancialPeriod) : "all";
 }
 
-function download(csv: string, report: Report) {
+function csvDownload(csv: string, report: Report) {
   const stamp = new Date().toISOString().slice(0, 10);
   return new NextResponse(csv, {
     headers: {
@@ -29,6 +34,35 @@ function download(csv: string, report: Report) {
       "Cache-Control": "private, no-store",
     },
   });
+}
+
+async function pdfDownload(data: BusinessReportPdfData, report: Report) {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const pdf = await renderBusinessReportPdf(data);
+  return new NextResponse(new Uint8Array(pdf), {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="dispatchdesk-${report}-${stamp}.pdf"`,
+      "Cache-Control": "private, no-store",
+    },
+  });
+}
+
+const moneyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
+function money(value: number) {
+  return moneyFormatter.format(value);
+}
+
+function selectedRange(searchParams: URLSearchParams) {
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get("from") ?? "") ? searchParams.get("from") : null;
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get("to") ?? "") ? searchParams.get("to") : null;
+  return { from, to };
+}
+
+function filterLabel({ from, to, fleet }: { from: string | null; to: string | null; fleet: string | null }) {
+  const date = from && to ? `${from} through ${to}` : from ? `From ${from}` : to ? `Through ${to}` : "All available dates";
+  return [date, fleet ? `Fleet: ${fleet}` : null].filter(Boolean).join(" · ");
 }
 
 type Unit = { unit_number: string; unit_type: string; company: string | null } | null;
@@ -67,46 +101,156 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
   }
   const report = rawReport as Report;
   const { searchParams } = url;
+  const format = searchParams.get("format") ?? "csv";
+  if (format !== "csv" && format !== "pdf") {
+    return NextResponse.json({ error: "Choose CSV or PDF format." }, { status: 400 });
+  }
   const fleet = searchParams.get("fleet")?.trim() || null;
+  const range = selectedRange(searchParams);
 
   try {
     if (report === "weekly-payroll" || report === "weekly-financial") {
-      const { summaries } = await getWeeklyDriverFinancialSummary({
+      const { summaries, range: effectiveRange } = await getWeeklyDriverFinancialSummary({
         period: normalizePeriod(searchParams.get("period")),
         from: searchParams.get("from") ?? undefined,
         to: searchParams.get("to") ?? undefined,
         driver: searchParams.get("driver") ?? undefined,
         fleet: fleet ?? undefined,
       });
-      return download(report === "weekly-payroll" ? weeklyPayrollCsv(summaries) : weeklyFinancialCsv(summaries), report);
+      if (format === "csv") {
+        return csvDownload(report === "weekly-payroll" ? weeklyPayrollCsv(summaries) : weeklyFinancialCsv(summaries), report);
+      }
+
+      const totals = summaries.reduce((total, summary) => ({
+        loads: total.loads + summary.loadCount,
+        revenue: total.revenue + summary.loadRateTotal,
+        pay: total.pay + summary.driverPayTotal,
+        profit: total.profit + summary.estimatedProfitTotal,
+      }), { loads: 0, revenue: 0, pay: 0, profit: 0 });
+      const subtitle = filterLabel({ ...effectiveRange, fleet });
+
+      return pdfDownload(report === "weekly-payroll" ? {
+        title: "Weekly Driver Payroll",
+        subtitle,
+        metrics: [
+          { label: "Drivers / weeks", value: String(summaries.length) },
+          { label: "Loads", value: String(totals.loads) },
+          { label: "Gross driver pay", value: money(totals.pay) },
+        ],
+        columns: [
+          { label: "Week", width: "28%" },
+          { label: "Driver", width: "32%" },
+          { label: "Loads", width: "15%", align: "right" },
+          { label: "Gross pay", width: "25%", align: "right" },
+        ],
+        rows: summaries.map((summary) => [
+          `${summary.weekStart} - ${summary.weekEnd}`,
+          summary.driverName,
+          String(summary.loadCount),
+          money(summary.driverPayTotal),
+        ]),
+        emptyMessage: "No payroll records match the selected filters.",
+      } : {
+        title: "Weekly Financial Report",
+        subtitle,
+        metrics: [
+          { label: "Loads", value: String(totals.loads) },
+          { label: "Revenue", value: money(totals.revenue) },
+          { label: "Driver pay", value: money(totals.pay) },
+          { label: "Estimated profit", value: money(totals.profit) },
+        ],
+        columns: [
+          { label: "Week", width: "22%" },
+          { label: "Driver", width: "20%" },
+          { label: "Loads", width: "10%", align: "right" },
+          { label: "Revenue", width: "16%", align: "right" },
+          { label: "Driver pay", width: "16%", align: "right" },
+          { label: "Est. profit", width: "16%", align: "right" },
+        ],
+        rows: summaries.map((summary) => [
+          `${summary.weekStart} - ${summary.weekEnd}`,
+          summary.driverName,
+          String(summary.loadCount),
+          money(summary.loadRateTotal),
+          money(summary.driverPayTotal),
+          money(summary.estimatedProfitTotal),
+        ]),
+        emptyMessage: "No financial records match the selected filters.",
+      }, report);
     }
 
     if (report === "yearly-financial") {
-      const { summaries } = await getWeeklyDriverFinancialSummary({ period: "all", fleet: fleet ?? undefined });
-      return download(yearlyFinancialCsv(summaries), report);
+      const period = normalizePeriod(searchParams.get("period"));
+      const { summaries, range: effectiveRange } = await getWeeklyDriverFinancialSummary({
+        period,
+        from: searchParams.get("from") ?? undefined,
+        to: searchParams.get("to") ?? undefined,
+        driver: searchParams.get("driver") ?? undefined,
+        fleet: fleet ?? undefined,
+      });
+      if (format === "csv") return csvDownload(yearlyFinancialCsv(summaries), report);
+
+      const rows = yearlyFinancialRows(summaries);
+      const totals = rows.reduce((total, row) => ({
+        loads: total.loads + row.loadCount,
+        revenue: total.revenue + row.revenue,
+        profit: total.profit + row.profit,
+      }), { loads: 0, revenue: 0, profit: 0 });
+      return pdfDownload({
+        title: "Yearly Financial Summary",
+        subtitle: filterLabel({ ...effectiveRange, fleet }),
+        metrics: [
+          { label: "Years", value: String(rows.length) },
+          { label: "Loads", value: String(totals.loads) },
+          { label: "Revenue", value: money(totals.revenue) },
+          { label: "Estimated profit", value: money(totals.profit) },
+        ],
+        columns: [
+          { label: "Year", width: "14%" },
+          { label: "Loads", width: "12%", align: "right" },
+          { label: "Revenue", width: "16%", align: "right" },
+          { label: "Driver pay", width: "16%", align: "right" },
+          { label: "Other costs", width: "20%", align: "right" },
+          { label: "Est. profit", width: "22%", align: "right" },
+        ],
+        rows: rows.map((row) => [
+          row.year,
+          String(row.loadCount),
+          money(row.revenue),
+          money(row.driverPay),
+          money(row.dispatcherFees + row.fuelCost),
+          money(row.profit),
+        ]),
+        emptyMessage: "No yearly financial records match the selected filters.",
+      }, report);
     }
 
     if (report === "client-billing") {
       const fleetTruckNumbers = await truckNumbersForFleet(supabase, fleet);
       const { data, error } = await supabase
         .from("loads")
-        .select("load_number, status, pickup_date, delivery_date, created_at, load_rate, brokers(company_name), drivers(truck_number), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
+        .select("load_number, status, pickup_date, delivery_date, created_at, load_rate, driver_id, brokers(company_name), drivers(truck_number), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
         .neq("status", "Cancelled")
         .order("delivery_date", { ascending: false, nullsFirst: false })
         .order("pickup_date", { ascending: false, nullsFirst: false });
       if (error) throw error;
 
-      const rows = ((data ?? []) as unknown as {
+      const rows: BillingRow[] = ((data ?? []) as unknown as {
         load_number: string;
         status: string;
         pickup_date: string | null;
         delivery_date: string | null;
         created_at: string;
         load_rate: number;
+        driver_id: string | null;
         brokers: { company_name: string | null } | null;
         drivers: { truck_number: string | null } | null;
         payments: { invoice_sent: boolean; invoice_sent_date: string | null; client_paid: boolean; client_amount_received: number; client_date_received: string | null } | null;
       }[]).filter((load) => {
+        const loadDate = load.delivery_date ?? load.pickup_date ?? load.created_at.slice(0, 10);
+        if (range.from && loadDate < range.from) return false;
+        if (range.to && loadDate > range.to) return false;
+        if (searchParams.get("driver") && load.driver_id !== searchParams.get("driver")) return false;
         if (!fleetTruckNumbers) return true;
         const truckNumber = load.drivers?.truck_number?.trim();
         return Boolean(truckNumber && fleetTruckNumbers.has(truckNumber));
@@ -123,8 +267,34 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         dateReceived: load.payments?.client_date_received ?? null,
         outstanding: clientOutstanding(load.load_rate, load.payments),
       }));
-      const csv = clientBillingCsv(rows);
-      return download(csv, report);
+      if (format === "csv") return csvDownload(clientBillingCsv(rows), report);
+
+      const totals = rows.reduce((total, row) => ({
+        invoiced: total.invoiced + row.loadRate,
+        received: total.received + row.amountReceived,
+        outstanding: total.outstanding + row.outstanding,
+      }), { invoiced: 0, received: 0, outstanding: 0 });
+      return pdfDownload({
+        title: "Client Billing",
+        subtitle: filterLabel({ ...range, fleet }),
+        metrics: [
+          { label: "Loads", value: String(rows.length) },
+          { label: "Invoiced", value: money(totals.invoiced) },
+          { label: "Received", value: money(totals.received) },
+          { label: "Outstanding", value: money(totals.outstanding) },
+        ],
+        columns: [
+          { label: "Load", width: "12%" },
+          { label: "Date", width: "12%" },
+          { label: "Client", width: "22%" },
+          { label: "Status", width: "14%" },
+          { label: "Invoice", width: "13%", align: "right" },
+          { label: "Received", width: "13%", align: "right" },
+          { label: "Outstanding", width: "14%", align: "right" },
+        ],
+        rows: rows.map((row) => [row.loadNumber, row.loadDate, row.broker ?? "", row.status, money(row.loadRate), money(row.amountReceived), money(row.outstanding)]),
+        emptyMessage: "No client billing records match the selected filters.",
+      }, report);
     }
 
     const [services, inspections, repairs, reminders, bookkeepingExpenses] = await Promise.all([
@@ -157,9 +327,39 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         ...unitFields(row.fleet_units), recordType: `Bookkeeping ${row.category}`, date: row.expense_date, odometer: null, description: row.vendor ? `${row.category} - ${row.vendor}` : row.category, result: null, cost: Number(row.amount), status: "Recorded", notes: row.notes,
       })),
     ].filter((row) => !fleet || row.company === fleet)
+      .filter((row) => !range.from || Boolean(row.date && row.date >= range.from))
+      .filter((row) => !range.to || Boolean(row.date && row.date <= range.to))
       .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || a.unitNumber.localeCompare(b.unitNumber));
 
-    return download(maintenanceCsv(rows), report);
+    if (format === "csv") return csvDownload(maintenanceCsv(rows), report);
+
+    const totalCost = rows.reduce((sum, row) => sum + Number(row.cost ?? 0), 0);
+    return pdfDownload({
+      title: "Maintenance History",
+      subtitle: filterLabel({ ...range, fleet }),
+      metrics: [
+        { label: "Records", value: String(rows.length) },
+        { label: "Units", value: String(new Set(rows.map((row) => `${row.company ?? ""}:${row.unitNumber}`)).size) },
+        { label: "Recorded cost", value: money(totalCost) },
+      ],
+      columns: [
+        { label: "Date", width: "11%" },
+        { label: "Unit", width: "12%" },
+        { label: "Type", width: "15%" },
+        { label: "Description", width: "29%" },
+        { label: "Status / result", width: "18%" },
+        { label: "Cost", width: "15%", align: "right" },
+      ],
+      rows: rows.map((row) => [
+        row.date ?? "",
+        row.unitNumber,
+        row.recordType,
+        row.description,
+        row.result ?? row.status ?? "",
+        row.cost === null ? "" : money(row.cost),
+      ]),
+      emptyMessage: "No maintenance records match the selected filters.",
+    }, report);
   } catch {
     return NextResponse.json({ error: "Could not export report." }, { status: 500 });
   }

@@ -37,6 +37,11 @@ export default async function ReportsPage({
   const pdfExportHref = `/api/reports/weekly/pdf?${exportParams.toString()}`;
   const filteredExportHref = (report: "weekly-payroll" | "weekly-financial") =>
     `/api/reports/exports/${report}?${exportParams.toString()}`;
+  const reportExportHref = (report: "weekly-payroll" | "client-billing" | "maintenance" | "yearly-financial", format: "csv" | "pdf") => {
+    const params = new URLSearchParams(exportParams);
+    params.set("format", format);
+    return `/api/reports/exports/${report}?${params.toString()}`;
+  };
   const { summaries } = await getWeeklyDriverFinancialSummary({
     period,
     from: params.from,
@@ -48,41 +53,56 @@ export default async function ReportsPage({
     {
       title: "Loads",
       description: "Complete operational and payment detail for every load.",
-      formats: [{ label: "CSV", href: `/api/loads/export?${exportParams.toString()}`, type: "csv" }],
+      formats: [{ label: "Detailed CSV", description: "Every matching load with operational, pay, and billing fields.", href: `/api/loads/export?${exportParams.toString()}`, type: "csv" }],
     },
     {
       title: "Weekly driver payroll",
       description: "Payroll totals by driver and week.",
-      formats: [{ label: "CSV", href: filteredExportHref("weekly-payroll"), type: "csv" }],
+      formats: [
+        { label: "Payroll CSV", description: "Driver and week totals ready for payroll processing.", href: reportExportHref("weekly-payroll", "csv"), type: "csv" },
+        { label: "Payroll PDF", description: "Print-ready driver payroll totals with report context.", href: reportExportHref("weekly-payroll", "pdf"), type: "pdf" },
+      ],
     },
     {
       title: "Weekly financial report",
       description: "Filtered revenue, costs, estimated profit, and load detail.",
       formats: [
-        { label: "Summary CSV", href: filteredExportHref("weekly-financial"), type: "csv" },
-        { label: "Detailed CSV", href: exportHref, type: "csv" },
-        { label: "PDF", href: pdfExportHref, type: "pdf" },
+        { label: "Summary CSV", description: "Weekly revenue, costs, and estimated profit totals.", href: filteredExportHref("weekly-financial"), type: "csv" },
+        { label: "Detailed CSV", description: "Weekly totals plus every matching load and cost component.", href: exportHref, type: "csv" },
+        { label: "Summary PDF", description: "Presentation-ready financial and driver performance summary.", href: pdfExportHref, type: "pdf" },
       ],
     },
     {
       title: "Client billing",
       description: "Invoice status, collections, and outstanding balances.",
-      formats: [{ label: "CSV", href: `/api/reports/exports/client-billing?${exportParams.toString()}`, type: "csv" }],
+      formats: [
+        { label: "Billing CSV", description: "Invoice, collection, and outstanding balance fields by load.", href: reportExportHref("client-billing", "csv"), type: "csv" },
+        { label: "Billing PDF", description: "Client-facing billing overview with invoiced and outstanding totals.", href: reportExportHref("client-billing", "pdf"), type: "pdf" },
+      ],
     },
     {
       title: "Bookkeeping expenses",
       description: "Tax and receipt records with truck, trailer, load, driver, and maintenance links.",
-      formats: [{ label: "CSV", href: "/api/bookkeeping/export", type: "csv" }],
+      formats: [
+        { label: "Detailed CSV", description: "Accounting rows with categories, links, and receipt references.", href: `/api/bookkeeping/export?${exportParams.toString()}&view=detailed&format=csv`, type: "csv" },
+        { label: "Summary PDF", description: "Category totals and receipt counts for quick review.", href: `/api/bookkeeping/export?${exportParams.toString()}&view=summary&format=pdf`, type: "pdf" },
+      ],
     },
     {
       title: "Maintenance",
       description: "Fleet service, inspection, repair, and reminder history.",
-      formats: [{ label: "CSV", href: `/api/reports/exports/maintenance?${exportParams.toString()}`, type: "csv" }],
+      formats: [
+        { label: "History CSV", description: "Service, inspection, repair, reminder, and cost rows.", href: reportExportHref("maintenance", "csv"), type: "csv" },
+        { label: "History PDF", description: "Print-ready maintenance history and recorded cost totals.", href: reportExportHref("maintenance", "pdf"), type: "pdf" },
+      ],
     },
     {
       title: "Yearly financial summary",
       description: "Annual revenue, costs, load count, and estimated profit.",
-      formats: [{ label: "CSV", href: `/api/reports/exports/yearly-financial?${exportParams.toString()}`, type: "csv" }],
+      formats: [
+        { label: "Annual CSV", description: "Year-by-year revenue, costs, loads, and estimated profit.", href: reportExportHref("yearly-financial", "csv"), type: "csv" },
+        { label: "Annual PDF", description: "Print-ready annual performance summary with totals.", href: reportExportHref("yearly-financial", "pdf"), type: "pdf" },
+      ],
     },
   ];
 
@@ -93,7 +113,25 @@ export default async function ReportsPage({
           <h1 className="text-2xl font-semibold text-zinc-950">Reports</h1>
           <p className="text-sm text-zinc-600">Financial review and business exports.</p>
         </div>
-        <ExportMenu items={exports} />
+        <ExportMenu
+          items={exports}
+          filters={[
+            {
+              key: "fleet",
+              label: "Fleet",
+              allLabel: "All fleets",
+              defaultValue: fleet,
+              options: fleetCompanies.map((company) => ({ label: company, value: company })),
+            },
+            {
+              key: "driver",
+              label: "Driver",
+              allLabel: "All drivers",
+              defaultValue: params.driver ?? "",
+              options: options.drivers.map((driver) => ({ label: driver.name, value: driver.id })),
+            },
+          ]}
+        />
       </div>
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-5">

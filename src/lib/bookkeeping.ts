@@ -57,6 +57,44 @@ export type BookkeepingExportRow = {
   lineType: string;
 };
 
+export type BookkeepingSummaryRow = {
+  category: string;
+  expenseLines: number;
+  receiptCount: number;
+  total: number;
+};
+
+export function summarizeBookkeepingRows(rows: BookkeepingExportRow[]): BookkeepingSummaryRow[] {
+  const categories = new Map<string, BookkeepingSummaryRow>();
+
+  for (const row of rows) {
+    const summary = categories.get(row.category) ?? {
+      category: row.category,
+      expenseLines: 0,
+      receiptCount: 0,
+      total: 0,
+    };
+    summary.expenseLines += 1;
+    summary.receiptCount += row.receiptCount;
+    summary.total += row.amount;
+    categories.set(row.category, summary);
+  }
+
+  return [...categories.values()].sort((a, b) => b.total - a.total || a.category.localeCompare(b.category));
+}
+
+export function bookkeepingSummaryCsv(rows: BookkeepingExportRow[]) {
+  return [
+    csvRow(["Category", "Expense Lines", "Receipt Count", "Total"]),
+    ...summarizeBookkeepingRows(rows).map((row) => csvRow([
+      row.category,
+      row.expenseLines,
+      row.receiptCount,
+      row.total.toFixed(2),
+    ])),
+  ].join("\n");
+}
+
 export function bookkeepingCsv(rows: BookkeepingExportRow[]) {
   return [
     csvRow([

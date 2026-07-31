@@ -21,6 +21,11 @@ export const repairLogTypes: RepairLogType[] = ["Repair", "Daily repair log"]
 export const maintenanceReminderTypes: MaintenanceReminderType[] = ["Monthly service", "90-day inspection", "Annual inspection", "Oil change", "Repair follow-up"]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       activity_logs: {
@@ -29,18 +34,21 @@ export type Database = {
           created_at: string
           id: string
           load_id: string | null
+          organization_id: string
         }
         Insert: {
           action: string
           created_at?: string
           id?: string
           load_id?: string | null
+          organization_id?: string
         }
         Update: {
           action?: string
           created_at?: string
           id?: string
           load_id?: string | null
+          organization_id?: string
         }
         Relationships: [
           {
@@ -48,6 +56,13 @@ export type Database = {
             columns: ["load_id"]
             isOneToOne: false
             referencedRelation: "loads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -64,6 +79,7 @@ export type Database = {
           inspection_record_id: string | null
           load_id: string | null
           notes: string | null
+          organization_id: string
           repair_log_id: string | null
           service_record_id: string | null
           source_id: string | null
@@ -83,6 +99,7 @@ export type Database = {
           inspection_record_id?: string | null
           load_id?: string | null
           notes?: string | null
+          organization_id?: string
           repair_log_id?: string | null
           service_record_id?: string | null
           source_id?: string | null
@@ -102,6 +119,7 @@ export type Database = {
           inspection_record_id?: string | null
           load_id?: string | null
           notes?: string | null
+          organization_id?: string
           repair_log_id?: string | null
           service_record_id?: string | null
           source_id?: string | null
@@ -140,6 +158,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bookkeeping_expense_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bookkeeping_expense_groups_repair_log_id_fkey"
             columns: ["repair_log_id"]
             isOneToOne: false
@@ -170,6 +195,7 @@ export type Database = {
           group_id: string
           id: string
           line_type: string
+          organization_id: string
           updated_at: string
         }
         Insert: {
@@ -179,6 +205,7 @@ export type Database = {
           group_id: string
           id?: string
           line_type?: string
+          organization_id?: string
           updated_at?: string
         }
         Update: {
@@ -188,6 +215,7 @@ export type Database = {
           group_id?: string
           id?: string
           line_type?: string
+          organization_id?: string
           updated_at?: string
         }
         Relationships: [
@@ -196,6 +224,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "bookkeeping_expense_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookkeeping_expenses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -208,6 +243,7 @@ export type Database = {
           file_size: number
           group_id: string
           id: string
+          organization_id: string
           storage_path: string
         }
         Insert: {
@@ -217,6 +253,7 @@ export type Database = {
           file_size: number
           group_id: string
           id?: string
+          organization_id?: string
           storage_path: string
         }
         Update: {
@@ -226,6 +263,7 @@ export type Database = {
           file_size?: number
           group_id?: string
           id?: string
+          organization_id?: string
           storage_path?: string
         }
         Relationships: [
@@ -234,6 +272,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "bookkeeping_expense_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookkeeping_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -246,6 +291,7 @@ export type Database = {
           email: string | null
           id: string
           notes: string | null
+          organization_id: string
           phone: string | null
           updated_at: string
         }
@@ -256,6 +302,7 @@ export type Database = {
           email?: string | null
           id?: string
           notes?: string | null
+          organization_id?: string
           phone?: string | null
           updated_at?: string
         }
@@ -266,10 +313,19 @@ export type Database = {
           email?: string | null
           id?: string
           notes?: string | null
+          organization_id?: string
           phone?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "brokers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       documents: {
         Row: {
@@ -279,6 +335,7 @@ export type Database = {
           id: string
           load_id: string
           notes: string | null
+          organization_id: string
           storage_path: string
         }
         Insert: {
@@ -288,6 +345,7 @@ export type Database = {
           id?: string
           load_id: string
           notes?: string | null
+          organization_id?: string
           storage_path: string
         }
         Update: {
@@ -297,6 +355,7 @@ export type Database = {
           id?: string
           load_id?: string
           notes?: string | null
+          organization_id?: string
           storage_path?: string
         }
         Relationships: [
@@ -305,6 +364,13 @@ export type Database = {
             columns: ["load_id"]
             isOneToOne: false
             referencedRelation: "loads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -316,6 +382,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          organization_id: string
           phone: string | null
           trailer_number: string | null
           truck_number: string | null
@@ -327,6 +394,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          organization_id?: string
           phone?: string | null
           trailer_number?: string | null
           truck_number?: string | null
@@ -338,12 +406,21 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          organization_id?: string
           phone?: string | null
           trailer_number?: string | null
           truck_number?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "drivers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       fleet_units: {
         Row: {
@@ -352,6 +429,7 @@ export type Database = {
           id: string
           notes: string | null
           odometer: number | null
+          organization_id: string
           unit_number: string
           unit_type: Database["public"]["Enums"]["unit_type"]
           updated_at: string
@@ -362,6 +440,7 @@ export type Database = {
           id?: string
           notes?: string | null
           odometer?: number | null
+          organization_id?: string
           unit_number: string
           unit_type: Database["public"]["Enums"]["unit_type"]
           updated_at?: string
@@ -372,11 +451,20 @@ export type Database = {
           id?: string
           notes?: string | null
           odometer?: number | null
+          organization_id?: string
           unit_number?: string
           unit_type?: Database["public"]["Enums"]["unit_type"]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fleet_units_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ifta_fuel_purchases: {
         Row: {
@@ -386,6 +474,7 @@ export type Database = {
           gallons: number
           id: string
           notes: string | null
+          organization_id: string
           purchase_date: string
           state: string
           truck_number: string
@@ -400,6 +489,7 @@ export type Database = {
           gallons: number
           id?: string
           notes?: string | null
+          organization_id?: string
           purchase_date: string
           state: string
           truck_number: string
@@ -414,6 +504,7 @@ export type Database = {
           gallons?: number
           id?: string
           notes?: string | null
+          organization_id?: string
           purchase_date?: string
           state?: string
           truck_number?: string
@@ -422,6 +513,13 @@ export type Database = {
           vendor?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ifta_fuel_purchases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ifta_fuel_purchases_unit_id_fkey"
             columns: ["unit_id"]
@@ -435,22 +533,32 @@ export type Database = {
         Row: {
           id: string
           miles: number
+          organization_id: string
           state: string
           trip_id: string
         }
         Insert: {
           id?: string
           miles: number
+          organization_id?: string
           state: string
           trip_id: string
         }
         Update: {
           id?: string
           miles?: number
+          organization_id?: string
           state?: string
           trip_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ifta_trip_miles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ifta_trip_miles_trip_id_fkey"
             columns: ["trip_id"]
@@ -467,6 +575,7 @@ export type Database = {
           end_date: string | null
           id: string
           notes: string | null
+          organization_id: string
           pickup_city: string
           start_date: string
           truck_number: string
@@ -478,6 +587,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           notes?: string | null
+          organization_id?: string
           pickup_city: string
           start_date: string
           truck_number: string
@@ -489,12 +599,21 @@ export type Database = {
           end_date?: string | null
           id?: string
           notes?: string | null
+          organization_id?: string
           pickup_city?: string
           start_date?: string
           truck_number?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ifta_trips_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       inspection_records: {
         Row: {
@@ -505,6 +624,7 @@ export type Database = {
           inspector: string | null
           notes: string | null
           odometer: number | null
+          organization_id: string
           result: string | null
           unit_id: string
         }
@@ -516,6 +636,7 @@ export type Database = {
           inspector?: string | null
           notes?: string | null
           odometer?: number | null
+          organization_id?: string
           result?: string | null
           unit_id: string
         }
@@ -527,10 +648,18 @@ export type Database = {
           inspector?: string | null
           notes?: string | null
           odometer?: number | null
+          organization_id?: string
           result?: string | null
           unit_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "inspection_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inspection_records_unit_id_fkey"
             columns: ["unit_id"]
@@ -556,6 +685,7 @@ export type Database = {
           load_number: string
           load_rate: number
           notes: string | null
+          organization_id: string
           pickup_date: string | null
           pickup_location: string
           return_location: string | null
@@ -578,6 +708,7 @@ export type Database = {
           load_number: string
           load_rate?: number
           notes?: string | null
+          organization_id?: string
           pickup_date?: string | null
           pickup_location: string
           return_location?: string | null
@@ -600,6 +731,7 @@ export type Database = {
           load_number?: string
           load_rate?: number
           notes?: string | null
+          organization_id?: string
           pickup_date?: string | null
           pickup_location?: string
           return_location?: string | null
@@ -622,6 +754,13 @@ export type Database = {
             referencedRelation: "drivers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "loads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       maintenance_reminders: {
@@ -640,6 +779,7 @@ export type Database = {
           interval_days: number | null
           interval_miles: number | null
           notes: string | null
+          organization_id: string
           reminder_type: string
           snoozed_until: string | null
           unit_id: string
@@ -662,6 +802,7 @@ export type Database = {
           interval_days?: number | null
           interval_miles?: number | null
           notes?: string | null
+          organization_id?: string
           reminder_type: string
           snoozed_until?: string | null
           unit_id: string
@@ -684,6 +825,7 @@ export type Database = {
           interval_days?: number | null
           interval_miles?: number | null
           notes?: string | null
+          organization_id?: string
           reminder_type?: string
           snoozed_until?: string | null
           unit_id?: string
@@ -692,6 +834,13 @@ export type Database = {
           warning_miles?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "maintenance_reminders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "maintenance_reminders_unit_id_fkey"
             columns: ["unit_id"]
@@ -707,18 +856,21 @@ export type Database = {
           id: string
           load_id: string
           note_text: string
+          organization_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           load_id: string
           note_text: string
+          organization_id?: string
         }
         Update: {
           created_at?: string
           id?: string
           load_id?: string
           note_text?: string
+          organization_id?: string
         }
         Relationships: [
           {
@@ -728,7 +880,67 @@ export type Database = {
             referencedRelation: "loads"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      organization_members: {
+        Row: {
+          created_at: string
+          organization_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          organization_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          organization_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          id: string
+          is_demo: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_demo?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_demo?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       payments: {
         Row: {
@@ -746,6 +958,7 @@ export type Database = {
           invoice_sent: boolean
           invoice_sent_date: string | null
           load_id: string
+          organization_id: string
           updated_at: string
         }
         Insert: {
@@ -763,6 +976,7 @@ export type Database = {
           invoice_sent?: boolean
           invoice_sent_date?: string | null
           load_id: string
+          organization_id?: string
           updated_at?: string
         }
         Update: {
@@ -780,6 +994,7 @@ export type Database = {
           invoice_sent?: boolean
           invoice_sent_date?: string | null
           load_id?: string
+          organization_id?: string
           updated_at?: string
         }
         Relationships: [
@@ -788,6 +1003,13 @@ export type Database = {
             columns: ["load_id"]
             isOneToOne: true
             referencedRelation: "loads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -825,6 +1047,7 @@ export type Database = {
           log_type: string
           notes: string | null
           odometer: number | null
+          organization_id: string
           repair_date: string | null
           unit_id: string
         }
@@ -836,6 +1059,7 @@ export type Database = {
           log_type?: string
           notes?: string | null
           odometer?: number | null
+          organization_id?: string
           repair_date?: string | null
           unit_id: string
         }
@@ -847,10 +1071,18 @@ export type Database = {
           log_type?: string
           notes?: string | null
           odometer?: number | null
+          organization_id?: string
           repair_date?: string | null
           unit_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "repair_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "repair_logs_unit_id_fkey"
             columns: ["unit_id"]
@@ -868,6 +1100,7 @@ export type Database = {
           id: string
           notes: string | null
           odometer: number | null
+          organization_id: string
           service_date: string | null
           unit_id: string
         }
@@ -878,6 +1111,7 @@ export type Database = {
           id?: string
           notes?: string | null
           odometer?: number | null
+          organization_id?: string
           service_date?: string | null
           unit_id: string
         }
@@ -888,10 +1122,18 @@ export type Database = {
           id?: string
           notes?: string | null
           odometer?: number | null
+          organization_id?: string
           service_date?: string | null
           unit_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "service_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "service_records_unit_id_fkey"
             columns: ["unit_id"]
@@ -911,6 +1153,7 @@ export type Database = {
           last_attempted_at: string | null
           last_error: string | null
           load_id: string | null
+          organization_id: string
           source: string
           storage_path: string
           updated_at: string
@@ -924,6 +1167,7 @@ export type Database = {
           last_attempted_at?: string | null
           last_error?: string | null
           load_id?: string | null
+          organization_id?: string
           source: string
           storage_path: string
           updated_at?: string
@@ -937,11 +1181,20 @@ export type Database = {
           last_attempted_at?: string | null
           last_error?: string | null
           load_id?: string | null
+          organization_id?: string
           source?: string
           storage_path?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "storage_cleanup_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -978,6 +1231,7 @@ export type Database = {
         Args: { p_expense: Json; p_group_id: string; p_receipt?: Json }
         Returns: string
       }
+      current_organization_id: { Args: never; Returns: string }
       delete_document_with_cleanup: {
         Args: { p_document_id: string }
         Returns: {
