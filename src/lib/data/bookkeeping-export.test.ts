@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { bookkeepingSummaryCsv, summarizeBookkeepingRows } from "@/lib/bookkeeping";
 import { bookkeepingExpenseToExportRows, type BookkeepingExpense } from "./bookkeeping";
 
 const transaction = {
@@ -40,5 +41,16 @@ describe("Bookkeeping transaction exports", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ category: "Parts", amount: 70, receiptCount: 1, source: "maintenance" });
+  });
+
+  it("creates accounting-friendly category totals for summary exports", () => {
+    const rows = bookkeepingExpenseToExportRows(transaction);
+
+    expect(summarizeBookkeepingRows(rows)).toEqual([
+      { category: "Maintenance", expenseLines: 1, receiptCount: 1, total: 180 },
+      { category: "Parts", expenseLines: 1, receiptCount: 0, total: 70 },
+    ]);
+    expect(bookkeepingSummaryCsv(rows)).toContain("Category,Expense Lines,Receipt Count,Total");
+    expect(bookkeepingSummaryCsv(rows)).toContain("Maintenance,1,1,180.00");
   });
 });

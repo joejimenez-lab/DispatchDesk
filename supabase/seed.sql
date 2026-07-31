@@ -38,6 +38,15 @@ on conflict (id) do update
 set email = excluded.email,
     raw_user_meta_data = excluded.raw_user_meta_data;
 
+-- Tenant-owned columns default from the authenticated user. The local demo
+-- seed runs as an administrative SQL transaction, so provide the fictional
+-- demo identity for those defaults without changing database roles.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-4000-8000-000000000001","role":"authenticated","email":"andres.castillo@dispatchdesk.demo"}',
+  true
+);
+
 insert into public.drivers (id, name, phone, email, truck_number, trailer_number, notes, created_at) values
   ('11000000-0000-4000-8000-000000000001', 'Carlos Ramirez', '(909) 555-0101', 'carlos.ramirez@example.test', 'RD-101', 'RD-501', 'RD lead driver. Hazmat endorsement and clean inspection history.', now() - interval '420 days'),
   ('11000000-0000-4000-8000-000000000002', 'Miguel Hernandez', '(951) 555-0102', 'miguel.hernandez@example.test', 'RD-102', 'RD-502', 'Regional dry-van specialist. Available for weekend dispatch.', now() - interval '360 days'),

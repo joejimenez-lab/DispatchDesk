@@ -26,9 +26,9 @@ set local role authenticated;
 select lives_ok(
   $$
     insert into public.loads (
-      load_number, pickup_location, delivery_location, load_rate, driver_pay, dispatcher_fee, fuel_cost, status
+      id, load_number, pickup_location, delivery_location, load_rate, driver_pay, dispatcher_fee, fuel_cost, status
     ) values (
-      'ISSUE22-ORIGINAL', 'Los Angeles, CA', 'Phoenix, AZ', 900, 450, 90, 40, 'Booked'
+      '22000000-0000-4000-8000-000000000001', 'ISSUE22-ORIGINAL', 'Los Angeles, CA', 'Phoenix, AZ', 900, 450, 90, 40, 'Booked'
     )
   $$,
   'authenticated user can create the atomic update test load'
@@ -143,26 +143,26 @@ select is(
 );
 
 insert into public.documents (load_id, file_name, category, storage_path)
-select id, 'bol.pdf', 'BOL', 'issue22/document-bol.pdf'
+select id, 'bol.pdf', 'BOL', '22000000-0000-4000-8000-000000000001/document-bol.pdf'
 from public.loads
 where load_number = 'ISSUE22-UPDATED';
 
 select is(
   (select count(*) from public.delete_document_with_cleanup(
-    (select id from public.documents where storage_path = 'issue22/document-bol.pdf')
+    (select id from public.documents where storage_path = '22000000-0000-4000-8000-000000000001/document-bol.pdf')
   )),
   1::bigint,
   'document delete returns one queued cleanup job'
 );
 
 select is(
-  (select count(*) from public.documents where storage_path = 'issue22/document-bol.pdf'),
+  (select count(*) from public.documents where storage_path = '22000000-0000-4000-8000-000000000001/document-bol.pdf'),
   0::bigint,
   'document metadata is deleted by the RPC'
 );
 
 select is(
-  (select count(*) from public.storage_cleanup_jobs where storage_path = 'issue22/document-bol.pdf' and source = 'delete_document'),
+  (select count(*) from public.storage_cleanup_jobs where storage_path = '22000000-0000-4000-8000-000000000001/document-bol.pdf' and source = 'delete_document'),
   1::bigint,
   'document storage cleanup remains queued until Storage succeeds'
 );
@@ -174,18 +174,18 @@ select is(
 );
 
 insert into public.loads (
-  load_number, pickup_location, delivery_location, load_rate, driver_pay, dispatcher_fee, fuel_cost, status
+  id, load_number, pickup_location, delivery_location, load_rate, driver_pay, dispatcher_fee, fuel_cost, status
 ) values (
-  'ISSUE22-DELETE-LOAD', 'Fresno, CA', 'Reno, NV', 800, 400, 80, 20, 'Booked'
+  '22000000-0000-4000-8000-000000000002', 'ISSUE22-DELETE-LOAD', 'Fresno, CA', 'Reno, NV', 800, 400, 80, 20, 'Booked'
 );
 
 insert into public.documents (load_id, file_name, category, storage_path)
-select id, 'invoice.pdf', 'Invoice', 'issue22/load-invoice.pdf'
+select id, 'invoice.pdf', 'Invoice', '22000000-0000-4000-8000-000000000002/load-invoice.pdf'
 from public.loads
 where load_number = 'ISSUE22-DELETE-LOAD';
 
 insert into public.documents (load_id, file_name, category, storage_path)
-select id, 'rate-confirmation.pdf', 'Rate Confirmation', 'issue22/load-rate-confirmation.pdf'
+select id, 'rate-confirmation.pdf', 'Rate Confirmation', '22000000-0000-4000-8000-000000000002/load-rate-confirmation.pdf'
 from public.loads
 where load_number = 'ISSUE22-DELETE-LOAD';
 
@@ -204,13 +204,13 @@ select is(
 );
 
 select is(
-  (select count(*) from public.documents where storage_path like 'issue22/load-%'),
+  (select count(*) from public.documents where storage_path like '22000000-0000-4000-8000-000000000002/load-%'),
   0::bigint,
   'load document metadata is cascade-deleted by the RPC'
 );
 
 select is(
-  (select count(*) from public.storage_cleanup_jobs where storage_path like 'issue22/load-%' and source = 'delete_load'),
+  (select count(*) from public.storage_cleanup_jobs where storage_path like '22000000-0000-4000-8000-000000000002/load-%' and source = 'delete_load'),
   2::bigint,
   'load document storage cleanup remains queued until Storage succeeds'
 );

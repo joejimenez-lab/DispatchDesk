@@ -61,14 +61,14 @@ Local full-stack truck dispatcher/load management application built with Next.js
 - Use `npm run db:push` after `supabase link --project-ref <project-ref>` to apply migrations to the hosted project.
 - Use `npm run db:types` after local schema changes to regenerate `src/types/database.ts`.
 - Every business table has RLS enabled.
-- Version 1 allows any authenticated user to manage records, matching the single-admin requirement.
+- Every authenticated user belongs to one organization. RLS scopes all operational, financial, maintenance, and document records to that organization.
 - The `load-documents` storage bucket is private. The `/api/documents/[id]/view` and `/api/documents/[id]/download` routes check auth, then fetch the file from Storage and stream it back to the browser (inline or as an attachment). The storage path is never exposed to the client.
 - Location autocomplete uses Photon through `/api/locations/search` and limits results to US locations. Development has a low-volume demo fallback; production requires a configured, self-hosted instance. See [`docs/photon-geocoding.md`](docs/photon-geocoding.md) for setup and operations.
-- The schema is structured so roles and multi-company support can be added later by introducing organization ownership columns and narrower RLS policies.
+- New Auth users automatically receive an empty organization. The committed demo identity is the only account automatically attached to the fictional demo organization.
 
 ## Production notes
 
-- **Disable public signups.** RLS grants the `authenticated` role full access to every table, so the single-admin model only holds if no one else can register. In the Supabase dashboard, turn off open email signups (or restrict to an allowlist) before deploying.
+- **Disable public signups.** Organization RLS isolates registered users, but DispatchDesk has no public onboarding workflow. Create approved client users administratively or add an explicit invitation flow before enabling signups.
 - **Set `PHOTON_API_URL`** to the full `/api` endpoint of a production self-hosted Photon instance. Do not configure the app to depend on a public demo geocoder.
 - The full-text GIN indexes in `001_initial_schema.sql` are not used by the current `ilike` search; revisit them if search needs to scale.
 
