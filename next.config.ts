@@ -11,6 +11,11 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
 ] as const;
 
+const privateStatusHeaders = [
+  { key: "Cache-Control", value: "private, no-store, max-age=0" },
+  { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+] as const;
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
@@ -23,6 +28,10 @@ const nextConfig: NextConfig = {
       {
         source: "/api/bookkeeping/receipts/:id/view",
         headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
+      {
+        source: "/status",
+        headers: privateStatusHeaders.map((header) => ({ ...header })),
       },
     ];
   },

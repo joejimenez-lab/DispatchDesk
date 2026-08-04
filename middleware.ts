@@ -37,6 +37,14 @@ function unavailablePageResponse() {
   );
 }
 
+function applyPrivateStatusHeaders(request: NextRequest, response: NextResponse) {
+  if (request.nextUrl.pathname !== "/status") return response;
+
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
   const config = getSupabaseConfig();
@@ -55,9 +63,9 @@ export async function middleware(request: NextRequest) {
   if (!config) {
     const result = missingSupabaseConfigResult();
     logAuthUnavailable(result, context);
-    return isApi
+    return applyPrivateStatusHeaders(request, isApi
       ? NextResponse.json({ error: "Authentication service unavailable" }, { status: 503 })
-      : unavailablePageResponse();
+      : unavailablePageResponse());
   }
 
   const supabase = createServerClient(
@@ -88,14 +96,14 @@ export async function middleware(request: NextRequest) {
 
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return applyPrivateStatusHeaders(request, NextResponse.redirect(url));
   }
 
   if (auth.status === "unavailable") {
     logAuthUnavailable(auth, context);
-    return isApi
+    return applyPrivateStatusHeaders(request, isApi
       ? NextResponse.json({ error: "Authentication service unavailable" }, { status: 503 })
-      : unavailablePageResponse();
+      : unavailablePageResponse());
   }
 
   if (auth.status === "authenticated" && isLogin) {
@@ -104,7 +112,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return response;
+  return applyPrivateStatusHeaders(request, response);
 }
 
 export const config = {

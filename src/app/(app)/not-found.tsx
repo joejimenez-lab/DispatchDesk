@@ -4,8 +4,8 @@ export default function AppNotFound() {
   return (
     <FallbackPanel
       tone="not-found"
-      title="That DispatchDesk record was not found"
-      message="The page exists, but the requested record is missing or has been removed. Return to the dashboard, loads, reports, or the previous list and choose another record."
+      title="Page or record not found"
+      message="The link may be unavailable, restricted, or out of date. Return to the dashboard, loads, or reports to continue."
     />
   );
 }
