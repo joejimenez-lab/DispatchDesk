@@ -1201,6 +1201,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_ai_assistant_rate_limit: {
+        Args: never
+        Returns: {
+          allowed: boolean
+          retry_after_seconds: number
+        }[]
+      }
       complete_maintenance_reminder: {
         Args: {
           p_completed_date?: string
