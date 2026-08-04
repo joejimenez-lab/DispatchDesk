@@ -42,7 +42,9 @@ export function AppNav() {
   const pathname = usePathname();
   const currentPage = links.find(({ href }) =>
     pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/")),
-  )?.label ?? (pathname === "/status" ? "System status" : "Dashboard");
+  )?.label ?? (pathname === "/status"
+    ? "System status"
+    : pathname === "/AI_Assistant" ? "Dispatch Assistant" : "Dashboard");
 
   return (
     <>
