@@ -35,6 +35,16 @@ describe("middleware auth handling", () => {
     expect(response.headers.get("location")).toBeNull();
   });
 
+  it("marks the private status route as no-store and no-index", async () => {
+    const { middleware } = await import("./middleware");
+    createServerClient.mockReturnValue(clientWithAuthResult({ data: { user: { id: "user-1" } }, error: null }));
+
+    const response = await middleware(request("/status"));
+
+    expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0");
+    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive");
+  });
+
   it("redirects a valid session away from login", async () => {
     const { middleware } = await import("./middleware");
     createServerClient.mockReturnValue(clientWithAuthResult({ data: { user: { id: "user-1" } }, error: null }));

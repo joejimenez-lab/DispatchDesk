@@ -72,6 +72,18 @@ Local full-stack truck dispatcher/load management application built with Next.js
 - **Set `PHOTON_API_URL`** to the full `/api` endpoint of a production self-hosted Photon instance. Do not configure the app to depend on a public demo geocoder.
 - The full-text GIN indexes in `001_initial_schema.sql` are not used by the current `ilike` search; revisit them if search needs to scale.
 
+## Private system status
+
+The unlisted `/status` route is a restricted operational view for application, Supabase, and Vercel health. It is intentionally absent from primary navigation and returns a not-found response unless the signed-in user appears in `STATUS_PAGE_ALLOWED_EMAILS` or `STATUS_PAGE_ALLOWED_USER_IDS`.
+
+Core checks work with the normal application Supabase configuration. Optional provider credentials add deeper visibility:
+
+- `SUPABASE_MANAGEMENT_TOKEN` enables Realtime platform health and a bounded, redacted error feed from the previous hour. Prefer a fine-grained token with only project-health and analytics-log read permissions.
+- `VERCEL_ACCESS_TOKEN` enables latest production deployment history. Current deployment metadata still appears on Vercel without this token when system environment variables are available.
+- `VERCEL_TEAM_SLUG` and `VERCEL_PROJECT_NAME` make provider-console links project-specific; otherwise the page links to the Vercel dashboard.
+
+All provider credentials remain server-only. Status responses use private, no-store caching and no-index headers. Vercel runtime logs are opened in the provider console because the application does not proxy raw runtime output.
+
 ## Verification
 
 ```bash

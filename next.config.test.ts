@@ -18,4 +18,18 @@ describe("security headers", () => {
       },
     ]));
   });
+
+  it("prevents caching and indexing of the private status page", async () => {
+    const rules = await nextConfig.headers?.();
+
+    expect(rules).toEqual(expect.arrayContaining([
+      {
+        source: "/status",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+        ],
+      },
+    ]));
+  });
 });
