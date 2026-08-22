@@ -126,8 +126,6 @@ revoke all on function public.create_load_with_deductions(jsonb, jsonb) from pub
 revoke all on function public.create_load_with_deductions(jsonb, jsonb) from anon;
 grant execute on function public.create_load_with_deductions(jsonb, jsonb) to authenticated;
 
-drop function public.update_load_with_payment(uuid, jsonb, jsonb);
-
 create function public.update_load_with_payment(
   p_load_id uuid,
   p_load jsonb,
