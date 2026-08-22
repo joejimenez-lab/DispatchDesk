@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { profitForLoad } from "@/lib/financials";
+import { deductionsTotal, profitForLoad, roundCents, totalDeductionsForLoad } from "@/lib/financials";
 import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import type { LoadStatus } from "@/types/database";
 
@@ -16,6 +16,9 @@ type WeeklyFinancialLoad = {
   driver_pay: number;
   dispatcher_fee: number;
   fuel_cost: number;
+  factoring_percent: number;
+  factoring_amount: number;
+  load_deductions: { label: string; amount: number; position: number }[];
   created_at: string;
   driver_id: string | null;
   drivers: { name: string | null; truck_number: string | null } | null;
@@ -32,6 +35,9 @@ export type WeeklyDriverFinancialSummary = {
   driverPayTotal: number;
   dispatcherFeeTotal: number;
   fuelCostTotal: number;
+  factoringTotal: number;
+  otherDeductionTotal: number;
+  totalDeductionsTotal: number;
   estimatedProfitTotal: number;
   loads: {
     id: string;
@@ -45,6 +51,11 @@ export type WeeklyDriverFinancialSummary = {
     driverPay: number;
     dispatcherFee: number;
     fuelCost: number;
+    factoringPercent: number;
+    factoringAmount: number;
+    otherDeductions: { label: string; amount: number }[];
+    otherDeductionTotal: number;
+    totalDeductions: number;
     estimatedProfit: number;
   }[];
 };
@@ -165,7 +176,7 @@ export async function getWeeklyDriverFinancialSummary(
 
   let query = supabase
     .from("loads")
-    .select("id, load_number, status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, created_at, driver_id, drivers(name, truck_number)")
+    .select("id, load_number, status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_percent, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, drivers(name, truck_number)")
     .neq("status", "Cancelled")
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("pickup_date", { ascending: false, nullsFirst: false })
@@ -194,6 +205,11 @@ export async function getWeeklyDriverFinancialSummary(
     const driverId = load.driver_id;
     const driverName = load.drivers?.name?.trim() || "Unassigned";
     const key = `${weekStart}:${driverId ?? "unassigned"}`;
+    const otherDeductions = [...load.load_deductions]
+      .sort((a, b) => a.position - b.position)
+      .map(({ label, amount }) => ({ label, amount: Number(amount) }));
+    const otherDeductionTotal = deductionsTotal(otherDeductions);
+    const totalDeductions = totalDeductionsForLoad(load);
     const estimatedProfit = profitForLoad(load);
     const summary =
       summaries.get(key) ??
@@ -208,16 +224,22 @@ export async function getWeeklyDriverFinancialSummary(
         driverPayTotal: 0,
         dispatcherFeeTotal: 0,
         fuelCostTotal: 0,
+        factoringTotal: 0,
+        otherDeductionTotal: 0,
+        totalDeductionsTotal: 0,
         estimatedProfitTotal: 0,
         loads: [],
       };
 
     summary.loadCount += 1;
-    summary.loadRateTotal += Number(load.load_rate);
-    summary.driverPayTotal += Number(load.driver_pay);
-    summary.dispatcherFeeTotal += Number(load.dispatcher_fee);
-    summary.fuelCostTotal += Number(load.fuel_cost);
-    summary.estimatedProfitTotal += estimatedProfit;
+    summary.loadRateTotal = roundCents(summary.loadRateTotal + Number(load.load_rate));
+    summary.driverPayTotal = roundCents(summary.driverPayTotal + Number(load.driver_pay));
+    summary.dispatcherFeeTotal = roundCents(summary.dispatcherFeeTotal + Number(load.dispatcher_fee));
+    summary.fuelCostTotal = roundCents(summary.fuelCostTotal + Number(load.fuel_cost));
+    summary.factoringTotal = roundCents(summary.factoringTotal + Number(load.factoring_amount));
+    summary.otherDeductionTotal = roundCents(summary.otherDeductionTotal + otherDeductionTotal);
+    summary.totalDeductionsTotal = roundCents(summary.totalDeductionsTotal + totalDeductions);
+    summary.estimatedProfitTotal = roundCents(summary.estimatedProfitTotal + estimatedProfit);
     summary.loads.push({
       id: load.id,
       loadNumber: load.load_number,
@@ -230,6 +252,11 @@ export async function getWeeklyDriverFinancialSummary(
       driverPay: Number(load.driver_pay),
       dispatcherFee: Number(load.dispatcher_fee),
       fuelCost: Number(load.fuel_cost),
+      factoringPercent: Number(load.factoring_percent),
+      factoringAmount: Number(load.factoring_amount),
+      otherDeductions,
+      otherDeductionTotal,
+      totalDeductions,
       estimatedProfit,
     });
 

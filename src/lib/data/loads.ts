@@ -21,6 +21,7 @@ type LoadDetail = LoadRow & {
   brokers: Database["public"]["Tables"]["brokers"]["Row"] | null;
   drivers: Database["public"]["Tables"]["drivers"]["Row"] | null;
   payments: Database["public"]["Tables"]["payments"]["Row"] | Database["public"]["Tables"]["payments"]["Row"][] | null;
+  load_deductions: Database["public"]["Tables"]["load_deductions"]["Row"][];
 };
 type DocumentRow = Database["public"]["Tables"]["documents"]["Row"];
 type NoteRow = Database["public"]["Tables"]["notes"]["Row"];
@@ -76,13 +77,17 @@ export async function getLoad(loadId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("loads")
-    .select("*, brokers(*), drivers(*), payments(*)")
+    .select("*, brokers(*), drivers(*), payments(*), load_deductions(*)")
     .eq("id", loadId)
     .single();
 
   if (isMissingPostgrestRow(error) || (!error && !data)) notFound();
   if (error) throw error;
-  return data as unknown as LoadDetail;
+  const load = data as unknown as LoadDetail;
+  return {
+    ...load,
+    load_deductions: [...load.load_deductions].sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at)),
+  };
 }
 
 export async function getLoadRelated(loadId: string) {

@@ -125,8 +125,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         loads: total.loads + summary.loadCount,
         revenue: total.revenue + summary.loadRateTotal,
         pay: total.pay + summary.driverPayTotal,
+        factoring: total.factoring + summary.factoringTotal,
+        otherDeductions: total.otherDeductions + summary.otherDeductionTotal,
         profit: total.profit + summary.estimatedProfitTotal,
-      }), { loads: 0, revenue: 0, pay: 0, profit: 0 });
+      }), { loads: 0, revenue: 0, pay: 0, factoring: 0, otherDeductions: 0, profit: 0 });
       const subtitle = filterLabel({ ...effectiveRange, fleet });
 
       return pdfDownload(report === "weekly-payroll" ? {
@@ -157,15 +159,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Loads", value: String(totals.loads) },
           { label: "Revenue", value: money(totals.revenue) },
           { label: "Driver pay", value: money(totals.pay) },
+          { label: "Deductions", value: money(totals.factoring + totals.otherDeductions) },
           { label: "Estimated profit", value: money(totals.profit) },
         ],
         columns: [
-          { label: "Week", width: "22%" },
-          { label: "Driver", width: "20%" },
-          { label: "Loads", width: "10%", align: "right" },
-          { label: "Revenue", width: "16%", align: "right" },
-          { label: "Driver pay", width: "16%", align: "right" },
-          { label: "Est. profit", width: "16%", align: "right" },
+          { label: "Week", width: "18%" },
+          { label: "Driver", width: "16%" },
+          { label: "Loads", width: "7%", align: "right" },
+          { label: "Revenue", width: "13%", align: "right" },
+          { label: "Driver pay", width: "13%", align: "right" },
+          { label: "Factoring", width: "10%", align: "right" },
+          { label: "Other ded.", width: "10%", align: "right" },
+          { label: "Est. profit", width: "13%", align: "right" },
         ],
         rows: summaries.map((summary) => [
           `${summary.weekStart} - ${summary.weekEnd}`,
@@ -173,6 +178,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           String(summary.loadCount),
           money(summary.loadRateTotal),
           money(summary.driverPayTotal),
+          money(summary.factoringTotal),
+          money(summary.otherDeductionTotal),
           money(summary.estimatedProfitTotal),
         ]),
         emptyMessage: "No financial records match the selected filters.",
@@ -194,8 +201,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
       const totals = rows.reduce((total, row) => ({
         loads: total.loads + row.loadCount,
         revenue: total.revenue + row.revenue,
+        deductions: total.deductions + row.totalDeductions,
         profit: total.profit + row.profit,
-      }), { loads: 0, revenue: 0, profit: 0 });
+      }), { loads: 0, revenue: 0, deductions: 0, profit: 0 });
       return pdfDownload({
         title: "Yearly Financial Summary",
         subtitle: filterLabel({ ...effectiveRange, fleet }),
@@ -203,21 +211,26 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Years", value: String(rows.length) },
           { label: "Loads", value: String(totals.loads) },
           { label: "Revenue", value: money(totals.revenue) },
+          { label: "Deductions", value: money(totals.deductions) },
           { label: "Estimated profit", value: money(totals.profit) },
         ],
         columns: [
-          { label: "Year", width: "14%" },
-          { label: "Loads", width: "12%", align: "right" },
-          { label: "Revenue", width: "16%", align: "right" },
-          { label: "Driver pay", width: "16%", align: "right" },
-          { label: "Other costs", width: "20%", align: "right" },
-          { label: "Est. profit", width: "22%", align: "right" },
+          { label: "Year", width: "12%" },
+          { label: "Loads", width: "8%", align: "right" },
+          { label: "Revenue", width: "15%", align: "right" },
+          { label: "Driver pay", width: "15%", align: "right" },
+          { label: "Factoring", width: "12%", align: "right" },
+          { label: "Other ded.", width: "12%", align: "right" },
+          { label: "Other costs", width: "14%", align: "right" },
+          { label: "Est. profit", width: "12%", align: "right" },
         ],
         rows: rows.map((row) => [
           row.year,
           String(row.loadCount),
           money(row.revenue),
           money(row.driverPay),
+          money(row.factoring),
+          money(row.otherDeductions),
           money(row.dispatcherFees + row.fuelCost),
           money(row.profit),
         ]),

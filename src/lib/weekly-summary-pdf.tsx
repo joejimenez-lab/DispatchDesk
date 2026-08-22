@@ -109,20 +109,24 @@ export function WeeklySummaryPdf({
       driverPay: result.driverPay + summary.driverPayTotal,
       dispatcherFees: result.dispatcherFees + summary.dispatcherFeeTotal,
       fuel: result.fuel + summary.fuelCostTotal,
+      factoring: result.factoring + summary.factoringTotal,
+      otherDeductions: result.otherDeductions + summary.otherDeductionTotal,
       profit: result.profit + summary.estimatedProfitTotal,
     }),
-    { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, profit: 0 },
+    { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, factoring: 0, otherDeductions: 0, profit: 0 },
   );
 
   const weeks = new Map<string, typeof totals & { weekEnd: string }>();
   const drivers = new Map<string, { name: string; loads: number; pay: number; revenue: number }>();
   for (const summary of summaries) {
-    const week = weeks.get(summary.weekStart) ?? { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, profit: 0, weekEnd: summary.weekEnd };
+    const week = weeks.get(summary.weekStart) ?? { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, factoring: 0, otherDeductions: 0, profit: 0, weekEnd: summary.weekEnd };
     week.loads += summary.loadCount;
     week.revenue += summary.loadRateTotal;
     week.driverPay += summary.driverPayTotal;
     week.dispatcherFees += summary.dispatcherFeeTotal;
     week.fuel += summary.fuelCostTotal;
+    week.factoring += summary.factoringTotal;
+    week.otherDeductions += summary.otherDeductionTotal;
     week.profit += summary.estimatedProfitTotal;
     weeks.set(summary.weekStart, week);
 
@@ -139,12 +143,14 @@ export function WeeklySummaryPdf({
   const margin = totals.revenue ? (totals.profit / totals.revenue) * 100 : 0;
 
   const weeklyColumns: Column[] = [
-    { label: "WEEK", width: "23%" },
-    { label: "LOADS", width: "9%", right: true },
-    { label: "REVENUE", width: "17%", right: true },
-    { label: "DRIVER PAY", width: "17%", right: true },
-    { label: "OTHER COSTS", width: "17%", right: true },
-    { label: "PROFIT", width: "17%", right: true },
+    { label: "WEEK", width: "20%" },
+    { label: "LOADS", width: "7%", right: true },
+    { label: "REVENUE", width: "13%", right: true },
+    { label: "DRIVER PAY", width: "13%", right: true },
+    { label: "OTHER COSTS", width: "12%", right: true },
+    { label: "FACTORING", width: "10%", right: true },
+    { label: "OTHER DED.", width: "11%", right: true },
+    { label: "PROFIT", width: "14%", right: true },
   ];
   const driverColumns: Column[] = [
     { label: "DRIVER", width: "42%" },
@@ -168,7 +174,7 @@ export function WeeklySummaryPdf({
         <View style={styles.metrics} wrap={false}>
           <Metric label="Loads" value={String(totals.loads)} />
           <Metric label="Revenue" value={money(totals.revenue)} />
-          <Metric label="Total costs" value={money(totals.driverPay + totals.dispatcherFees + totals.fuel)} />
+          <Metric label="Total costs" value={money(totals.driverPay + totals.dispatcherFees + totals.fuel + totals.factoring + totals.otherDeductions)} />
           <Metric label="Est. profit" value={money(totals.profit)} accent />
         </View>
 
@@ -181,12 +187,14 @@ export function WeeklySummaryPdf({
             <TableHeader columns={weeklyColumns} />
             {weeklyRows.length ? weeklyRows.map(([weekStart, week], index) => (
               <View key={weekStart} style={[styles.row, index === weeklyRows.length - 1 ? styles.rowLast : {}]} wrap={false}>
-                <Text style={[styles.cell, styles.cellStrong, { width: "23%" }]}>{dateLabel(weekStart)} - {dateLabel(week.weekEnd)}</Text>
-                <Text style={[styles.cell, styles.right, { width: "9%" }]}>{week.loads}</Text>
-                <Text style={[styles.cell, styles.right, { width: "17%" }]}>{money(week.revenue)}</Text>
-                <Text style={[styles.cell, styles.right, { width: "17%" }]}>{money(week.driverPay)}</Text>
-                <Text style={[styles.cell, styles.right, { width: "17%" }]}>{money(week.dispatcherFees + week.fuel)}</Text>
-                <Text style={[styles.cell, styles.cellStrong, styles.right, { width: "17%" }]}>{money(week.profit)}</Text>
+                <Text style={[styles.cell, styles.cellStrong, { width: "20%" }]}>{dateLabel(weekStart)} - {dateLabel(week.weekEnd)}</Text>
+                <Text style={[styles.cell, styles.right, { width: "7%" }]}>{week.loads}</Text>
+                <Text style={[styles.cell, styles.right, { width: "13%" }]}>{money(week.revenue)}</Text>
+                <Text style={[styles.cell, styles.right, { width: "13%" }]}>{money(week.driverPay)}</Text>
+                <Text style={[styles.cell, styles.right, { width: "12%" }]}>{money(week.dispatcherFees + week.fuel)}</Text>
+                <Text style={[styles.cell, styles.right, { width: "10%" }]}>{money(week.factoring)}</Text>
+                <Text style={[styles.cell, styles.right, { width: "11%" }]}>{money(week.otherDeductions)}</Text>
+                <Text style={[styles.cell, styles.cellStrong, styles.right, { width: "14%" }]}>{money(week.profit)}</Text>
               </View>
             )) : <Text style={styles.empty}>No reportable loads in this period.</Text>}
           </View>
@@ -208,7 +216,7 @@ export function WeeklySummaryPdf({
               </View>
             )) : <Text style={styles.empty}>No driver payroll in this period.</Text>}
           </View>
-          <Text style={styles.note}>Estimated profit is revenue less driver pay, dispatcher fees, and load-level fuel estimates. Actual fuel purchases live in IFTA and Bookkeeping and are not added again here. Profit margin for this period: {margin.toFixed(1)}%.</Text>
+          <Text style={styles.note}>Estimated profit is revenue less driver pay, dispatcher fees, load-level fuel estimates, factoring, and other labeled deductions. Actual fuel purchases live in IFTA and Bookkeeping and are not added again here. Profit margin for this period: {margin.toFixed(1)}%.</Text>
         </View>
 
         <View style={styles.footer} fixed>

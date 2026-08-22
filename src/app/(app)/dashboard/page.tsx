@@ -222,6 +222,14 @@ export default async function DashboardPage() {
               <span className="text-zinc-600">Outstanding</span>
               <span className="font-semibold text-zinc-950">{currency(metrics.outstandingRevenue)}</span>
             </div>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-600">Load deductions</span>
+              <span className="font-semibold text-zinc-950">{currency(metrics.totalDeductions)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-600">Estimated profit</span>
+              <span className={`font-semibold ${metrics.estimatedProfit >= 0 ? "text-green-700" : "text-red-700"}`}>{currency(metrics.estimatedProfit)}</span>
+            </div>
             <div className="mt-1 border-t border-zinc-200 pt-3 flex items-center justify-between">
               <span className="text-zinc-600">Pending driver payments</span>
               <span className="font-semibold text-zinc-950">{currency(metrics.pendingDriverPayments)}</span>

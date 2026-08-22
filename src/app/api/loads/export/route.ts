@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { csvRow } from "@/lib/csv";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
-import { clientCollected, clientOutstanding, isClientPaymentPaid, profitForLoad } from "@/lib/financials";
+import { clientCollected, clientOutstanding, deductionsTotal, isClientPaymentPaid, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
 import { ilikeOr, searchTokens } from "@/lib/search";
 import type { LoadStatus } from "@/types/database";
 
@@ -22,6 +22,9 @@ type ExportLoad = {
   driver_pay: number;
   dispatcher_fee: number;
   fuel_cost: number;
+  factoring_percent: number;
+  factoring_amount: number;
+  load_deductions: { label: string; amount: number; position: number }[];
   carrier_company: string | null;
   notes: string | null;
   brokers: { company_name: string | null; contact_name: string | null } | null;
@@ -74,7 +77,7 @@ export async function GET(request: Request) {
   const { supabase } = auth;
   let query = supabase
     .from("loads")
-    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, carrier_company, notes, brokers(company_name, contact_name), drivers(name, truck_number, trailer_number), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
+    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_percent, factoring_amount, load_deductions(label, amount, position), carrier_company, notes, brokers(company_name, contact_name), drivers(name, truck_number, trailer_number), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
     .order("created_at", { ascending: false });
 
   const status = searchParams.get("status");
@@ -130,6 +133,11 @@ export async function GET(request: Request) {
     "Driver Pay",
     "Dispatcher Fee",
     "Fuel Cost",
+    "Factoring %",
+    "Factoring Amount",
+    "Other Deductions",
+    "Deduction Details",
+    "Total Deductions",
     "Profit",
     "Invoice Sent",
     "Client Collected",
@@ -145,6 +153,11 @@ export async function GET(request: Request) {
     ...filteredRows.map((load) => {
       const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
       const outstanding = load.status === "Cancelled" ? 0 : clientOutstanding(load.load_rate, payment);
+      const customDeductions = [...load.load_deductions].sort((a, b) => a.position - b.position);
+      const otherDeductions = deductionsTotal(customDeductions);
+      const deductionDetails = customDeductions
+        .map((deduction) => `${deduction.label}: ${Number(deduction.amount).toFixed(2)}`)
+        .join("; ");
 
       return csvRow([
         load.load_number,
@@ -166,6 +179,11 @@ export async function GET(request: Request) {
         load.driver_pay,
         load.dispatcher_fee,
         load.fuel_cost,
+        load.factoring_percent,
+        load.factoring_amount,
+        otherDeductions,
+        deductionDetails,
+        totalDeductionsForLoad(load),
         profitForLoad(load),
         Boolean(payment?.invoice_sent),
         clientCollected(load.load_rate, payment),

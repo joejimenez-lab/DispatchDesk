@@ -10,6 +10,9 @@ export function SummaryTotals({ summaries }: { summaries: WeeklyDriverFinancialS
       driverPayTotal: totals.driverPayTotal + summary.driverPayTotal,
       dispatcherFeeTotal: totals.dispatcherFeeTotal + summary.dispatcherFeeTotal,
       fuelCostTotal: totals.fuelCostTotal + summary.fuelCostTotal,
+      factoringTotal: totals.factoringTotal + summary.factoringTotal,
+      otherDeductionTotal: totals.otherDeductionTotal + summary.otherDeductionTotal,
+      totalDeductionsTotal: totals.totalDeductionsTotal + summary.totalDeductionsTotal,
       estimatedProfitTotal: totals.estimatedProfitTotal + summary.estimatedProfitTotal,
     }),
     {
@@ -18,6 +21,9 @@ export function SummaryTotals({ summaries }: { summaries: WeeklyDriverFinancialS
       driverPayTotal: 0,
       dispatcherFeeTotal: 0,
       fuelCostTotal: 0,
+      factoringTotal: 0,
+      otherDeductionTotal: 0,
+      totalDeductionsTotal: 0,
       estimatedProfitTotal: 0,
     },
   );
@@ -28,11 +34,14 @@ export function SummaryTotals({ summaries }: { summaries: WeeklyDriverFinancialS
     ["Driver Pay", currency(totals.driverPayTotal)],
     ["Dispatcher Fee", currency(totals.dispatcherFeeTotal)],
     ["Fuel Cost", currency(totals.fuelCostTotal)],
+    ["Factoring", currency(totals.factoringTotal)],
+    ["Other Deductions", currency(totals.otherDeductionTotal)],
+    ["Total Deductions", currency(totals.totalDeductionsTotal)],
     ["Estimated Profit", currency(totals.estimatedProfitTotal)],
   ];
 
   return (
-    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-9">
       {cards.map(([label, value]) => (
         <div key={label} className="rounded-lg border border-zinc-200 bg-white p-4">
           <div className="text-xs font-semibold uppercase text-zinc-500">{label}</div>
@@ -72,11 +81,14 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
             {summary.loadCount === 1 ? "" : "s"}
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
           <Metric label="Load rate" value={currency(summary.loadRateTotal)} />
           <Metric label="Driver pay" value={currency(summary.driverPayTotal)} />
           <Metric label="Dispatcher fee" value={currency(summary.dispatcherFeeTotal)} />
           <Metric label="Fuel" value={currency(summary.fuelCostTotal)} />
+          <Metric label="Factoring" value={currency(summary.factoringTotal)} />
+          <Metric label="Other deductions" value={currency(summary.otherDeductionTotal)} />
+          <Metric label="Total deductions" value={currency(summary.totalDeductionsTotal)} />
           <Metric label="Profit" value={currency(summary.estimatedProfitTotal)} />
         </div>
       </div>
@@ -91,6 +103,8 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
               <th className="px-4 py-3 text-right">Driver Pay</th>
               <th className="px-4 py-3 text-right">Dispatcher Fee</th>
               <th className="px-4 py-3 text-right">Fuel</th>
+              <th className="px-4 py-3 text-right">Factoring</th>
+              <th className="px-4 py-3 text-right">Other Deductions</th>
               <th className="px-4 py-3 text-right">Profit</th>
             </tr>
           </thead>
@@ -113,6 +127,8 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
                 <td className="px-4 py-3 text-right text-zinc-700">{currency(load.driverPay)}</td>
                 <td className="px-4 py-3 text-right text-zinc-700">{currency(load.dispatcherFee)}</td>
                 <td className="px-4 py-3 text-right text-zinc-700">{currency(load.fuelCost)}</td>
+                <td className="px-4 py-3 text-right text-zinc-700">{currency(load.factoringAmount)}</td>
+                <td className="px-4 py-3 text-right text-zinc-700">{currency(load.otherDeductionTotal)}</td>
                 <td className="px-4 py-3 text-right font-semibold text-zinc-950">{currency(load.estimatedProfit)}</td>
               </tr>
             ))}

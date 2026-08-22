@@ -6,7 +6,7 @@ import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import { StatusBadge } from "@/components/status-badge";
 import { addNote, deleteDocument, deleteLoad, updatePaymentFlag, uploadDocument } from "@/lib/actions/loads";
 import { getLoad, getLoadRelated } from "@/lib/data/loads";
-import { clientCollected, clientOutstanding, profitForLoad } from "@/lib/financials";
+import { clientCollected, clientOutstanding, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
 import { currency, formatDate } from "@/lib/utils";
 import { documentCategories } from "@/types/database";
 
@@ -68,6 +68,7 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
   const [load, related] = await Promise.all([getLoad(id), getLoadRelated(id)]);
   const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
   const profit = profitForLoad(load);
+  const totalDeductions = totalDeductionsForLoad(load);
   const collected = clientCollected(load.load_rate, payment);
   const outstanding = load.status === "Cancelled" ? 0 : clientOutstanding(load.load_rate, payment);
   const returnLocation = load.return_location || load.pickup_location;
@@ -176,7 +177,12 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
               <Detail label="Driver Pay" value={currency(load.driver_pay)} />
               <Detail label="Dispatcher Fee" value={currency(load.dispatcher_fee)} />
               <Detail label="Load fuel estimate" value={currency(load.fuel_cost)} />
-              <Detail label="Profit" value={<span className={profit >= 0 ? "text-green-700" : "text-red-700"}>{currency(profit)}</span>} />
+              <Detail label={`Factoring (${Number(load.factoring_percent).toFixed(2)}%)`} value={currency(load.factoring_amount)} />
+              {load.load_deductions.map((deduction) => (
+                <Detail key={deduction.id} label={`Other: ${deduction.label}`} value={currency(deduction.amount)} />
+              ))}
+              <Detail label="Total Deductions" value={currency(totalDeductions)} />
+              <Detail label="Estimated Profit" value={<span className={profit >= 0 ? "text-green-700" : "text-red-700"}>{currency(profit)}</span>} />
               <Detail label="Client Collected" value={currency(collected)} />
               <Detail label="Client Outstanding" value={currency(outstanding)} />
               <PaymentToggle

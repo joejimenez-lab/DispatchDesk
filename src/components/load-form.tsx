@@ -2,6 +2,7 @@ import { ActionForm } from "@/components/action-form";
 import { LinkButton } from "@/components/button";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/field";
 import { SubmitButton } from "@/components/form-buttons";
+import { LoadFinancialFields } from "@/components/load-financial-fields";
 import { LocationAutocomplete } from "@/components/location-autocomplete";
 import type { ActionState } from "@/lib/actions/state";
 import { inputDate } from "@/lib/utils";
@@ -9,6 +10,7 @@ import { loadStatuses, type Database } from "@/types/database";
 
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Database["public"]["Tables"]["payments"]["Row"];
+type DeductionRow = Database["public"]["Tables"]["load_deductions"]["Row"];
 
 type LoadFormProps = {
   action: (state: ActionState, formData: FormData) => ActionState | Promise<ActionState>;
@@ -16,10 +18,11 @@ type LoadFormProps = {
   brokers: { id: string; company_name: string }[];
   load?: LoadRow;
   payment?: PaymentRow | null;
+  deductions?: DeductionRow[];
   showPayments?: boolean;
 };
 
-export function LoadForm({ action, drivers, brokers, load, payment, showPayments = false }: LoadFormProps) {
+export function LoadForm({ action, drivers, brokers, load, payment, deductions = [], showPayments = false }: LoadFormProps) {
   return (
     <ActionForm action={action} className="space-y-8" successMessage={false}>
       <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 md:grid-cols-2">
@@ -78,19 +81,14 @@ export function LoadForm({ action, drivers, brokers, load, payment, showPayments
             placeholder="Return appointment, backhaul notes, deadhead instructions, or other return details"
           />
         </Field>
-        <Field label="Load Rate (Total)">
-          <Input type="number" step="0.01" min="0" name="load_rate" defaultValue={load?.load_rate ?? 0} />
-        </Field>
-        <Field label="Driver Pay">
-          <Input type="number" step="0.01" min="0" name="driver_pay" defaultValue={load?.driver_pay ?? 0} />
-        </Field>
-        <Field label="Dispatcher Fee">
-          <Input type="number" step="0.01" min="0" name="dispatcher_fee" defaultValue={load?.dispatcher_fee ?? 0} />
-        </Field>
-        <Field label="Load fuel estimate / allocation">
-          <Input type="number" step="0.01" min="0" name="fuel_cost" defaultValue={load?.fuel_cost ?? 0} />
-          <span className="mt-1 block text-xs text-zinc-500">Used only for estimated load profitability. Actual fuel spending is recorded through IFTA and Bookkeeping.</span>
-        </Field>
+        <LoadFinancialFields
+          loadRate={load?.load_rate}
+          driverPay={load?.driver_pay}
+          dispatcherFee={load?.dispatcher_fee}
+          fuelCost={load?.fuel_cost}
+          factoringPercent={load?.factoring_percent}
+          deductions={deductions}
+        />
         <Field label="Notes" className="md:col-span-2">
           <Textarea name="notes" defaultValue={load?.notes ?? ""} />
         </Field>

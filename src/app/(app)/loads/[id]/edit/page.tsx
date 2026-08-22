@@ -20,6 +20,7 @@ export default async function EditLoadPage({ params }: { params: Promise<{ id: s
         brokers={options.brokers}
         load={load}
         payment={payment}
+        deductions={load.load_deductions}
         showPayments
       />
     </div>

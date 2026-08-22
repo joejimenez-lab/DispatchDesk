@@ -40,6 +40,9 @@ describe("/api/loads/export", () => {
           driver_pay: 500,
           dispatcher_fee: 100,
           fuel_cost: 50,
+          factoring_percent: 3,
+          factoring_amount: 30,
+          load_deductions: [{ label: "=Lumper", amount: 20, position: 0 }],
           notes: "=Notes",
           payments: {
             invoice_sent: true,
@@ -67,6 +70,8 @@ describe("/api/loads/export", () => {
     expect(csv).toContain("' =Pickup");
     expect(csv).toContain("'\u0000@Delivery");
     expect(csv).toContain("'=Notes");
-    expect(csv).toContain(",1000,500,100,50,350,true,0,1000,false,false,false,");
+    expect(csv).toContain("'=Lumper: 20.00");
+    expect(csv).toContain(",1000,500,100,50,3,30,20,");
+    expect(csv).toContain(",50,300,true,0,1000,false,false,false,");
   });
 });
