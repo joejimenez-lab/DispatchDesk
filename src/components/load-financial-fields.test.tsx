@@ -21,6 +21,9 @@ describe("LoadFinancialFields", () => {
     expect(screen.getAllByText("$37.52")).toHaveLength(2);
     expect(screen.getByText("$563.03")).toBeTruthy();
     expect(screen.getByText("%")).toBeTruthy();
+    const factoringGroup = screen.getByRole("group", { name: "Factoring" });
+    expect(factoringGroup.contains(screen.getByLabelText("Factoring type"))).toBe(true);
+    expect(factoringGroup.contains(screen.getByLabelText("Factoring percentage"))).toBe(true);
 
     fireEvent.change(screen.getByLabelText("Load Rate (Total)"), { target: { value: "2000" } });
 

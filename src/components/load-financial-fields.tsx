@@ -103,20 +103,20 @@ export function LoadFinancialFields({
         <Input type="number" step="0.01" min="0" name="fuel_cost" value={fuel} onChange={(event) => setFuel(event.target.value)} />
         <span className="mt-1 block text-xs font-normal text-zinc-500">Used only for estimated load profitability. Actual fuel spending is recorded through IFTA and Bookkeeping.</span>
       </Field>
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] md:col-span-2">
-        <Field label="Factoring type">
+      <fieldset className="md:col-span-2">
+        <legend className="text-[13px] font-semibold text-[#45475d]">Factoring</legend>
+        <div className="mt-1.5 grid overflow-hidden rounded-xl border border-[#dfe1ed] bg-white shadow-sm transition focus-within:border-[#6757e8] focus-within:ring-2 focus-within:ring-[#dcd7ff]/70 sm:grid-cols-[12rem_minmax(0,1fr)]">
           <Select
             name="factoring_mode"
             value={factoringType}
             onChange={(event) => setFactoringType(event.target.value as FactoringMode)}
             aria-label="Factoring type"
+            className="mt-0 rounded-none border-0 shadow-none focus:ring-0 sm:border-r sm:border-[#dfe1ed]"
           >
             <option value="percentage">Percentage</option>
             <option value="amount">Fixed amount</option>
           </Select>
-        </Field>
-        <Field label={factoringType === "percentage" ? "Factoring percentage" : "Factoring amount"}>
-          <div className="relative">
+          <div className="relative border-t border-[#dfe1ed] sm:border-t-0">
             <Input
               type="number"
               step="0.01"
@@ -128,28 +128,30 @@ export function LoadFinancialFields({
                 if (factoringType === "percentage") setFactoringPercentage(event.target.value);
                 else setFactoringFixed(event.target.value);
               }}
-              className={factoringType === "percentage" ? "pr-9" : "pl-8"}
+              className={`mt-0 rounded-none border-0 shadow-none focus:ring-0 ${
+                factoringType === "percentage" ? "pr-9" : "pl-8"
+              }`}
               aria-label={factoringType === "percentage" ? "Factoring percentage" : "Factoring amount"}
             />
             <span
               aria-hidden="true"
-              className={`pointer-events-none absolute top-1/2 mt-[3px] -translate-y-1/2 text-sm font-semibold text-zinc-500 ${
+              className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm font-semibold text-zinc-500 ${
                 factoringType === "percentage" ? "right-3" : "left-3"
               }`}
             >
               {factoringType === "percentage" ? "%" : "$"}
             </span>
           </div>
-          <span className="mt-1 block text-xs font-normal text-zinc-500">
-            {factoringType === "percentage" ? "Calculated deduction" : "Fixed deduction"}: {currency(factoringDeduction)}
-          </span>
-        </Field>
+        </div>
+        <p className="mt-1 text-xs font-normal text-zinc-500">
+          {factoringType === "percentage" ? "Calculated deduction" : "Fixed deduction"}: {currency(factoringDeduction)}
+        </p>
         {factoringType === "percentage" ? (
           <input type="hidden" name="factoring_fixed_amount" value="0" />
         ) : (
           <input type="hidden" name="factoring_percent" value="0" />
         )}
-      </div>
+      </fieldset>
 
       <fieldset className="space-y-3 md:col-span-2">
         <div>
