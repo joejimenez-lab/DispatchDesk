@@ -103,7 +103,7 @@ export function LoadFinancialFields({
         <Input type="number" step="0.01" min="0" name="fuel_cost" value={fuel} onChange={(event) => setFuel(event.target.value)} />
         <span className="mt-1 block text-xs font-normal text-zinc-500">Used only for estimated load profitability. Actual fuel spending is recorded through IFTA and Bookkeeping.</span>
       </Field>
-      <fieldset className="md:col-span-2">
+      <fieldset className="w-full max-w-lg md:col-span-2">
         <legend className="text-[13px] font-semibold text-[#45475d]">Factoring</legend>
         <div className="mt-1.5 grid overflow-hidden rounded-xl border border-[#dfe1ed] bg-white shadow-sm transition focus-within:border-[#6757e8] focus-within:ring-2 focus-within:ring-[#dcd7ff]/70 sm:grid-cols-[12rem_minmax(0,1fr)]">
           <Select
