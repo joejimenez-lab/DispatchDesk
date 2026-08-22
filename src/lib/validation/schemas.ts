@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { iftaStateCodes } from "@/lib/ifta";
+import { factoringModes } from "@/lib/financials";
 import { documentCategories, expenseCategories, loadStatuses, maintenanceReminderTypes, repairLogTypes, unitTypes } from "@/types/database";
 
-const money = z.coerce.number().min(0).default(0);
+const money = z.coerce.number().min(0).multipleOf(0.01, "Use no more than two decimal places").default(0);
 const positiveMoney = z.coerce.number().positive("Amount must be greater than zero");
 const optionalText = z.string().trim().transform((value) => (value === "" ? null : value));
 const optionalUuid = z.string().transform((value) => (value === "" ? null : value)).nullable();
@@ -40,9 +41,25 @@ export const loadSchema = z.object({
   driver_pay: money,
   dispatcher_fee: money,
   fuel_cost: money,
+  factoring_mode: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.enum(factoringModes).default("percentage"),
+  ),
+  factoring_percent: z.coerce
+    .number()
+    .min(0, "Factoring percent cannot be negative")
+    .max(100, "Factoring percent cannot exceed 100%")
+    .multipleOf(0.01, "Use no more than two decimal places")
+    .default(0),
+  factoring_fixed_amount: money,
   notes: optionalText,
   status: z.enum(loadStatuses),
 });
+
+export const loadDeductionsSchema = z.array(z.object({
+  label: z.string().trim().min(1, "Describe this deduction"),
+  amount: money,
+}));
 
 export const paymentSchema = z.object({
   invoice_sent: z.coerce.boolean().default(false),

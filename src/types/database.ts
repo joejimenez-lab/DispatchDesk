@@ -669,6 +669,54 @@ export type Database = {
           },
         ]
       }
+      load_deductions: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          label: string
+          load_id: string
+          organization_id: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          label: string
+          load_id: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          label?: string
+          load_id?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "load_deductions_load_id_fkey"
+            columns: ["load_id"]
+            isOneToOne: false
+            referencedRelation: "loads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "load_deductions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loads: {
         Row: {
           broker_id: string | null
@@ -679,6 +727,10 @@ export type Database = {
           dispatcher_fee: number
           driver_id: string | null
           driver_pay: number
+          factoring_amount: number
+          factoring_fixed_amount: number
+          factoring_mode: string
+          factoring_percent: number
           fuel_cost: number
           id: string
           is_round_trip: boolean
@@ -702,6 +754,10 @@ export type Database = {
           dispatcher_fee?: number
           driver_id?: string | null
           driver_pay?: number
+          factoring_amount?: number
+          factoring_fixed_amount?: number
+          factoring_mode?: string
+          factoring_percent?: number
           fuel_cost?: number
           id?: string
           is_round_trip?: boolean
@@ -725,6 +781,10 @@ export type Database = {
           dispatcher_fee?: number
           driver_id?: string | null
           driver_pay?: number
+          factoring_amount?: number
+          factoring_fixed_amount?: number
+          factoring_mode?: string
+          factoring_percent?: number
           fuel_cost?: number
           id?: string
           is_round_trip?: boolean
@@ -1234,6 +1294,10 @@ export type Database = {
         }
         Returns: Json
       }
+      create_load_with_deductions: {
+        Args: { p_deductions: Json; p_load: Json }
+        Returns: string
+      }
       create_manual_bookkeeping_expense: {
         Args: { p_expense: Json; p_group_id: string; p_receipt?: Json }
         Returns: string
@@ -1301,10 +1365,20 @@ export type Database = {
         Args: { p_expense: Json; p_group_id: string; p_lines: Json }
         Returns: undefined
       }
-      update_load_with_payment: {
-        Args: { p_load: Json; p_load_id: string; p_payment: Json }
-        Returns: undefined
-      }
+      update_load_with_payment:
+        | {
+            Args: { p_load: Json; p_load_id: string; p_payment: Json }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_deductions: Json
+              p_load: Json
+              p_load_id: string
+              p_payment: Json
+            }
+            Returns: undefined
+          }
     }
     Enums: {
       document_category:

@@ -65,14 +65,13 @@ select is(
   'new rows default to the signed-in organization'
 );
 
-select is(
-  (with changed as (
+select is_empty(
+  $$
     update public.loads
     set notes = 'cross-tenant update'
     where id = '14000000-0000-4000-8000-000000000001'
     returning 1
-  ) select count(*) from changed),
-  0::bigint,
+  $$,
   'production cannot update a demo row by a known ID'
 );
 

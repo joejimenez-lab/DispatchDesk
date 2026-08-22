@@ -17,7 +17,10 @@ const summary = {
   driverPayTotal: 1200,
   dispatcherFeeTotal: 240,
   fuelCostTotal: 300,
-  estimatedProfitTotal: 660,
+  factoringTotal: 72,
+  otherDeductionTotal: 40,
+  totalDeductionsTotal: 112,
+  estimatedProfitTotal: 548,
   loads: [],
 };
 

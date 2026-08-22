@@ -59,6 +59,9 @@ function loadFormData() {
   formData.set("driver_pay", "500");
   formData.set("dispatcher_fee", "100");
   formData.set("fuel_cost", "50");
+  formData.set("factoring_mode", "percentage");
+  formData.set("factoring_percent", "3");
+  formData.set("factoring_fixed_amount", "0");
   formData.set("notes", "");
   formData.set("status", "Booked");
   formData.set("invoice_sent_date", "");
@@ -115,14 +118,157 @@ describe("load and document actions", () => {
     createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
     const { updateLoad } = await import("./loads");
 
-    await updateLoad("load-1", initialActionState, loadFormData());
+    const formData = loadFormData();
+    formData.append("deduction_label", "Lumper fee");
+    formData.append("deduction_amount", "75");
+    await updateLoad("load-1", initialActionState, formData);
 
     expect(rpc).toHaveBeenCalledWith("update_load_with_payment", {
       p_load_id: "load-1",
-      p_load: expect.objectContaining({ load_number: "L-100", load_rate: 1000 }),
+      p_load: expect.objectContaining({
+        load_number: "L-100",
+        load_rate: 1000,
+        factoring_mode: "percentage",
+        factoring_percent: 3,
+        factoring_fixed_amount: 0,
+      }),
       p_payment: expect.objectContaining({ dispatcher_fee_amount: 100 }),
+      p_deductions: [{ label: "Lumper fee", amount: 75 }],
     });
     expect(redirect).toHaveBeenCalledWith("/loads/load-1");
+  });
+
+  it("creates a load and its deductions through one RPC", async () => {
+    rpc.mockResolvedValue({ data: "load-1", error: null });
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.append("deduction_label", "Scale fee");
+    formData.append("deduction_amount", "24.50");
+
+    await createLoad(initialActionState, formData);
+
+    expect(rpc).toHaveBeenCalledWith("create_load_with_deductions", {
+      p_load: expect.objectContaining({
+        load_number: "L-100",
+        factoring_mode: "percentage",
+        factoring_percent: 3,
+        factoring_fixed_amount: 0,
+      }),
+      p_deductions: [{ label: "Scale fee", amount: 24.5 }],
+    });
+    expect(redirect).toHaveBeenCalledWith("/loads/load-1");
+  });
+
+  it.each(["-1", "101"])("rejects an out-of-range factoring percentage of %s", async (factoringPercent) => {
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.set("factoring_percent", factoringPercent);
+
+    const result = await createLoad(initialActionState, formData);
+
+    expect(result.status).toBe("error");
+    expect(result.errors?.factoring_percent).toBeTruthy();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects factoring percentages beyond currency precision", async () => {
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.set("factoring_percent", "3.141");
+
+    const result = await createLoad(initialActionState, formData);
+
+    expect(result.errors?.factoring_percent).toEqual(["Use no more than two decimal places"]);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("persists a fixed factoring amount and clears the inactive percentage", async () => {
+    rpc.mockResolvedValue({ data: "load-1", error: null });
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.set("factoring_mode", "amount");
+    formData.set("factoring_percent", "0");
+    formData.set("factoring_fixed_amount", "85.75");
+
+    await createLoad(initialActionState, formData);
+
+    expect(rpc).toHaveBeenCalledWith("create_load_with_deductions", expect.objectContaining({
+      p_load: expect.objectContaining({
+        factoring_mode: "amount",
+        factoring_percent: 0,
+        factoring_fixed_amount: 85.75,
+      }),
+    }));
+  });
+
+  it("rejects fixed factoring amounts beyond currency precision", async () => {
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.set("factoring_mode", "amount");
+    formData.set("factoring_percent", "0");
+    formData.set("factoring_fixed_amount", "85.755");
+
+    const result = await createLoad(initialActionState, formData);
+
+    expect(result.errors?.factoring_fixed_amount).toEqual(["Use no more than two decimal places"]);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a custom deduction without a description", async () => {
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.append("deduction_label", " ");
+    formData.append("deduction_amount", "10");
+
+    const result = await createLoad(initialActionState, formData);
+
+    expect(result).toMatchObject({ status: "error", message: "Check the form and try again." });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a negative custom deduction amount", async () => {
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.append("deduction_label", "Lumper fee");
+    formData.append("deduction_amount", "-0.01");
+
+    const result = await createLoad(initialActionState, formData);
+
+    expect(result).toMatchObject({ status: "error", message: "Check the form and try again." });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects custom deduction amounts beyond currency precision", async () => {
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.append("deduction_label", "Lumper fee");
+    formData.append("deduction_amount", "10.005");
+
+    const result = await createLoad(initialActionState, formData);
+
+    expect(result).toMatchObject({ status: "error", message: "Check the form and try again." });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("drops a completely blank deduction row", async () => {
+    rpc.mockResolvedValue({ data: null, error: null });
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { updateLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.append("deduction_label", "");
+    formData.append("deduction_amount", "");
+
+    await updateLoad("load-1", initialActionState, formData);
+
+    expect(rpc).toHaveBeenCalledWith("update_load_with_payment", expect.objectContaining({ p_deductions: [] }));
   });
 
   it("returns an error when the atomic load update RPC fails", async () => {

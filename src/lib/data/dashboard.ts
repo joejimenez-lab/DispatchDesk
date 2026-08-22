@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { clientCollected, clientOutstanding } from "@/lib/financials";
+import { clientCollected, clientOutstanding, profitForLoad, roundCents, totalDeductionsForLoad } from "@/lib/financials";
 import { mapMaintenanceAlerts } from "@/lib/data/maintenance";
 import { getDashboardMaintenanceSummary } from "@/lib/maintenance";
 import type { LoadStatus } from "@/types/database";
@@ -18,6 +18,8 @@ type DashboardLoad = {
   driver_pay: number;
   dispatcher_fee: number;
   fuel_cost: number;
+  factoring_amount: number;
+  load_deductions: { amount: number }[];
   brokers: { company_name: string } | null;
   drivers: { name: string } | null;
   payments:
@@ -35,7 +37,7 @@ export async function getDashboardMetrics() {
   const [loadsResult, remindersResult] = await Promise.all([
     supabase
       .from("loads")
-      .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, load_rate, driver_pay, dispatcher_fee, fuel_cost, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
+      .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_amount, load_deductions(amount), brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
       .order("created_at", { ascending: false }),
     supabase
       .from("maintenance_reminders")
@@ -74,6 +76,8 @@ export async function getDashboardMetrics() {
         metrics.totalRevenue += Number(load.load_rate);
         metrics.collectedRevenue += clientCollected(load.load_rate, payment);
         metrics.outstandingRevenue += clientOutstanding(load.load_rate, payment);
+        metrics.totalDeductions = roundCents(metrics.totalDeductions + totalDeductionsForLoad(load));
+        metrics.estimatedProfit = roundCents(metrics.estimatedProfit + profitForLoad(load));
       }
 
       return metrics;
@@ -88,6 +92,8 @@ export async function getDashboardMetrics() {
       outstandingRevenue: 0,
       pendingDriverPayments: 0,
       pendingDispatcherFees: 0,
+      totalDeductions: 0,
+      estimatedProfit: 0,
     },
   );
 

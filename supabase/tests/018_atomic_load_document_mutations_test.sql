@@ -69,7 +69,8 @@ select throws_ok(
         "dispatcher_fee_amount": 100,
         "dispatcher_paid": false,
         "dispatcher_date_paid": null
-      }'::jsonb
+      }'::jsonb,
+      '[]'::jsonb
     )
   $$,
   '23514',
@@ -118,7 +119,8 @@ select lives_ok(
         "dispatcher_fee_amount": 100,
         "dispatcher_paid": false,
         "dispatcher_date_paid": null
-      }'::jsonb
+      }'::jsonb,
+      '[]'::jsonb
     )
   $$,
   'valid load, payment, and activity updates commit together'
@@ -219,7 +221,7 @@ reset role;
 set local role anon;
 
 select throws_ok(
-  $$select public.update_load_with_payment(null, '{}'::jsonb, '{}'::jsonb)$$,
+  $$select public.update_load_with_payment(null, '{}'::jsonb, '{}'::jsonb, '[]'::jsonb)$$,
   '42501',
   null,
   'anonymous users cannot execute atomic load updates'

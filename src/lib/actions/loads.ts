@@ -6,7 +6,7 @@ import { errorState, successState, type ActionState } from "@/lib/actions/state"
 import { validateUploadedDocument } from "@/lib/document-security";
 import { logError } from "@/lib/logger";
 import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
-import { documentSchema, loadSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
+import { documentSchema, loadDeductionsSchema, loadSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
 import { loadStatuses, type Database, type LoadStatus } from "@/types/database";
 
 type PaymentFlag = "invoice_sent" | "client_paid" | "driver_paid" | "dispatcher_paid";
@@ -113,6 +113,9 @@ function loadPayload(formData: FormData) {
     driver_pay: value(formData, "driver_pay"),
     dispatcher_fee: value(formData, "dispatcher_fee"),
     fuel_cost: value(formData, "fuel_cost"),
+    factoring_mode: value(formData, "factoring_mode"),
+    factoring_percent: value(formData, "factoring_percent"),
+    factoring_fixed_amount: value(formData, "factoring_fixed_amount"),
     notes: value(formData, "notes"),
     status: value(formData, "status"),
   });
@@ -122,6 +125,19 @@ function loadPayload(formData: FormData) {
     return_location: load.is_round_trip ? (load.return_location || load.pickup_location) : null,
     round_trip_details: load.is_round_trip ? load.round_trip_details : null,
   };
+}
+
+function deductionEntries(formData: FormData) {
+  const labels = formData.getAll("deduction_label");
+  const amounts = formData.getAll("deduction_amount");
+  const rowCount = Math.max(labels.length, amounts.length);
+  const rows = Array.from({ length: rowCount }, (_, index) => {
+    const label = typeof labels[index] === "string" ? labels[index] : "";
+    const amount = typeof amounts[index] === "string" ? amounts[index] : "";
+    return { label, amount };
+  }).filter((row) => row.label.trim() !== "" || row.amount.trim() !== "");
+
+  return loadDeductionsSchema.parse(rows);
 }
 
 function paymentPayload(formData: FormData) {
@@ -146,10 +162,15 @@ export async function createLoad(_state: ActionState, formData: FormData): Promi
   try {
     const { supabase } = await createAuthenticatedClient();
     const payload = loadPayload(formData);
+    const deductions = deductionEntries(formData);
 
-    const { data, error } = await supabase.from("loads").insert(payload).select("id").single();
+    const { data, error } = await supabase.rpc("create_load_with_deductions", {
+      p_load: payload,
+      p_deductions: deductions,
+    });
     if (error) return errorState(error, "Could not create load.");
-    loadId = data.id;
+    if (!data) return errorState(new Error("Load creation did not return an id."));
+    loadId = data;
   } catch (error) {
     return errorState(error, "Could not create load.");
   }
@@ -164,11 +185,13 @@ export async function updateLoad(loadId: string, _state: ActionState, formData: 
     const { supabase } = await createAuthenticatedClient();
     const load = loadPayload(formData);
     const payment = paymentPayload(formData);
+    const deductions = deductionEntries(formData);
 
     const { error } = await supabase.rpc("update_load_with_payment", {
       p_load_id: loadId,
       p_load: load,
       p_payment: payment,
+      p_deductions: deductions,
     });
     if (error) {
       logError("load.update_failed", error, { loadId });
