@@ -22,7 +22,9 @@ type ExportLoad = {
   driver_pay: number;
   dispatcher_fee: number;
   fuel_cost: number;
+  factoring_mode: "percentage" | "amount";
   factoring_percent: number;
+  factoring_fixed_amount: number;
   factoring_amount: number;
   load_deductions: { label: string; amount: number; position: number }[];
   carrier_company: string | null;
@@ -77,7 +79,7 @@ export async function GET(request: Request) {
   const { supabase } = auth;
   let query = supabase
     .from("loads")
-    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_percent, factoring_amount, load_deductions(label, amount, position), carrier_company, notes, brokers(company_name, contact_name), drivers(name, truck_number, trailer_number), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
+    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, notes, brokers(company_name, contact_name), drivers(name, truck_number, trailer_number), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
     .order("created_at", { ascending: false });
 
   const status = searchParams.get("status");
@@ -133,7 +135,8 @@ export async function GET(request: Request) {
     "Driver Pay",
     "Dispatcher Fee",
     "Fuel Cost",
-    "Factoring %",
+    "Factoring Type",
+    "Factoring Input",
     "Factoring Amount",
     "Other Deductions",
     "Deduction Details",
@@ -179,7 +182,8 @@ export async function GET(request: Request) {
         load.driver_pay,
         load.dispatcher_fee,
         load.fuel_cost,
-        load.factoring_percent,
+        load.factoring_mode === "amount" ? "Fixed amount" : "Percentage",
+        load.factoring_mode === "amount" ? load.factoring_fixed_amount : `${load.factoring_percent}%`,
         load.factoring_amount,
         otherDeductions,
         deductionDetails,

@@ -16,7 +16,9 @@ type WeeklyFinancialLoad = {
   driver_pay: number;
   dispatcher_fee: number;
   fuel_cost: number;
+  factoring_mode: "percentage" | "amount";
   factoring_percent: number;
+  factoring_fixed_amount: number;
   factoring_amount: number;
   load_deductions: { label: string; amount: number; position: number }[];
   created_at: string;
@@ -51,7 +53,9 @@ export type WeeklyDriverFinancialSummary = {
     driverPay: number;
     dispatcherFee: number;
     fuelCost: number;
+    factoringMode: "percentage" | "amount";
     factoringPercent: number;
+    factoringFixedAmount: number;
     factoringAmount: number;
     otherDeductions: { label: string; amount: number }[];
     otherDeductionTotal: number;
@@ -176,7 +180,7 @@ export async function getWeeklyDriverFinancialSummary(
 
   let query = supabase
     .from("loads")
-    .select("id, load_number, status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_percent, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, drivers(name, truck_number)")
+    .select("id, load_number, status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, drivers(name, truck_number)")
     .neq("status", "Cancelled")
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("pickup_date", { ascending: false, nullsFirst: false })
@@ -252,7 +256,9 @@ export async function getWeeklyDriverFinancialSummary(
       driverPay: Number(load.driver_pay),
       dispatcherFee: Number(load.dispatcher_fee),
       fuelCost: Number(load.fuel_cost),
+      factoringMode: load.factoring_mode,
       factoringPercent: Number(load.factoring_percent),
+      factoringFixedAmount: Number(load.factoring_fixed_amount),
       factoringAmount: Number(load.factoring_amount),
       otherDeductions,
       otherDeductionTotal,

@@ -4,6 +4,7 @@ import {
   clientOutstanding,
   deductionsTotal,
   factoringAmount,
+  factoringDeductionAmount,
   isClientPaymentPaid,
   profitForLoad,
   roundCents,
@@ -26,6 +27,12 @@ describe("load financials", () => {
     expect(factoringAmount(1_250.55, 3)).toBe(37.52);
     expect(factoringAmount(100.5, 1)).toBe(1.01);
     expect(roundCents(1.005)).toBe(1.01);
+  });
+
+  it("uses a fixed factoring amount without changing it when the load rate changes", () => {
+    expect(factoringDeductionAmount(1_000, "amount", 0, 85.755)).toBe(85.76);
+    expect(factoringDeductionAmount(2_000, "amount", 0, 85.755)).toBe(85.76);
+    expect(factoringDeductionAmount(2_000, "percentage", 3, 0)).toBe(60);
   });
 
   it("totals fixed and combined deductions", () => {

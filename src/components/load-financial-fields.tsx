@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Field, Input } from "@/components/field";
-import { factoringAmount, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
+import { Field, Input, Select } from "@/components/field";
+import { factoringDeductionAmount, profitForLoad, totalDeductionsForLoad, type FactoringMode } from "@/lib/financials";
 import { currency } from "@/lib/utils";
 
 type Deduction = {
@@ -27,14 +27,18 @@ export function LoadFinancialFields({
   driverPay = 0,
   dispatcherFee = 0,
   fuelCost = 0,
+  factoringMode = "percentage",
   factoringPercent = 0,
+  factoringFixedAmount = 0,
   deductions = [],
 }: {
   loadRate?: number;
   driverPay?: number;
   dispatcherFee?: number;
   fuelCost?: number;
+  factoringMode?: FactoringMode;
   factoringPercent?: number;
+  factoringFixedAmount?: number;
   deductions?: Deduction[];
 }) {
   const nextKey = useRef(deductions.length);
@@ -42,7 +46,9 @@ export function LoadFinancialFields({
   const [driver, setDriver] = useState(String(driverPay));
   const [dispatcher, setDispatcher] = useState(String(dispatcherFee));
   const [fuel, setFuel] = useState(String(fuelCost));
-  const [factoring, setFactoring] = useState(String(factoringPercent));
+  const [factoringType, setFactoringType] = useState<FactoringMode>(factoringMode);
+  const [factoringPercentage, setFactoringPercentage] = useState(String(factoringPercent));
+  const [factoringFixed, setFactoringFixed] = useState(String(factoringFixedAmount));
   const [rows, setRows] = useState<DeductionRow[]>(() =>
     deductions.map((deduction, index) => ({
       key: index,
@@ -52,7 +58,12 @@ export function LoadFinancialFields({
   );
 
   const rateAmount = numberValue(rate);
-  const factoringDeduction = factoringAmount(rateAmount, numberValue(factoring));
+  const factoringDeduction = factoringDeductionAmount(
+    rateAmount,
+    factoringType,
+    numberValue(factoringPercentage),
+    numberValue(factoringFixed),
+  );
   const customDeductions = rows.map((row) => ({ amount: numberValue(row.amount) }));
   const totalDeductions = totalDeductionsForLoad({
     factoring_amount: factoringDeduction,
@@ -92,18 +103,53 @@ export function LoadFinancialFields({
         <Input type="number" step="0.01" min="0" name="fuel_cost" value={fuel} onChange={(event) => setFuel(event.target.value)} />
         <span className="mt-1 block text-xs font-normal text-zinc-500">Used only for estimated load profitability. Actual fuel spending is recorded through IFTA and Bookkeeping.</span>
       </Field>
-      <Field label="Factoring percentage">
-        <Input
-          type="number"
-          step="0.01"
-          min="0"
-          max="100"
-          name="factoring_percent"
-          value={factoring}
-          onChange={(event) => setFactoring(event.target.value)}
-        />
-        <span className="mt-1 block text-xs font-normal text-zinc-500">Calculated deduction: {currency(factoringDeduction)}</span>
-      </Field>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] md:col-span-2">
+        <Field label="Factoring type">
+          <Select
+            name="factoring_mode"
+            value={factoringType}
+            onChange={(event) => setFactoringType(event.target.value as FactoringMode)}
+            aria-label="Factoring type"
+          >
+            <option value="percentage">Percentage</option>
+            <option value="amount">Fixed amount</option>
+          </Select>
+        </Field>
+        <Field label={factoringType === "percentage" ? "Factoring percentage" : "Factoring amount"}>
+          <div className="relative">
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              max={factoringType === "percentage" ? "100" : undefined}
+              name={factoringType === "percentage" ? "factoring_percent" : "factoring_fixed_amount"}
+              value={factoringType === "percentage" ? factoringPercentage : factoringFixed}
+              onChange={(event) => {
+                if (factoringType === "percentage") setFactoringPercentage(event.target.value);
+                else setFactoringFixed(event.target.value);
+              }}
+              className={factoringType === "percentage" ? "pr-9" : "pl-8"}
+              aria-label={factoringType === "percentage" ? "Factoring percentage" : "Factoring amount"}
+            />
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none absolute top-1/2 mt-[3px] -translate-y-1/2 text-sm font-semibold text-zinc-500 ${
+                factoringType === "percentage" ? "right-3" : "left-3"
+              }`}
+            >
+              {factoringType === "percentage" ? "%" : "$"}
+            </span>
+          </div>
+          <span className="mt-1 block text-xs font-normal text-zinc-500">
+            {factoringType === "percentage" ? "Calculated deduction" : "Fixed deduction"}: {currency(factoringDeduction)}
+          </span>
+        </Field>
+        {factoringType === "percentage" ? (
+          <input type="hidden" name="factoring_fixed_amount" value="0" />
+        ) : (
+          <input type="hidden" name="factoring_percent" value="0" />
+        )}
+      </div>
 
       <fieldset className="space-y-3 md:col-span-2">
         <div>

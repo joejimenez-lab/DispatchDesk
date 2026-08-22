@@ -177,7 +177,14 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
               <Detail label="Driver Pay" value={currency(load.driver_pay)} />
               <Detail label="Dispatcher Fee" value={currency(load.dispatcher_fee)} />
               <Detail label="Load fuel estimate" value={currency(load.fuel_cost)} />
-              <Detail label={`Factoring (${Number(load.factoring_percent).toFixed(2)}%)`} value={currency(load.factoring_amount)} />
+              <Detail
+                label={
+                  load.factoring_mode === "amount"
+                    ? "Factoring (fixed amount)"
+                    : `Factoring (${Number(load.factoring_percent).toFixed(2)}%)`
+                }
+                value={currency(load.factoring_amount)}
+              />
               {load.load_deductions.map((deduction) => (
                 <Detail key={deduction.id} label={`Other: ${deduction.label}`} value={currency(deduction.amount)} />
               ))}

@@ -43,7 +43,9 @@ describe("/api/reports/weekly/export", () => {
               driverPay: 500,
               dispatcherFee: 100,
               fuelCost: 50,
+              factoringMode: "amount",
               factoringPercent: 3,
+              factoringFixedAmount: 30,
               factoringAmount: 30,
               otherDeductions: [{ label: "=Lumper", amount: 20 }],
               otherDeductionTotal: 20,
@@ -65,7 +67,7 @@ describe("/api/reports/weekly/export", () => {
     expect(csv).toContain("' @Return");
     expect(csv).toContain("'\t-Details");
     expect(csv).toContain("'=Lumper: 20.00");
-    expect(csv).toContain(",1000,500,100,50,3,30,20,");
+    expect(csv).toContain(",1000,500,100,50,Fixed amount,30,30,20,");
     expect(csv).toContain(",50,300,1000,500,100,50,30,20,50,300");
   });
 });

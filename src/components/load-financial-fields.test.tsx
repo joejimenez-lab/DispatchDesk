@@ -20,11 +20,49 @@ describe("LoadFinancialFields", () => {
 
     expect(screen.getAllByText("$37.52")).toHaveLength(2);
     expect(screen.getByText("$563.03")).toBeTruthy();
+    expect(screen.getByText("%")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Load Rate (Total)"), { target: { value: "2000" } });
 
     expect(screen.getAllByText("$60.00")).toHaveLength(2);
     expect(screen.getByText("$1,290.00")).toBeTruthy();
+  });
+
+  it("switches to a fixed factoring amount with a visible dollar symbol", () => {
+    render(
+      <LoadFinancialFields
+        loadRate={1_250.55}
+        driverPay={500}
+        dispatcherFee={100}
+        fuelCost={50}
+        factoringPercent={3}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Factoring type"), { target: { value: "amount" } });
+    fireEvent.change(screen.getByLabelText("Factoring amount"), { target: { value: "85.75" } });
+
+    expect(screen.getByText("$")).toBeTruthy();
+    expect(screen.getAllByText("$85.75")).toHaveLength(2);
+    expect(screen.getByText("$514.80")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Load Rate (Total)"), { target: { value: "2000" } });
+
+    expect(screen.getAllByText("$85.75")).toHaveLength(2);
+    expect(screen.getByText("$1,264.25")).toBeTruthy();
+  });
+
+  it("loads a saved fixed factoring amount for editing", () => {
+    render(
+      <LoadFinancialFields
+        factoringMode="amount"
+        factoringFixedAmount={125}
+      />,
+    );
+
+    expect(screen.getByLabelText("Factoring type")).toHaveProperty("value", "amount");
+    expect(screen.getByLabelText("Factoring amount")).toHaveProperty("value", "125");
+    expect(screen.getByText("$")).toBeTruthy();
   });
 
   it("adds, edits, and removes labeled deductions from the preview", () => {

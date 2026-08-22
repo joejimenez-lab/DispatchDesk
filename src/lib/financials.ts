@@ -5,12 +5,24 @@ type ClientPayment = {
 
 type DeductionAmount = { amount: number };
 
+export const factoringModes = ["percentage", "amount"] as const;
+export type FactoringMode = (typeof factoringModes)[number];
+
 export function roundCents(value: number) {
   return Math.round(Number((Number(value) * 100).toFixed(6))) / 100;
 }
 
 export function factoringAmount(loadRate: number, factoringPercent: number) {
   return roundCents((Number(loadRate) * Number(factoringPercent)) / 100);
+}
+
+export function factoringDeductionAmount(
+  loadRate: number,
+  mode: FactoringMode,
+  factoringPercent: number,
+  fixedAmount: number,
+) {
+  return mode === "amount" ? roundCents(Number(fixedAmount)) : factoringAmount(loadRate, factoringPercent);
 }
 
 export function deductionsTotal(deductions: readonly DeductionAmount[]) {

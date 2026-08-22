@@ -113,7 +113,9 @@ function loadPayload(formData: FormData) {
     driver_pay: value(formData, "driver_pay"),
     dispatcher_fee: value(formData, "dispatcher_fee"),
     fuel_cost: value(formData, "fuel_cost"),
+    factoring_mode: value(formData, "factoring_mode"),
     factoring_percent: value(formData, "factoring_percent"),
+    factoring_fixed_amount: value(formData, "factoring_fixed_amount"),
     notes: value(formData, "notes"),
     status: value(formData, "status"),
   });

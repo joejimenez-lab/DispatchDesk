@@ -728,6 +728,8 @@ export type Database = {
           driver_id: string | null
           driver_pay: number
           factoring_amount: number
+          factoring_fixed_amount: number
+          factoring_mode: string
           factoring_percent: number
           fuel_cost: number
           id: string
@@ -753,6 +755,8 @@ export type Database = {
           driver_id?: string | null
           driver_pay?: number
           factoring_amount?: number
+          factoring_fixed_amount?: number
+          factoring_mode?: string
           factoring_percent?: number
           fuel_cost?: number
           id?: string
@@ -778,6 +782,8 @@ export type Database = {
           driver_id?: string | null
           driver_pay?: number
           factoring_amount?: number
+          factoring_fixed_amount?: number
+          factoring_mode?: string
           factoring_percent?: number
           fuel_cost?: number
           id?: string
@@ -1359,15 +1365,20 @@ export type Database = {
         Args: { p_expense: Json; p_group_id: string; p_lines: Json }
         Returns: undefined
       }
-      update_load_with_payment: {
-        Args: {
-          p_deductions: Json
-          p_load: Json
-          p_load_id: string
-          p_payment: Json
-        }
-        Returns: undefined
-      }
+      update_load_with_payment:
+        | {
+            Args: { p_load: Json; p_load_id: string; p_payment: Json }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_deductions: Json
+              p_load: Json
+              p_load_id: string
+              p_payment: Json
+            }
+            Returns: undefined
+          }
     }
     Enums: {
       document_category:

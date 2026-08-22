@@ -86,7 +86,9 @@ export function LoadForm({ action, drivers, brokers, load, payment, deductions =
           driverPay={load?.driver_pay}
           dispatcherFee={load?.dispatcher_fee}
           fuelCost={load?.fuel_cost}
+          factoringMode={load?.factoring_mode === "amount" ? "amount" : "percentage"}
           factoringPercent={load?.factoring_percent}
+          factoringFixedAmount={load?.factoring_fixed_amount}
           deductions={deductions}
         />
         <Field label="Notes" className="md:col-span-2">
