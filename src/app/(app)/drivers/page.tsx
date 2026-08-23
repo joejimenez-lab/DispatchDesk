@@ -40,8 +40,8 @@ export default async function DriversPage({
               <Field label="Driver Name"><Input name="name" required /></Field>
               <Field label="Phone"><Input name="phone" /></Field>
               <Field label="Email"><Input type="email" name="email" /></Field>
-              <Field label="Truck Number"><Input name="truck_number" /></Field>
-              <Field label="Trailer Number"><Input name="trailer_number" /></Field>
+              <Field label="Default Truck (load suggestion)"><Input name="truck_number" /></Field>
+              <Field label="Default Trailer (load suggestion)"><Input name="trailer_number" /></Field>
               <Field label="Notes" className="md:col-span-3"><Textarea name="notes" /></Field>
               <SubmitButton className="md:w-fit" pendingText="Adding...">Add driver</SubmitButton>
             </ActionForm>
@@ -78,8 +78,8 @@ export default async function DriversPage({
                     <Field label="Name"><Input name="name" required defaultValue={driver.name} /></Field>
                     <Field label="Phone"><Input name="phone" defaultValue={driver.phone ?? ""} /></Field>
                     <Field label="Email"><Input name="email" defaultValue={driver.email ?? ""} /></Field>
-                    <Field label="Truck"><Input name="truck_number" defaultValue={driver.truck_number ?? ""} /></Field>
-                    <Field label="Trailer"><Input name="trailer_number" defaultValue={driver.trailer_number ?? ""} /></Field>
+                    <Field label="Default Truck"><Input name="truck_number" defaultValue={driver.truck_number ?? ""} /></Field>
+                    <Field label="Default Trailer"><Input name="trailer_number" defaultValue={driver.trailer_number ?? ""} /></Field>
                     <div className="flex items-end">
                       <SubmitButton variant="secondary">Save</SubmitButton>
                     </div>
@@ -101,8 +101,8 @@ export default async function DriversPage({
             <div className="mt-3 grid gap-3 border-t border-zinc-100 pt-3 sm:grid-cols-2 lg:grid-cols-5">
               <DetailItem label="Phone" value={driver.phone} />
               <DetailItem label="Email" value={driver.email} />
-              <DetailItem label="Truck" value={driver.truck_number} />
-              <DetailItem label="Trailer" value={driver.trailer_number} />
+              <DetailItem label="Default Truck" value={driver.truck_number} />
+              <DetailItem label="Default Trailer" value={driver.trailer_number} />
               <div className="min-w-0 sm:col-span-2 lg:col-span-1">
                 <div className="text-[12px] font-medium uppercase tracking-wide text-zinc-500">Notes</div>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">{driver.notes?.trim() || "No notes"}</p>

@@ -10,7 +10,7 @@ export default async function NewLoadPage() {
         <h1 className="text-2xl font-semibold text-zinc-950">Create Load</h1>
         <p className="text-sm text-zinc-600">Enter dispatch, lane, and financial details.</p>
       </div>
-      <LoadForm action={createLoad} drivers={options.drivers} brokers={options.brokers} />
+      <LoadForm action={createLoad} drivers={options.drivers} brokers={options.brokers} equipment={options.equipment} />
     </div>
   );
 }

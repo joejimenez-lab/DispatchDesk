@@ -19,7 +19,6 @@ export const runtime = "nodejs";
 const PERIODS: WeeklyFinancialPeriod[] = ["this", "last", "all", "custom"];
 const REPORTS = ["weekly-payroll", "weekly-financial", "client-billing", "maintenance", "yearly-financial"] as const;
 type Report = (typeof REPORTS)[number];
-type RouteSupabase = Extract<Awaited<ReturnType<typeof createAuthenticatedRouteClient>>, { supabase: unknown }>["supabase"];
 
 function normalizePeriod(value: string | null): WeeklyFinancialPeriod {
   return PERIODS.includes(value as WeeklyFinancialPeriod) ? (value as WeeklyFinancialPeriod) : "all";
@@ -66,22 +65,6 @@ function filterLabel({ from, to, fleet }: { from: string | null; to: string | nu
 }
 
 type Unit = { unit_number: string; unit_type: string; company: string | null } | null;
-
-async function truckNumbersForFleet(
-  supabase: RouteSupabase,
-  fleet: string | null,
-) {
-  if (!fleet) return null;
-
-  const { data, error } = await supabase
-    .from("fleet_units")
-    .select("unit_number")
-    .eq("unit_type", "Truck")
-    .eq("company", fleet);
-
-  if (error) throw error;
-  return new Set((data ?? []).map((unit) => unit.unit_number?.trim()).filter(Boolean));
-}
 
 export async function GET(request: Request, { params }: { params: Promise<{ report: string }> }) {
   const url = new URL(request.url);
@@ -239,13 +222,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
     }
 
     if (report === "client-billing") {
-      const fleetTruckNumbers = await truckNumbersForFleet(supabase, fleet);
-      const { data, error } = await supabase
+      let query = supabase
         .from("loads")
-        .select("load_number, status, pickup_date, delivery_date, created_at, load_rate, driver_id, brokers(company_name), drivers(truck_number), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
+        .select("load_number, status, pickup_date, delivery_date, created_at, load_rate, driver_id, fleet_company, brokers(company_name), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
         .neq("status", "Cancelled")
         .order("delivery_date", { ascending: false, nullsFirst: false })
         .order("pickup_date", { ascending: false, nullsFirst: false });
+      if (fleet) query = query.eq("fleet_company", fleet);
+      const { data, error } = await query;
       if (error) throw error;
 
       const rows: BillingRow[] = ((data ?? []) as unknown as {
@@ -256,17 +240,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         created_at: string;
         load_rate: number;
         driver_id: string | null;
+        fleet_company: string | null;
         brokers: { company_name: string | null } | null;
-        drivers: { truck_number: string | null } | null;
         payments: { invoice_sent: boolean; invoice_sent_date: string | null; client_paid: boolean; client_amount_received: number; client_date_received: string | null } | null;
       }[]).filter((load) => {
         const loadDate = load.delivery_date ?? load.pickup_date ?? load.created_at.slice(0, 10);
         if (range.from && loadDate < range.from) return false;
         if (range.to && loadDate > range.to) return false;
         if (searchParams.get("driver") && load.driver_id !== searchParams.get("driver")) return false;
-        if (!fleetTruckNumbers) return true;
-        const truckNumber = load.drivers?.truck_number?.trim();
-        return Boolean(truckNumber && fleetTruckNumbers.has(truckNumber));
+        return true;
       }).map((load) => ({
         loadNumber: load.load_number,
         loadDate: load.delivery_date ?? load.pickup_date ?? load.created_at.slice(0, 10),

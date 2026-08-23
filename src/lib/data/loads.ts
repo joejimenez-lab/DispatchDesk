@@ -5,7 +5,16 @@ import { ilikeOr, searchTokens } from "@/lib/search";
 import { isClientPaymentPaid } from "@/lib/financials";
 import type { Database, LoadStatus } from "@/types/database";
 
-const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "return_location", "carrier_company"];
+const LOAD_SEARCH_COLUMNS = [
+  "load_number",
+  "pickup_location",
+  "delivery_location",
+  "return_location",
+  "carrier_company",
+  "fleet_company",
+  "truck_number",
+  "trailer_number",
+];
 
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Pick<
@@ -33,6 +42,7 @@ export async function getLoads(params: {
   broker?: string;
   driver?: string;
   payment?: string;
+  fleet?: string;
 }) {
   const supabase = await createClient();
   let query = supabase
@@ -44,6 +54,7 @@ export async function getLoads(params: {
   if (params.status) query = query.eq("status", params.status as LoadStatus);
   if (params.broker) query = query.eq("broker_id", params.broker);
   if (params.driver) query = query.eq("driver_id", params.driver);
+  if (params.fleet) query = query.eq("fleet_company", params.fleet);
   // Each token must match at least one column; chained `.or()` calls are ANDed
   // together, so "Dallas Memphis" matches a load whose lane spans both cities.
   for (const token of searchTokens(params.q)) {

@@ -49,6 +49,9 @@ function loadFormData() {
   formData.set("broker_id", "");
   formData.set("carrier_company", "Carrier");
   formData.set("driver_id", "");
+  formData.set("fleet_company", "Fleet A");
+  formData.set("truck_unit_id", "00000000-0000-4000-8000-000000000101");
+  formData.set("trailer_unit_id", "00000000-0000-4000-8000-000000000501");
   formData.set("pickup_location", "Los Angeles, CA");
   formData.set("pickup_date", "");
   formData.set("delivery_location", "Phoenix, AZ");
@@ -131,6 +134,9 @@ describe("load and document actions", () => {
         factoring_mode: "percentage",
         factoring_percent: 3,
         factoring_fixed_amount: 0,
+        fleet_company: "Fleet A",
+        truck_unit_id: "00000000-0000-4000-8000-000000000101",
+        trailer_unit_id: "00000000-0000-4000-8000-000000000501",
       }),
       p_payment: expect.objectContaining({ dispatcher_fee_amount: 100 }),
       p_deductions: [{ label: "Lumper fee", amount: 75 }],
@@ -154,6 +160,9 @@ describe("load and document actions", () => {
         factoring_mode: "percentage",
         factoring_percent: 3,
         factoring_fixed_amount: 0,
+        fleet_company: "Fleet A",
+        truck_unit_id: "00000000-0000-4000-8000-000000000101",
+        trailer_unit_id: "00000000-0000-4000-8000-000000000501",
       }),
       p_deductions: [{ label: "Scale fee", amount: 24.5 }],
     });
@@ -281,6 +290,20 @@ describe("load and document actions", () => {
 
     expect(result).toEqual({ status: "error", message: "payment write failed" });
     expect(logError).toHaveBeenCalledWith("load.update_failed", error, { loadId: "load-1" });
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("returns a safe equipment message for database assignment violations", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "23514", message: "truck type mismatch" } });
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { updateLoad } = await import("./loads");
+
+    const result = await updateLoad("load-1", initialActionState, loadFormData());
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Choose a truck and trailer from the selected fleet and equipment types.",
+    });
     expect(redirect).not.toHaveBeenCalled();
   });
 

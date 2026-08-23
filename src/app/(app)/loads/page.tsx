@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { LinkButton } from "@/components/button";
 import { Field, Input, Select } from "@/components/field";
+import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
 import { LoadPaymentSelect } from "@/components/load-payment-select";
 import { LoadStatusSelect } from "@/components/load-status-select";
 import { getFormOptions } from "@/lib/data/options";
+import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import { getLoads, isLoadClientPaymentPaid } from "@/lib/data/loads";
 import { currency, formatDate } from "@/lib/utils";
 import { loadStatuses } from "@/types/database";
@@ -11,16 +13,19 @@ import { loadStatuses } from "@/types/database";
 export default async function LoadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; broker?: string; driver?: string; payment?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; broker?: string; driver?: string; payment?: string; fleet?: string }>;
 }) {
   const params = await searchParams;
-  const [loads, options] = await Promise.all([getLoads(params), getFormOptions()]);
+  const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
+  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
+  const loads = await getLoads({ ...params, fleet });
   const exportParams = new URLSearchParams();
   if (params.q) exportParams.set("q", params.q);
   if (params.status) exportParams.set("status", params.status);
   if (params.broker) exportParams.set("broker", params.broker);
   if (params.driver) exportParams.set("driver", params.driver);
   if (params.payment) exportParams.set("payment", params.payment);
+  if (fleet) exportParams.set("fleet", fleet);
   const exportHref = `/api/loads/export${exportParams.size ? `?${exportParams.toString()}` : ""}`;
   const roundTripSummary = (load: (typeof loads)[number]) =>
     load.is_round_trip ? `Returns to ${load.return_location || load.pickup_location}` : null;
@@ -45,7 +50,21 @@ export default async function LoadsPage({
         </div>
       </div>
 
+      <FleetScopeTabs
+        basePath="/loads"
+        companies={fleetCompanies}
+        selectedFleet={fleet}
+        params={{
+          q: params.q,
+          status: params.status,
+          broker: params.broker,
+          driver: params.driver,
+          payment: params.payment,
+        }}
+      />
+
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-6">
+        {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <Field label="Search">
           <Input name="q" defaultValue={params.q ?? ""} placeholder="Load, city, carrier" />
         </Field>
@@ -87,6 +106,7 @@ export default async function LoadsPage({
               <th className="px-4 py-3">Load</th>
               <th className="px-4 py-3">Broker</th>
               <th className="px-4 py-3">Driver</th>
+              <th className="px-4 py-3">Fleet / Equipment</th>
               <th className="px-4 py-3">Pickup</th>
               <th className="px-4 py-3">Delivery</th>
               <th className="px-4 py-3">Rate</th>
@@ -120,6 +140,17 @@ export default async function LoadsPage({
                 {linkedCell(load.id, load.drivers?.name ?? "Unassigned")}
                 {linkedCell(
                   load.id,
+                  <div className="min-w-32">
+                    <div className="font-medium text-zinc-900">{load.fleet_company ?? "Unassigned"}</div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      {[load.truck_number ? `Truck ${load.truck_number}` : null, load.trailer_number ? `Trailer ${load.trailer_number}` : null]
+                        .filter(Boolean)
+                        .join(" · ") || "No equipment"}
+                    </div>
+                  </div>,
+                )}
+                {linkedCell(
+                  load.id,
                   <div className="min-w-40">
                     <div className="font-medium text-zinc-900">{load.pickup_location}</div>
                     <div className="mt-1 text-xs text-zinc-500">{formatDate(load.pickup_date)}</div>
@@ -148,7 +179,7 @@ export default async function LoadsPage({
             ))}
             {!loads.length ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center">
+                <td colSpan={8} className="px-4 py-10 text-center">
                   <div className="text-sm font-medium text-zinc-900">No loads found</div>
                   <div className="mt-1 text-sm text-zinc-500">Adjust the filters or create a new load.</div>
                   <div className="mt-4 flex justify-center gap-2">

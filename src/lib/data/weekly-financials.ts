@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { deductionsTotal, profitForLoad, roundCents, totalDeductionsForLoad } from "@/lib/financials";
-import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import type { LoadStatus } from "@/types/database";
 
 type WeeklyFinancialLoad = {
@@ -23,7 +22,8 @@ type WeeklyFinancialLoad = {
   load_deductions: { label: string; amount: number; position: number }[];
   created_at: string;
   driver_id: string | null;
-  drivers: { name: string | null; truck_number: string | null } | null;
+  fleet_company: string | null;
+  drivers: { name: string | null } | null;
 };
 
 export type WeeklyDriverFinancialSummary = {
@@ -172,15 +172,10 @@ export async function getWeeklyDriverFinancialSummary(
   const range = resolveRange(filters);
   const driverId = normalizeDriverId(filters.driver);
   const fleetCompany = normalizeFleetCompany(filters.fleet);
-  let fleetTruckNumbers: Set<string> | null = null;
-
-  if (fleetCompany) {
-    fleetTruckNumbers = new Set(await getFleetTruckNumbers(fleetCompany));
-  }
 
   let query = supabase
     .from("loads")
-    .select("id, load_number, status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, drivers(name, truck_number)")
+    .select("id, load_number, status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, fleet_company, drivers(name)")
     .neq("status", "Cancelled")
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("pickup_date", { ascending: false, nullsFirst: false })
@@ -188,6 +183,7 @@ export async function getWeeklyDriverFinancialSummary(
 
   if (filters.driver && !driverId) return { summaries: [], range };
   if (driverId) query = query.eq("driver_id", driverId);
+  if (fleetCompany) query = query.eq("fleet_company", fleetCompany);
 
   const { data, error } = await query;
   if (error) throw error;
@@ -196,11 +192,6 @@ export async function getWeeklyDriverFinancialSummary(
   const loads = (data ?? []) as unknown as WeeklyFinancialLoad[];
 
   for (const load of loads) {
-    if (fleetTruckNumbers) {
-      const truckNumber = load.drivers?.truck_number?.trim();
-      if (!truckNumber || !fleetTruckNumbers.has(truckNumber)) continue;
-    }
-
     const date = dateForLoad(load);
     if (range.from && date < range.from) continue;
     if (range.to && date > range.to) continue;

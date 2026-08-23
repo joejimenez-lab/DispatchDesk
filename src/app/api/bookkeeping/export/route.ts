@@ -75,7 +75,7 @@ export async function GET(request: Request) {
       bookkeeping_expenses(*),
       bookkeeping_receipts(*),
       fleet_units(id, unit_number, unit_type, company),
-      loads(id, load_number, pickup_location, delivery_location, drivers(truck_number)),
+      loads(id, load_number, pickup_location, delivery_location, fleet_company),
       drivers(id, name, truck_number),
       service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
       inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),

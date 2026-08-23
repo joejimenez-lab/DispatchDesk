@@ -3,8 +3,10 @@ import { LinkButton } from "@/components/button";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/field";
 import { SubmitButton } from "@/components/form-buttons";
 import { LoadFinancialFields } from "@/components/load-financial-fields";
+import { LoadEquipmentFields } from "@/components/load-equipment-fields";
 import { LocationAutocomplete } from "@/components/location-autocomplete";
 import type { ActionState } from "@/lib/actions/state";
+import type { LoadDriverOption, LoadEquipmentOption } from "@/lib/data/options";
 import { inputDate } from "@/lib/utils";
 import { loadStatuses, type Database } from "@/types/database";
 
@@ -14,15 +16,16 @@ type DeductionRow = Database["public"]["Tables"]["load_deductions"]["Row"];
 
 type LoadFormProps = {
   action: (state: ActionState, formData: FormData) => ActionState | Promise<ActionState>;
-  drivers: { id: string; name: string }[];
+  drivers: LoadDriverOption[];
   brokers: { id: string; company_name: string }[];
+  equipment: LoadEquipmentOption[];
   load?: LoadRow;
   payment?: PaymentRow | null;
   deductions?: DeductionRow[];
   showPayments?: boolean;
 };
 
-export function LoadForm({ action, drivers, brokers, load, payment, deductions = [], showPayments = false }: LoadFormProps) {
+export function LoadForm({ action, drivers, brokers, equipment, load, payment, deductions = [], showPayments = false }: LoadFormProps) {
   return (
     <ActionForm action={action} className="space-y-8" successMessage={false}>
       <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 md:grid-cols-2">
@@ -47,14 +50,14 @@ export function LoadForm({ action, drivers, brokers, load, payment, deductions =
         <Field label="Carrier Company">
           <Input name="carrier_company" defaultValue={load?.carrier_company ?? ""} />
         </Field>
-        <Field label="Driver">
-          <Select name="driver_id" defaultValue={load?.driver_id ?? ""}>
-            <option value="">Unassigned</option>
-            {drivers.map((driver) => (
-              <option key={driver.id} value={driver.id}>{driver.name}</option>
-            ))}
-          </Select>
-        </Field>
+        <LoadEquipmentFields
+          drivers={drivers}
+          equipment={equipment}
+          defaultDriverId={load?.driver_id}
+          defaultFleet={load?.fleet_company}
+          defaultTruckUnitId={load?.truck_unit_id}
+          defaultTrailerUnitId={load?.trailer_unit_id}
+        />
         <Field label="Pickup Location">
           <LocationAutocomplete name="pickup_location" required defaultValue={load?.pickup_location} />
         </Field>

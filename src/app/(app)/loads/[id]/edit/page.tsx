@@ -18,6 +18,7 @@ export default async function EditLoadPage({ params }: { params: Promise<{ id: s
         action={updateLoad.bind(null, id)}
         drivers={options.drivers}
         brokers={options.brokers}
+        equipment={options.equipment}
         load={load}
         payment={payment}
         deductions={load.load_deductions}
