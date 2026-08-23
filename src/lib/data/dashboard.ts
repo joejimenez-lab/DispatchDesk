@@ -3,6 +3,7 @@ import { clientCollected, clientOutstanding, profitForLoad, roundCents, totalDed
 import { mapMaintenanceAlerts } from "@/lib/data/maintenance";
 import { getDashboardMaintenanceSummary } from "@/lib/maintenance";
 import type { LoadStatus } from "@/types/database";
+import { applyFleetScope, matchesFleetScope, type FleetScope } from "@/lib/fleet-scope";
 
 type DashboardLoad = {
   id: string;
@@ -22,26 +23,29 @@ type DashboardLoad = {
   load_deductions: { amount: number }[];
   brokers: { company_name: string } | null;
   drivers: { name: string } | null;
+  fleet_company: string | null;
   payments:
     | { client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean }
     | { client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean }[]
     | null;
 };
 
-export async function getDashboardMetrics() {
+export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
   const supabase = await createClient();
   const today = new Date(new Date().toDateString());
   const thirtyDaysAgo = new Date(today);
   thirtyDaysAgo.setDate(today.getDate() - 30);
 
-  const [loadsResult, remindersResult] = await Promise.all([
-    supabase
+  let loadsQuery = supabase
       .from("loads")
-      .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_amount, load_deductions(amount), brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
-      .order("created_at", { ascending: false }),
+      .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, fleet_company, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_amount, load_deductions(amount), brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
+      .order("created_at", { ascending: false });
+  loadsQuery = applyFleetScope(loadsQuery, scope);
+  const [loadsResult, remindersResult] = await Promise.all([
+    loadsQuery,
     supabase
       .from("maintenance_reminders")
-      .select("*, fleet_units!inner(id, unit_number, unit_type, odometer)")
+      .select("*, fleet_units!inner(id, unit_number, unit_type, odometer, company)")
       .is("completed_at", null)
       .order("due_date", { ascending: true, nullsFirst: false }),
   ]);
@@ -50,7 +54,8 @@ export async function getDashboardMetrics() {
   if (remindersResult.error) throw remindersResult.error;
 
   const rows = (loadsResult.data ?? []) as unknown as DashboardLoad[];
-  const allMaintenanceAlerts = mapMaintenanceAlerts((remindersResult.data ?? []) as unknown[]);
+  const allMaintenanceAlerts = mapMaintenanceAlerts((remindersResult.data ?? []) as unknown[])
+    .filter((alert) => matchesFleetScope(alert.unit.company, scope));
   const maintenanceSummary = getDashboardMaintenanceSummary(allMaintenanceAlerts);
 
   const metrics = rows.reduce(

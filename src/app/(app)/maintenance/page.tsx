@@ -1,12 +1,14 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { DetailsCloseButton } from "@/components/details-close-button";
-import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
+import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
 import { MaintenanceReminderCard } from "@/components/maintenance-reminder-card";
 import { MaintenanceReminderForm } from "@/components/maintenance-reminder-form";
 import { addMaintenanceReminder } from "@/lib/actions/maintenance";
 import { getMaintenanceAlerts } from "@/lib/data/maintenance";
 import { getFleetCompanies, getUnits } from "@/lib/data/fleet";
 import type { MaintenanceStatus } from "@/lib/maintenance";
+import { fleetScopeLabel, fleetScopeParam, matchesFleetScope, parseFleetScope } from "@/lib/fleet-scope";
 
 const filters: { label: string; value: "all" | MaintenanceStatus }[] = [
   { label: "All", value: "all" },
@@ -22,9 +24,11 @@ export default async function MaintenancePage({
 }) {
   const params = await searchParams;
   const [units, fleetCompanies] = await Promise.all([getUnits(), getFleetCompanies()]);
-  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
-  const alerts = await getMaintenanceAlerts(fleet || undefined);
-  const filteredUnits = fleet ? units.filter((unit) => unit.company === fleet) : units;
+  const scope = parseFleetScope(params.fleet, fleetCompanies);
+  if (!scope) notFound();
+  const fleet = fleetScopeParam(scope);
+  const alerts = await getMaintenanceAlerts(scope);
+  const filteredUnits = units.filter((unit) => matchesFleetScope(unit.company, scope));
   const status = filters.some((filter) => filter.value === params.status)
     ? (params.status as "all" | MaintenanceStatus)
     : "all";
@@ -40,7 +44,7 @@ export default async function MaintenancePage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">Maintenance</h1>
-          <p className="text-sm text-zinc-600">All active date- and mileage-based fleet schedules.</p>
+          <p className="text-sm text-zinc-600">{fleetScopeLabel(scope)} · Active date- and mileage-based schedules.</p>
         </div>
         <details className="group w-full sm:w-auto">
           <summary className="cursor-pointer list-none rounded-[10px] bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-700">+ Add schedule</summary>
@@ -79,7 +83,7 @@ export default async function MaintenancePage({
       <FleetScopeTabs
         basePath="/maintenance"
         companies={fleetCompanies}
-        selectedFleet={fleet}
+        scope={scope}
         params={{ status }}
       />
 

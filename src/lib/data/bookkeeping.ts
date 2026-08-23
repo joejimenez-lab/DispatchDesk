@@ -4,9 +4,9 @@ import {
   type BookkeepingExportRow,
   type MaintenanceRecordTable,
 } from "@/lib/bookkeeping";
-import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import { createClient } from "@/lib/supabase/server";
 import { expenseCategories, type Database, type ExpenseCategory, type UnitType } from "@/types/database";
+import { matchesFleetScope, type FleetScope } from "@/lib/fleet-scope";
 
 type ExpenseGroupRow = Database["public"]["Tables"]["bookkeeping_expense_groups"]["Row"];
 export type BookkeepingExpenseLine = Database["public"]["Tables"]["bookkeeping_expenses"]["Row"];
@@ -34,9 +34,11 @@ export type BookkeepingExpense = ExpenseGroupRow & {
   service_records: ServiceLink | null;
   inspection_records: InspectionLink | null;
   repair_logs: RepairLink | null;
-  ifta_fuel_purchases: { id: string; purchase_date: string; state: string; city: string | null; gallons: number; truck_number: string } | null;
+  ifta_fuel_purchases: { id: string; purchase_date: string; state: string; city: string | null; gallons: number; truck_number: string; fleet_units?: UnitLink | null } | null;
   amount: number;
   category: ExpenseCategory;
+  fleetCompany: string | null;
+  fleetConflict: boolean;
 };
 
 export type BookkeepingFilters = {
@@ -46,7 +48,7 @@ export type BookkeepingFilters = {
   unit?: string;
   load?: string;
   driver?: string;
-  fleet?: string;
+  fleetScope?: FleetScope;
 };
 
 export type MaintenanceRecordOption = {
@@ -99,18 +101,22 @@ function maintenanceRecordLabel(expense: BookkeepingExpense) {
   return null;
 }
 
-export function bookkeepingExpenseMatchesFleet(expense: BookkeepingExpense, fleet: string, fleetTruckNumbers: Set<string>) {
-  const unitCompanies = [
+export function resolveBookkeepingFleet(expense: Omit<BookkeepingExpense, "fleetCompany" | "fleetConflict">) {
+  const candidates = [
     expense.fleet_units?.company,
     expense.service_records?.fleet_units?.company,
     expense.inspection_records?.fleet_units?.company,
     expense.repair_logs?.fleet_units?.company,
     expense.loads?.fleet_company,
-  ];
-  if (unitCompanies.some((company) => company === fleet)) return true;
+    expense.ifta_fuel_purchases?.fleet_units?.company,
+  ].flatMap((company) => company?.trim() ? [company.trim()] : []);
+  const distinct = [...new Map(candidates.map((company) => [company.toLocaleLowerCase(), company])).values()];
+  return { fleetCompany: distinct.length === 1 ? distinct[0] : null, fleetConflict: distinct.length > 1 };
+}
 
-  const truckNumbers = [expense.drivers?.truck_number];
-  return truckNumbers.some((truckNumber) => truckNumber?.trim() && fleetTruckNumbers.has(truckNumber.trim()));
+export function bookkeepingExpenseMatchesFleet(expense: BookkeepingExpense, scope: FleetScope) {
+  const company = expense.fleetCompany === undefined ? resolveBookkeepingFleet(expense).fleetCompany : expense.fleetCompany;
+  return matchesFleetScope(company, scope);
 }
 
 function optionLabel({
@@ -134,6 +140,7 @@ function optionLabel({
 
 export function bookkeepingExpenseToExportRow(expense: BookkeepingExpense): BookkeepingExportRow {
   return {
+    fleet: resolveBookkeepingFleet(expense).fleetCompany ?? "Unassigned",
     expenseDate: expense.expense_date,
     category: expense.category,
     amount: Number(expense.amount),
@@ -154,6 +161,7 @@ export function bookkeepingExpenseToExportRows(expense: BookkeepingExpense, cate
   return expense.bookkeeping_expenses
     .filter((line) => !category || line.category === category)
     .map((line, index) => ({
+    fleet: resolveBookkeepingFleet(expense).fleetCompany ?? "Unassigned",
     expenseDate: expense.expense_date,
     category: line.category,
     amount: Number(line.amount),
@@ -170,14 +178,15 @@ export function bookkeepingExpenseToExportRows(expense: BookkeepingExpense, cate
     }));
 }
 
-function normalizeExpense(raw: Omit<BookkeepingExpense, "amount" | "category">): BookkeepingExpense {
+function normalizeExpense(raw: Omit<BookkeepingExpense, "amount" | "category" | "fleetCompany" | "fleetConflict">): BookkeepingExpense {
   const lines = [...raw.bookkeeping_expenses].sort((a, b) => a.line_type.localeCompare(b.line_type));
-  return {
+  const normalized = {
     ...raw,
     bookkeeping_expenses: lines,
     amount: lines.reduce((sum, line) => sum + Number(line.amount), 0),
     category: lines[0]?.category ?? "Other",
-  };
+  } as Omit<BookkeepingExpense, "fleetCompany" | "fleetConflict">;
+  return { ...normalized, ...resolveBookkeepingFleet(normalized) };
 }
 
 export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
@@ -188,8 +197,6 @@ export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
   const unit = validUuid(filters.unit);
   const load = validUuid(filters.load);
   const driver = validUuid(filters.driver);
-  const fleet = filters.fleet?.trim() || null;
-  const fleetTruckNumbers = fleet ? new Set(await getFleetTruckNumbers(fleet)) : null;
 
   if ((filters.unit && !unit) || (filters.load && !load) || (filters.driver && !driver)) return [];
 
@@ -205,7 +212,7 @@ export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
       service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
       inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),
       repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company)),
-      ifta_fuel_purchases(id, purchase_date, state, city, gallons, truck_number)
+      ifta_fuel_purchases(id, purchase_date, state, city, gallons, truck_number, fleet_units(id, unit_number, unit_type, company))
     `)
     .order("expense_date", { ascending: false })
     .order("created_at", { ascending: false });
@@ -218,9 +225,9 @@ export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
 
   const { data, error } = await query;
   if (error) throw error;
-  let expenses = ((data ?? []) as unknown as Omit<BookkeepingExpense, "amount" | "category">[]).map(normalizeExpense);
+  let expenses = ((data ?? []) as unknown as Omit<BookkeepingExpense, "amount" | "category" | "fleetCompany" | "fleetConflict">[]).map(normalizeExpense);
   if (category) expenses = expenses.filter((expense) => expense.bookkeeping_expenses.some((line) => line.category === category));
-  return fleet && fleetTruckNumbers ? expenses.filter((expense) => bookkeepingExpenseMatchesFleet(expense, fleet, fleetTruckNumbers)) : expenses;
+  return filters.fleetScope ? expenses.filter((expense) => bookkeepingExpenseMatchesFleet(expense, filters.fleetScope!)) : expenses;
 }
 
 export async function getBookkeepingOptions(): Promise<BookkeepingOptions> {
@@ -229,7 +236,7 @@ export async function getBookkeepingOptions(): Promise<BookkeepingOptions> {
     supabase.from("fleet_units").select("id, unit_number, unit_type, company").order("unit_type").order("unit_number"),
     supabase
       .from("loads")
-      .select("id, load_number, pickup_location, delivery_location")
+      .select("id, load_number, pickup_location, delivery_location, fleet_company")
       .order("delivery_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(300),

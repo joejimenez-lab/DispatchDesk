@@ -11,8 +11,8 @@ import {
   type IftaQuarter,
   type IftaStateMilesEntry,
 } from "@/lib/ifta";
-import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
+import { fleetScopeLabel, fleetScopeSlug, matchesFleetScope, resolveExportFleetScope } from "@/lib/fleet-scope";
 
 const REPORTS = ["summary", "trips", "fuel"] as const;
 type Report = (typeof REPORTS)[number];
@@ -25,6 +25,7 @@ type ExportTrip = {
   dropoff_city: string;
   notes: string | null;
   ifta_trip_miles: IftaStateMilesEntry[];
+  fleet_units: { company: string | null } | null;
 };
 
 type ExportFuelPurchase = {
@@ -35,6 +36,7 @@ type ExportFuelPurchase = {
   gallons: number;
   amount_paid: number;
   notes: string | null;
+  fleet_units: { company: string | null } | null;
 };
 
 function selectedQuarter(searchParams: URLSearchParams): IftaQuarter {
@@ -47,13 +49,25 @@ function selectedQuarter(searchParams: URLSearchParams): IftaQuarter {
   };
 }
 
-function summaryCsv(trips: ExportTrip[], purchases: ExportFuelPurchase[]) {
-  const summary = summarizeIftaByState(trips, purchases);
-  const totals = iftaTotals(summary);
+function summaryCsv(trips: ExportTrip[], purchases: ExportFuelPurchase[], fleet: string) {
+  const fleetNames = [...new Set([
+    ...trips.map((trip) => trip.fleet_units?.company ?? "Unassigned"),
+    ...purchases.map((purchase) => purchase.fleet_units?.company ?? "Unassigned"),
+  ])].sort();
+  const groups = fleetNames.map((fleetName) => {
+    const summary = summarizeIftaByState(
+      trips.filter((trip) => (trip.fleet_units?.company ?? "Unassigned") === fleetName),
+      purchases.filter((purchase) => (purchase.fleet_units?.company ?? "Unassigned") === fleetName),
+    );
+    return { fleetName, summary, totals: iftaTotals(summary) };
+  });
   return [
-    csvRow(["State", "State Name", "Miles", "Gallons Purchased", "Fuel Paid"]),
-    ...summary.map((state) => csvRow([state.state, iftaStateName(state.state), state.miles, state.gallons, state.paid.toFixed(2)])),
-    csvRow(["TOTAL", "", totals.miles, totals.gallons, totals.paid.toFixed(2)]),
+    csvRow(["Fleet", "State", "State Name", "Miles", "Gallons Purchased", "Fuel Paid"]),
+    ...groups.flatMap(({ fleetName, summary, totals }) => [
+      ...summary.map((state) => csvRow([fleetName, state.state, iftaStateName(state.state), state.miles, state.gallons, state.paid.toFixed(2)])),
+      csvRow([fleetName, "TOTAL", "", totals.miles, totals.gallons, totals.paid.toFixed(2)]),
+    ]),
+    ...(!groups.length ? [csvRow([fleet, "TOTAL", "", 0, 0, "0.00"])] : []),
   ].join("\n");
 }
 
@@ -62,9 +76,9 @@ function tripsCsv(trips: ExportTrip[]) {
   const stateMiles = (trip: ExportTrip, state: string) =>
     trip.ifta_trip_miles.find((leg) => leg.state === state)?.miles ?? "";
   return [
-    csvRow(["Truck", "Start Date", "End Date", "Pickup City", "Drop-off City", ...states.map((state) => `${state} Miles`), "Total Miles", "Notes"]),
+    csvRow(["Fleet", "Truck", "Start Date", "End Date", "Pickup City", "Drop-off City", ...states.map((state) => `${state} Miles`), "Total Miles", "Notes"]),
     ...trips.map((trip) => csvRow([
-      trip.truck_number,
+      trip.fleet_units?.company ?? "Unassigned", trip.truck_number,
       trip.start_date,
       trip.end_date,
       trip.pickup_city,
@@ -78,9 +92,9 @@ function tripsCsv(trips: ExportTrip[]) {
 
 function fuelCsv(purchases: ExportFuelPurchase[]) {
   return [
-    csvRow(["Truck", "Purchase Date", "City", "State", "Gallons", "Amount Paid", "Notes"]),
+    csvRow(["Fleet", "Truck", "Purchase Date", "City", "State", "Gallons", "Amount Paid", "Notes"]),
     ...purchases.map((purchase) => csvRow([
-      purchase.truck_number,
+      purchase.fleet_units?.company ?? "Unassigned", purchase.truck_number,
       purchase.purchase_date,
       purchase.city,
       purchase.state,
@@ -111,40 +125,31 @@ export async function GET(request: Request) {
   const period = selectedQuarter(searchParams);
   const { start, end } = quarterDateRange(period);
   const truck = searchParams.get("truck");
-  const fleet = searchParams.get("fleet")?.trim() || null;
-  const truckFilter = truck ? [truck] : fleet ? await getFleetTruckNumbers(fleet) : null;
-  if (truckFilter && !truckFilter.length) {
-    const csv =
-      report === "summary" ? summaryCsv([], [])
-      : report === "trips" ? tripsCsv([])
-      : fuelCsv([]);
-
-    return new NextResponse(csv, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="dispatchdesk-ifta-${report}-${period.year}-Q${period.quarter}.csv"`,
-        "Cache-Control": "private, no-store",
-      },
-    });
+  let scope;
+  try {
+    scope = await resolveExportFleetScope(supabase, searchParams.get("fleet"));
+  } catch {
+    return NextResponse.json({ error: "Could not validate fleet." }, { status: 500 });
   }
+  if (!scope) return NextResponse.json({ error: "Unknown fleet." }, { status: 400 });
 
   let tripsQuery = supabase
     .from("ifta_trips")
-    .select("truck_number, start_date, end_date, pickup_city, dropoff_city, notes, ifta_trip_miles(state, miles)")
+    .select("truck_number, start_date, end_date, pickup_city, dropoff_city, notes, ifta_trip_miles(state, miles), fleet_units(company)")
     .gte("start_date", start)
     .lte("start_date", end)
     .order("start_date", { ascending: true })
     .order("created_at", { ascending: true });
-  if (truckFilter) tripsQuery = tripsQuery.in("truck_number", truckFilter);
+  if (truck) tripsQuery = tripsQuery.eq("truck_number", truck);
 
   let fuelQuery = supabase
     .from("ifta_fuel_purchases")
-    .select("truck_number, purchase_date, city, state, gallons, amount_paid, notes")
+    .select("truck_number, purchase_date, city, state, gallons, amount_paid, notes, fleet_units(company)")
     .gte("purchase_date", start)
     .lte("purchase_date", end)
     .order("purchase_date", { ascending: true })
     .order("created_at", { ascending: true });
-  if (truckFilter) fuelQuery = fuelQuery.in("truck_number", truckFilter);
+  if (truck) fuelQuery = fuelQuery.eq("truck_number", truck);
 
   const [trips, purchases] = await Promise.all([
     report === "fuel" ? Promise.resolve({ data: [], error: null }) : tripsQuery,
@@ -154,17 +159,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Could not export IFTA report." }, { status: 500 });
   }
 
-  const tripRows = (trips.data ?? []) as unknown as ExportTrip[];
-  const fuelRows = (purchases.data ?? []) as unknown as ExportFuelPurchase[];
+  const tripRows = ((trips.data ?? []) as unknown as ExportTrip[]).filter((row) => matchesFleetScope(row.fleet_units?.company, scope));
+  const fuelRows = ((purchases.data ?? []) as unknown as ExportFuelPurchase[]).filter((row) => matchesFleetScope(row.fleet_units?.company, scope));
   const csv =
-    report === "summary" ? summaryCsv(tripRows, fuelRows)
+    report === "summary" ? summaryCsv(tripRows, fuelRows, fleetScopeLabel(scope))
     : report === "trips" ? tripsCsv(tripRows)
     : fuelCsv(fuelRows);
 
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="dispatchdesk-ifta-${report}-${period.year}-Q${period.quarter}.csv"`,
+      "Content-Disposition": `attachment; filename="dispatchdesk-ifta-${report}-${fleetScopeSlug(scope)}-${period.year}-Q${period.quarter}.csv"`,
       "Cache-Control": "private, no-store",
     },
   });

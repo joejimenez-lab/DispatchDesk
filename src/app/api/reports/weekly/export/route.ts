@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { csvRow } from "@/lib/csv";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
+import { fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
 
 const PERIODS: WeeklyFinancialPeriod[] = ["this", "last", "all", "custom"];
 
@@ -24,18 +25,26 @@ export async function GET(request: Request) {
   if ("response" in auth) return auth.response;
 
   const { searchParams } = url;
+  let scope;
+  try {
+    scope = await resolveExportFleetScope(auth.supabase, searchParams.get("fleet"));
+  } catch {
+    return NextResponse.json({ error: "Could not validate fleet." }, { status: 500 });
+  }
+  if (!scope) return NextResponse.json({ error: "Unknown fleet." }, { status: 400 });
   const { summaries, range } = await getWeeklyDriverFinancialSummary({
     period: normalizePeriod(searchParams.get("period")),
     from: searchParams.get("from") ?? undefined,
     to: searchParams.get("to") ?? undefined,
     driver: searchParams.get("driver") ?? undefined,
-    fleet: searchParams.get("fleet") ?? undefined,
+    fleetScope: scope,
   });
 
   const headers = [
     "Week Start",
     "Week End",
     "Driver",
+    "Fleet",
     "Load Count",
     "Load Number",
     "Load Date",
@@ -70,6 +79,7 @@ export async function GET(request: Request) {
         summary.weekStart,
         summary.weekEnd,
         summary.driverName,
+        load.fleetCompany ?? "Unassigned",
         summary.loadCount,
         load.loadNumber,
         load.date,
@@ -107,7 +117,7 @@ export async function GET(request: Request) {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="dispatchdesk-weekly-report-${rangeLabel}-${stamp}.csv"`,
+      "Content-Disposition": `attachment; filename="dispatchdesk-weekly-report-${fleetScopeSlug(scope)}-${rangeLabel}-${stamp}.csv"`,
       "Cache-Control": "private, no-store",
     },
   });

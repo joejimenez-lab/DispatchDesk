@@ -11,11 +11,11 @@ type StateMilesRow = { key: number; state: string; miles: string };
 
 type Props = {
   action: (state: ActionState, formData: FormData) => Promise<ActionState> | ActionState;
-  truckNumbers: string[];
+  trucks: { id: string; unit_number: string; company: string | null }[];
   routes: IftaRouteTemplate[];
 };
 
-export function IftaTripForm({ action, truckNumbers, routes }: Props) {
+export function IftaTripForm({ action, trucks, routes }: Props) {
   const nextKey = useRef(1);
   const [rows, setRows] = useState<StateMilesRow[]>([{ key: 0, state: "", miles: "" }]);
   const [pickupCity, setPickupCity] = useState("");
@@ -42,11 +42,12 @@ export function IftaTripForm({ action, truckNumbers, routes }: Props) {
   return (
     <ActionForm action={action} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Field label="Truck #">
-        <Input name="truck_number" required list="ifta-trip-trucks" placeholder="e.g. 521" />
+        <Select name="unit_id" required defaultValue="">
+          <option value="">Select truck</option>
+          {trucks.map((truck) => <option key={truck.id} value={truck.id}>{truck.company ?? "Unassigned"} · {truck.unit_number}</option>)}
+        </Select>
       </Field>
-      <datalist id="ifta-trip-trucks">
-        {truckNumbers.map((truck) => <option key={truck} value={truck} />)}
-      </datalist>
+      <input type="hidden" name="truck_number" value="assigned-unit" />
 
       <Field label="Trip start date">
         <Input type="date" name="start_date" required />

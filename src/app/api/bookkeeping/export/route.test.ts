@@ -14,6 +14,21 @@ function queryResult(data: unknown[]) {
   return query;
 }
 
+function catalogClient(companies: string[]) {
+  return {
+    from: vi.fn((table: string) => ({
+      select: vi.fn(() => ({
+        not: vi.fn(async () => ({
+          data: table === "fleet_units"
+            ? companies.map((company) => ({ company }))
+            : companies.map((fleet_company) => ({ fleet_company })),
+          error: null,
+        })),
+      })),
+    })),
+  };
+}
+
 const expense = {
   id: "group-1",
   expense_date: "2026-01-12",
@@ -48,7 +63,7 @@ describe("/api/bookkeeping/export", () => {
     if (!response) throw new Error("Expected a bookkeeping export response");
 
     expect(response.headers.get("content-type")).toContain("text/csv");
-    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-bookkeeping-summary-\d{4}-\d{2}-\d{2}\.csv/);
+    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-bookkeeping-summary-all-fleets-\d{4}-\d{2}-\d{2}\.csv/);
     expect(await response.text()).toContain("Fuel,1,1,125.00");
     expect(query.gte).toHaveBeenCalledWith("expense_date", "2026-01-01");
     expect(query.lte).toHaveBeenCalledWith("expense_date", "2026-01-31");
@@ -62,7 +77,7 @@ describe("/api/bookkeeping/export", () => {
     if (!response) throw new Error("Expected a bookkeeping export response");
 
     expect(response.headers.get("content-type")).toBe("application/pdf");
-    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-bookkeeping-detailed-\d{4}-\d{2}-\d{2}\.pdf/);
+    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-bookkeeping-detailed-all-fleets-\d{4}-\d{2}-\d{2}\.pdf/);
     expect(Buffer.from(await response.arrayBuffer()).subarray(0, 4).toString()).toBe("%PDF");
   });
 
@@ -72,6 +87,16 @@ describe("/api/bookkeeping/export", () => {
 
     const response = await GET(new Request("http://localhost/api/bookkeeping/export?view=raw&format=xlsx"));
     if (!response) throw new Error("Expected a bookkeeping export response");
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 400 for a fleet outside the authenticated tenant catalogue", async () => {
+    createAuthenticatedRouteClient.mockResolvedValue({ supabase: catalogClient(["West"]) });
+    const { GET } = await import("./route");
+
+    const response = await GET(new Request("http://localhost/api/bookkeeping/export?fleet=Unknown"));
+    if (!response) throw new Error("Expected an export response");
 
     expect(response.status).toBe(400);
   });

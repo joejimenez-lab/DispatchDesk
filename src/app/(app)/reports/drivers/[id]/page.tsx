@@ -6,6 +6,8 @@ import { SummaryTotals, WeeklySummaryList } from "@/components/weekly-report";
 import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { createClient } from "@/lib/supabase/server";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
+import { getLoadFleetCompanies } from "@/lib/data/fleet";
+import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
 
 const PERIODS: { value: WeeklyFinancialPeriod; label: string }[] = [
   { value: "this", label: "This week" },
@@ -23,12 +25,15 @@ export default async function DriverReportPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; fleet?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
   const period = normalizePeriod(query.period);
   const supabase = await createClient();
+  const scope = parseFleetScope(query.fleet, await getLoadFleetCompanies());
+  if (!scope) notFound();
+  const fleet = fleetScopeParam(scope);
 
   const [{ data: driver, error }, { summaries }] = await Promise.all([
     supabase.from("drivers").select("name").eq("id", id).single(),
@@ -37,6 +42,7 @@ export default async function DriverReportPage({
       from: query.from,
       to: query.to,
       driver: id,
+      fleetScope: scope,
     }),
   ]);
 
@@ -46,21 +52,23 @@ export default async function DriverReportPage({
   const exportParams = new URLSearchParams({ period, driver: id });
   if (query.from) exportParams.set("from", query.from);
   if (query.to) exportParams.set("to", query.to);
+  if (fleet) exportParams.set("fleet", fleet);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href="/reports" className="text-sm text-zinc-500 underline-offset-2 hover:underline">
+          <Link href={fleet ? `/reports?fleet=${encodeURIComponent(fleet)}` : "/reports"} className="text-sm text-zinc-500 underline-offset-2 hover:underline">
             ← Back to reports
           </Link>
           <h1 className="mt-2 text-2xl font-semibold text-zinc-950">{driver.name ?? "Driver"}</h1>
-          <p className="text-sm text-zinc-600">Weekly payroll and financials across all weeks.</p>
+          <p className="text-sm text-zinc-600">{fleetScopeLabel(scope)} · Weekly payroll and financials.</p>
         </div>
         <LinkButton href={`/api/reports/weekly/export?${exportParams.toString()}`} variant="secondary">Export CSV</LinkButton>
       </div>
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-4">
+        {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <Field label="Period">
           <Select name="period" defaultValue={period}>
             {PERIODS.map((option) => (

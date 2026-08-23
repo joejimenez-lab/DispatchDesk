@@ -13,6 +13,7 @@ import {
   yearlyFinancialRows,
 } from "@/lib/report-exports";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
+import { applyFleetScope, fleetScopeLabel, fleetScopeSlug, matchesFleetScope, resolveExportFleetScope, type FleetScope } from "@/lib/fleet-scope";
 
 export const runtime = "nodejs";
 
@@ -24,24 +25,24 @@ function normalizePeriod(value: string | null): WeeklyFinancialPeriod {
   return PERIODS.includes(value as WeeklyFinancialPeriod) ? (value as WeeklyFinancialPeriod) : "all";
 }
 
-function csvDownload(csv: string, report: Report) {
+function csvDownload(csv: string, report: Report, scope: FleetScope) {
   const stamp = new Date().toISOString().slice(0, 10);
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="dispatchdesk-${report}-${stamp}.csv"`,
+      "Content-Disposition": `attachment; filename="dispatchdesk-${report}-${fleetScopeSlug(scope)}-${stamp}.csv"`,
       "Cache-Control": "private, no-store",
     },
   });
 }
 
-async function pdfDownload(data: BusinessReportPdfData, report: Report) {
+async function pdfDownload(data: BusinessReportPdfData, report: Report, scope: FleetScope) {
   const stamp = new Date().toISOString().slice(0, 10);
   const pdf = await renderBusinessReportPdf(data);
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="dispatchdesk-${report}-${stamp}.pdf"`,
+      "Content-Disposition": `attachment; filename="dispatchdesk-${report}-${fleetScopeSlug(scope)}-${stamp}.pdf"`,
       "Cache-Control": "private, no-store",
     },
   });
@@ -59,9 +60,9 @@ function selectedRange(searchParams: URLSearchParams) {
   return { from, to };
 }
 
-function filterLabel({ from, to, fleet }: { from: string | null; to: string | null; fleet: string | null }) {
+function filterLabel({ from, to, fleet }: { from: string | null; to: string | null; fleet: string }) {
   const date = from && to ? `${from} through ${to}` : from ? `From ${from}` : to ? `Through ${to}` : "All available dates";
-  return [date, fleet ? `Fleet: ${fleet}` : null].filter(Boolean).join(" · ");
+  return `${date} · Fleet: ${fleet}`;
 }
 
 type Unit = { unit_number: string; unit_type: string; company: string | null } | null;
@@ -88,7 +89,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
   if (format !== "csv" && format !== "pdf") {
     return NextResponse.json({ error: "Choose CSV or PDF format." }, { status: 400 });
   }
-  const fleet = searchParams.get("fleet")?.trim() || null;
+  let scope;
+  try {
+    scope = await resolveExportFleetScope(supabase, searchParams.get("fleet"));
+  } catch {
+    return NextResponse.json({ error: "Could not validate fleet." }, { status: 500 });
+  }
+  if (!scope) return NextResponse.json({ error: "Unknown fleet." }, { status: 400 });
+  const fleet = fleetScopeLabel(scope);
   const range = selectedRange(searchParams);
 
   try {
@@ -98,10 +106,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         from: searchParams.get("from") ?? undefined,
         to: searchParams.get("to") ?? undefined,
         driver: searchParams.get("driver") ?? undefined,
-        fleet: fleet ?? undefined,
+        fleetScope: scope,
       });
       if (format === "csv") {
-        return csvDownload(report === "weekly-payroll" ? weeklyPayrollCsv(summaries) : weeklyFinancialCsv(summaries), report);
+        return csvDownload(report === "weekly-payroll" ? weeklyPayrollCsv(summaries) : weeklyFinancialCsv(summaries), report, scope);
       }
 
       const totals = summaries.reduce((total, summary) => ({
@@ -123,12 +131,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Gross driver pay", value: money(totals.pay) },
         ],
         columns: [
-          { label: "Week", width: "28%" },
-          { label: "Driver", width: "32%" },
-          { label: "Loads", width: "15%", align: "right" },
+          { label: "Fleet", width: "14%" },
+          { label: "Week", width: "24%" },
+          { label: "Driver", width: "25%" },
+          { label: "Loads", width: "12%", align: "right" },
           { label: "Gross pay", width: "25%", align: "right" },
         ],
         rows: summaries.map((summary) => [
+          summary.fleetCompany ?? "Unassigned",
           `${summary.weekStart} - ${summary.weekEnd}`,
           summary.driverName,
           String(summary.loadCount),
@@ -146,16 +156,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Estimated profit", value: money(totals.profit) },
         ],
         columns: [
-          { label: "Week", width: "18%" },
-          { label: "Driver", width: "16%" },
+          { label: "Fleet", width: "9%" },
+          { label: "Week", width: "16%" },
+          { label: "Driver", width: "14%" },
           { label: "Loads", width: "7%", align: "right" },
-          { label: "Revenue", width: "13%", align: "right" },
-          { label: "Driver pay", width: "13%", align: "right" },
-          { label: "Factoring", width: "10%", align: "right" },
-          { label: "Other ded.", width: "10%", align: "right" },
-          { label: "Est. profit", width: "13%", align: "right" },
+          { label: "Revenue", width: "12%", align: "right" },
+          { label: "Driver pay", width: "12%", align: "right" },
+          { label: "Factoring", width: "9%", align: "right" },
+          { label: "Other ded.", width: "9%", align: "right" },
+          { label: "Est. profit", width: "12%", align: "right" },
         ],
         rows: summaries.map((summary) => [
+          summary.fleetCompany ?? "Unassigned",
           `${summary.weekStart} - ${summary.weekEnd}`,
           summary.driverName,
           String(summary.loadCount),
@@ -166,7 +178,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           money(summary.estimatedProfitTotal),
         ]),
         emptyMessage: "No financial records match the selected filters.",
-      }, report);
+      }, report, scope);
     }
 
     if (report === "yearly-financial") {
@@ -176,9 +188,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         from: searchParams.get("from") ?? undefined,
         to: searchParams.get("to") ?? undefined,
         driver: searchParams.get("driver") ?? undefined,
-        fleet: fleet ?? undefined,
+        fleetScope: scope,
       });
-      if (format === "csv") return csvDownload(yearlyFinancialCsv(summaries), report);
+      if (format === "csv") return csvDownload(yearlyFinancialCsv(summaries), report, scope);
 
       const rows = yearlyFinancialRows(summaries);
       const totals = rows.reduce((total, row) => ({
@@ -191,23 +203,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         title: "Yearly Financial Summary",
         subtitle: filterLabel({ ...effectiveRange, fleet }),
         metrics: [
-          { label: "Years", value: String(rows.length) },
+          { label: "Years", value: String(new Set(rows.map((row) => row.year)).size) },
           { label: "Loads", value: String(totals.loads) },
           { label: "Revenue", value: money(totals.revenue) },
           { label: "Deductions", value: money(totals.deductions) },
           { label: "Estimated profit", value: money(totals.profit) },
         ],
         columns: [
-          { label: "Year", width: "12%" },
-          { label: "Loads", width: "8%", align: "right" },
-          { label: "Revenue", width: "15%", align: "right" },
-          { label: "Driver pay", width: "15%", align: "right" },
-          { label: "Factoring", width: "12%", align: "right" },
-          { label: "Other ded.", width: "12%", align: "right" },
-          { label: "Other costs", width: "14%", align: "right" },
+          { label: "Fleet", width: "10%" },
+          { label: "Year", width: "10%" },
+          { label: "Loads", width: "7%", align: "right" },
+          { label: "Revenue", width: "13%", align: "right" },
+          { label: "Driver pay", width: "13%", align: "right" },
+          { label: "Factoring", width: "11%", align: "right" },
+          { label: "Other ded.", width: "11%", align: "right" },
+          { label: "Other costs", width: "13%", align: "right" },
           { label: "Est. profit", width: "12%", align: "right" },
         ],
         rows: rows.map((row) => [
+          row.fleet,
           row.year,
           String(row.loadCount),
           money(row.revenue),
@@ -218,7 +232,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           money(row.profit),
         ]),
         emptyMessage: "No yearly financial records match the selected filters.",
-      }, report);
+      }, report, scope);
     }
 
     if (report === "client-billing") {
@@ -228,7 +242,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         .neq("status", "Cancelled")
         .order("delivery_date", { ascending: false, nullsFirst: false })
         .order("pickup_date", { ascending: false, nullsFirst: false });
-      if (fleet) query = query.eq("fleet_company", fleet);
+      query = applyFleetScope(query, scope);
       const { data, error } = await query;
       if (error) throw error;
 
@@ -250,6 +264,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         if (searchParams.get("driver") && load.driver_id !== searchParams.get("driver")) return false;
         return true;
       }).map((load) => ({
+        fleet: load.fleet_company ?? "Unassigned",
         loadNumber: load.load_number,
         loadDate: load.delivery_date ?? load.pickup_date ?? load.created_at.slice(0, 10),
         broker: load.brokers?.company_name ?? null,
@@ -262,7 +277,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         dateReceived: load.payments?.client_date_received ?? null,
         outstanding: clientOutstanding(load.load_rate, load.payments),
       }));
-      if (format === "csv") return csvDownload(clientBillingCsv(rows), report);
+      if (format === "csv") return csvDownload(clientBillingCsv(rows), report, scope);
 
       const totals = rows.reduce((total, row) => ({
         invoiced: total.invoiced + row.loadRate,
@@ -279,17 +294,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Outstanding", value: money(totals.outstanding) },
         ],
         columns: [
-          { label: "Load", width: "12%" },
-          { label: "Date", width: "12%" },
-          { label: "Client", width: "22%" },
-          { label: "Status", width: "14%" },
-          { label: "Invoice", width: "13%", align: "right" },
-          { label: "Received", width: "13%", align: "right" },
+          { label: "Fleet", width: "10%" },
+          { label: "Load", width: "11%" },
+          { label: "Date", width: "10%" },
+          { label: "Client", width: "19%" },
+          { label: "Status", width: "12%" },
+          { label: "Invoice", width: "12%", align: "right" },
+          { label: "Received", width: "12%", align: "right" },
           { label: "Outstanding", width: "14%", align: "right" },
         ],
-        rows: rows.map((row) => [row.loadNumber, row.loadDate, row.broker ?? "", row.status, money(row.loadRate), money(row.amountReceived), money(row.outstanding)]),
+        rows: rows.map((row) => [row.fleet, row.loadNumber, row.loadDate, row.broker ?? "", row.status, money(row.loadRate), money(row.amountReceived), money(row.outstanding)]),
         emptyMessage: "No client billing records match the selected filters.",
-      }, report);
+      }, report, scope);
     }
 
     const [services, inspections, repairs, reminders, bookkeepingExpenses] = await Promise.all([
@@ -321,12 +337,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
       ...((bookkeepingExpenses.data ?? []) as unknown as { expense_date: string; category: string; amount: number; vendor: string | null; notes: string | null; fleet_units: Unit }[]).map((row) => ({
         ...unitFields(row.fleet_units), recordType: `Bookkeeping ${row.category}`, date: row.expense_date, odometer: null, description: row.vendor ? `${row.category} - ${row.vendor}` : row.category, result: null, cost: Number(row.amount), status: "Recorded", notes: row.notes,
       })),
-    ].filter((row) => !fleet || row.company === fleet)
+    ].filter((row) => matchesFleetScope(row.company, scope))
       .filter((row) => !range.from || Boolean(row.date && row.date >= range.from))
       .filter((row) => !range.to || Boolean(row.date && row.date <= range.to))
       .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || a.unitNumber.localeCompare(b.unitNumber));
 
-    if (format === "csv") return csvDownload(maintenanceCsv(rows), report);
+    if (format === "csv") return csvDownload(maintenanceCsv(rows), report, scope);
 
     const totalCost = rows.reduce((sum, row) => sum + Number(row.cost ?? 0), 0);
     return pdfDownload({
@@ -338,14 +354,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         { label: "Recorded cost", value: money(totalCost) },
       ],
       columns: [
-        { label: "Date", width: "11%" },
-        { label: "Unit", width: "12%" },
-        { label: "Type", width: "15%" },
-        { label: "Description", width: "29%" },
-        { label: "Status / result", width: "18%" },
-        { label: "Cost", width: "15%", align: "right" },
+        { label: "Fleet", width: "10%" },
+        { label: "Date", width: "10%" },
+        { label: "Unit", width: "10%" },
+        { label: "Type", width: "13%" },
+        { label: "Description", width: "27%" },
+        { label: "Status / result", width: "16%" },
+        { label: "Cost", width: "14%", align: "right" },
       ],
       rows: rows.map((row) => [
+        row.company ?? "Unassigned",
         row.date ?? "",
         row.unitNumber,
         row.recordType,
@@ -354,7 +372,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         row.cost === null ? "" : money(row.cost),
       ]),
       emptyMessage: "No maintenance records match the selected filters.",
-    }, report);
+    }, report, scope);
   } catch {
     return NextResponse.json({ error: "Could not export report." }, { status: 500 });
   }

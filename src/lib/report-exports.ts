@@ -3,6 +3,7 @@ import type { WeeklyDriverFinancialSummary } from "./data/weekly-financials";
 import { roundCents } from "./financials";
 
 export type BillingRow = {
+  fleet: string;
   loadNumber: string;
   loadDate: string;
   broker: string | null;
@@ -18,6 +19,7 @@ export type BillingRow = {
 
 export type YearlyFinancialRow = {
   year: string;
+  fleet: string;
   loadCount: number;
   revenue: number;
   driverPay: number;
@@ -49,9 +51,9 @@ function csv(headers: string[], rows: (string | number | boolean | null | undefi
 
 export function weeklyPayrollCsv(summaries: WeeklyDriverFinancialSummary[]) {
   return csv(
-    ["Week Start", "Week End", "Driver", "Load Count", "Gross Driver Pay"],
+    ["Fleet", "Week Start", "Week End", "Driver", "Load Count", "Gross Driver Pay"],
     summaries.map((summary) => [
-      summary.weekStart,
+      summary.fleetCompany ?? "Unassigned", summary.weekStart,
       summary.weekEnd,
       summary.driverName,
       summary.loadCount,
@@ -64,9 +66,11 @@ export function weeklyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
   const weeks = new Map<string, Omit<WeeklyDriverFinancialSummary, "key" | "driverId" | "driverName" | "loads">>();
 
   for (const summary of summaries) {
-    const week = weeks.get(summary.weekStart) ?? {
+    const mapKey = `${summary.weekStart}:${summary.fleetCompany ?? "unassigned"}`;
+    const week = weeks.get(mapKey) ?? {
       weekStart: summary.weekStart,
       weekEnd: summary.weekEnd,
+      fleetCompany: summary.fleetCompany,
       loadCount: 0,
       loadRateTotal: 0,
       driverPayTotal: 0,
@@ -86,13 +90,13 @@ export function weeklyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
     week.otherDeductionTotal = roundCents(week.otherDeductionTotal + summary.otherDeductionTotal);
     week.totalDeductionsTotal = roundCents(week.totalDeductionsTotal + summary.totalDeductionsTotal);
     week.estimatedProfitTotal = roundCents(week.estimatedProfitTotal + summary.estimatedProfitTotal);
-    weeks.set(summary.weekStart, week);
+    weeks.set(mapKey, week);
   }
 
   return csv(
-    ["Week Start", "Week End", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit"],
+    ["Fleet", "Week Start", "Week End", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit"],
     [...weeks.values()].map((week) => [
-      week.weekStart,
+      week.fleetCompany ?? "Unassigned", week.weekStart,
       week.weekEnd,
       week.loadCount,
       week.loadRateTotal,
@@ -108,12 +112,14 @@ export function weeklyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
 }
 
 export function yearlyFinancialRows(summaries: WeeklyDriverFinancialSummary[]): YearlyFinancialRow[] {
-  const years = new Map<string, { loadCount: number; revenue: number; driverPay: number; dispatcherFees: number; fuelCost: number; factoring: number; otherDeductions: number; totalDeductions: number; profit: number }>();
+  const years = new Map<string, { year: string; fleet: string; loadCount: number; revenue: number; driverPay: number; dispatcherFees: number; fuelCost: number; factoring: number; otherDeductions: number; totalDeductions: number; profit: number }>();
 
   for (const summary of summaries) {
     for (const load of summary.loads) {
       const year = load.date.slice(0, 4);
-      const total = years.get(year) ?? { loadCount: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuelCost: 0, factoring: 0, otherDeductions: 0, totalDeductions: 0, profit: 0 };
+      const fleet = load.fleetCompany ?? "Unassigned";
+      const mapKey = `${year}:${fleet}`;
+      const total = years.get(mapKey) ?? { year, fleet, loadCount: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuelCost: 0, factoring: 0, otherDeductions: 0, totalDeductions: 0, profit: 0 };
       total.loadCount += 1;
       total.revenue = roundCents(total.revenue + load.loadRate);
       total.driverPay = roundCents(total.driverPay + load.driverPay);
@@ -123,27 +129,25 @@ export function yearlyFinancialRows(summaries: WeeklyDriverFinancialSummary[]): 
       total.otherDeductions = roundCents(total.otherDeductions + load.otherDeductionTotal);
       total.totalDeductions = roundCents(total.totalDeductions + load.totalDeductions);
       total.profit = roundCents(total.profit + load.estimatedProfit);
-      years.set(year, total);
+      years.set(mapKey, total);
     }
   }
 
-  return [...years.entries()]
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([year, total]) => ({ year, ...total }));
+  return [...years.values()].sort((a, b) => b.year.localeCompare(a.year) || a.fleet.localeCompare(b.fleet));
 }
 
 export function yearlyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
   return csv(
-    ["Year", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit"],
-    yearlyFinancialRows(summaries).map((row) => [row.year, row.loadCount, row.revenue, row.driverPay, row.dispatcherFees, row.fuelCost, row.factoring, row.otherDeductions, row.totalDeductions, row.profit]),
+    ["Fleet", "Year", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit"],
+    yearlyFinancialRows(summaries).map((row) => [row.fleet, row.year, row.loadCount, row.revenue, row.driverPay, row.dispatcherFees, row.fuelCost, row.factoring, row.otherDeductions, row.totalDeductions, row.profit]),
   );
 }
 
 export function clientBillingCsv(rows: BillingRow[]) {
   return csv(
-    ["Load Number", "Load Date", "Client", "Status", "Invoice Amount", "Invoice Sent", "Invoice Sent Date", "Client Paid", "Amount Received", "Date Received", "Outstanding"],
+    ["Fleet", "Load Number", "Load Date", "Client", "Status", "Invoice Amount", "Invoice Sent", "Invoice Sent Date", "Client Paid", "Amount Received", "Date Received", "Outstanding"],
     rows.map((row) => [
-      row.loadNumber,
+      row.fleet, row.loadNumber,
       row.loadDate,
       row.broker,
       row.status,
@@ -160,11 +164,11 @@ export function clientBillingCsv(rows: BillingRow[]) {
 
 export function maintenanceCsv(rows: MaintenanceExportRow[]) {
   return csv(
-    ["Unit", "Unit Type", "Company", "Record Type", "Date", "Odometer", "Description", "Result", "Cost", "Status", "Notes"],
+    ["Unit", "Unit Type", "Fleet", "Record Type", "Date", "Odometer", "Description", "Result", "Cost", "Status", "Notes"],
     rows.map((row) => [
       row.unitNumber,
       row.unitType,
-      row.company,
+      row.company ?? "Unassigned",
       row.recordType,
       row.date,
       row.odometer,

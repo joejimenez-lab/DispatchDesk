@@ -1,13 +1,15 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { CompanyFleetField } from "@/components/company-fleet-field";
-import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
+import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
 import { Field, Input, Select, Textarea } from "@/components/field";
 import { SubmitButton } from "@/components/form-buttons";
 import { createUnit } from "@/lib/actions/fleet";
 import { getFleetCompanies, getUnits } from "@/lib/data/fleet";
 import { getMaintenanceAlerts } from "@/lib/data/maintenance";
 import { unitTypes, type Database } from "@/types/database";
+import { fleetScopeLabel, fleetScopeParam, matchesFleetScope, parseFleetScope } from "@/lib/fleet-scope";
 
 type Unit = Database["public"]["Tables"]["fleet_units"]["Row"];
 type MaintenanceCounts = { overdue: number; dueSoon: number; upcoming: number; snoozed: number };
@@ -94,9 +96,11 @@ export default async function FleetPage({
 }) {
   const params = await searchParams;
   const [allUnits, companies] = await Promise.all([getUnits(params.q), getFleetCompanies()]);
-  const fleet = normalizeFleetScope(params.fleet, companies);
-  const [maintenanceAlerts] = await Promise.all([getMaintenanceAlerts(fleet || undefined)]);
-  const units = fleet ? allUnits.filter((unit) => unit.company === fleet) : allUnits;
+  const scope = parseFleetScope(params.fleet, companies);
+  if (!scope) notFound();
+  const fleet = fleetScopeParam(scope);
+  const [maintenanceAlerts] = await Promise.all([getMaintenanceAlerts(scope)]);
+  const units = allUnits.filter((unit) => matchesFleetScope(unit.company, scope));
   const maintenanceByUnit = maintenanceAlerts.reduce((byUnit, alert) => {
     const counts = byUnit.get(alert.unit_id) ?? emptyMaintenanceCounts();
     if (alert.snoozed) counts.snoozed += 1;
@@ -114,7 +118,7 @@ export default async function FleetPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">Fleet</h1>
-          <p className="text-sm text-zinc-600">Manage trucks, trailers, and their maintenance history.</p>
+          <p className="text-sm text-zinc-600">{fleetScopeLabel(scope)} · Manage trucks, trailers, and maintenance history.</p>
         </div>
         <details className="group w-full rounded-xl border border-transparent open:border-zinc-200 open:bg-white open:p-5 sm:w-auto sm:min-w-36 open:sm:w-full">
           <summary className="cursor-pointer list-none rounded-[10px] bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-700 group-open:mb-5 group-open:bg-slate-100 group-open:text-slate-700 group-open:shadow-none">
@@ -169,7 +173,7 @@ export default async function FleetPage({
       <FleetScopeTabs
         basePath="/fleet"
         companies={companies}
-        selectedFleet={fleet}
+        scope={scope}
         params={{ q: params.q }}
       />
 

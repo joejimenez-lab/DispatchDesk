@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { BookkeepingExpenseForm } from "@/components/bookkeeping-expense-form";
 import { DetailsCloseButton } from "@/components/details-close-button";
 import { ExportMenu } from "@/components/export-menu";
-import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
+import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
 import { Field, Input, Select } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import { ReceiptPreviewDialog } from "@/components/receipt-preview-dialog";
@@ -16,7 +17,7 @@ import {
   uploadBookkeepingReceipt,
 } from "@/lib/actions/bookkeeping";
 import { expenseCategoryTone, receiptAccept } from "@/lib/bookkeeping";
-import { getFleetCompanies } from "@/lib/data/fleet";
+import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import {
   getBookkeepingExpenses,
   getBookkeepingOptions,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/data/bookkeeping";
 import { cn, currency, formatDate } from "@/lib/utils";
 import { expenseCategories } from "@/types/database";
+import { fleetScopeLabel, fleetScopeParam, matchesFleetScope, parseFleetScope, UNASSIGNED_FLEET } from "@/lib/fleet-scope";
 
 function linkedMaintenance(expense: BookkeepingExpense) {
   if (expense.service_records) return `Service - ${expense.service_records.description}`;
@@ -87,6 +89,9 @@ function ExpenseCard({ expense, options }: { expense: BookkeepingExpense; option
             ) : null}
             <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold capitalize text-zinc-700">
               {expense.source_type === "manual" ? "Manual entry" : `${expense.source_type} source`}
+            </span>
+            <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800">
+              Fleet: {expense.fleetCompany ?? "Unassigned"}{expense.fleetConflict ? " (review links)" : ""}
             </span>
             <span className="text-sm text-zinc-500">{formatDate(expense.expense_date)}</span>
           </div>
@@ -195,12 +200,23 @@ export default async function BookkeepingPage({
   const params = await searchParams;
   const [options, fleetCompanies, reconciliation] = await Promise.all([
     getBookkeepingOptions(),
-    getFleetCompanies(),
+    getLoadFleetCompanies(),
     getOperationalReconciliation(),
   ]);
-  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
-  const expenses = await getBookkeepingExpenses({ ...params, fleet: fleet || undefined });
-  const filteredUnits = fleet ? options.units.filter((unit) => unit.company === fleet) : options.units;
+  const scope = parseFleetScope(params.fleet, fleetCompanies);
+  if (!scope) notFound();
+  const fleet = fleetScopeParam(scope);
+  const expenses = await getBookkeepingExpenses({ ...params, fleetScope: scope });
+  const filteredUnits = options.units.filter((unit) => matchesFleetScope(unit.company, scope));
+  const filteredLoads = options.loads.filter((load) => matchesFleetScope(load.fleet_company, scope));
+  const filteredUnitIds = new Set(filteredUnits.map((unit) => unit.id));
+  const addOptions = {
+    ...options,
+    units: filteredUnits,
+    loads: filteredLoads,
+    maintenanceRecords: options.maintenanceRecords.filter((record) =>
+      scope.kind === "all" || (record.unitId ? filteredUnitIds.has(record.unitId) : scope.kind === "unassigned")),
+  };
   const category = normalizeExpenseCategory(params.category);
   const lines = expenses
     .flatMap((expense) => expense.bookkeeping_expenses)
@@ -224,7 +240,7 @@ export default async function BookkeepingPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">Bookkeeping</h1>
-          <p className="text-sm text-zinc-600">Expense records, receipt uploads, and flexible exports for tax review.</p>
+          <p className="text-sm text-zinc-600">{fleetScopeLabel(scope)} · Expenses, receipts, and tax exports.</p>
         </div>
         <ExportMenu
           heading="Bookkeeping export"
@@ -242,14 +258,14 @@ export default async function BookkeepingPage({
               label: "Fleet",
               allLabel: "All fleets",
               defaultValue: fleet,
-              options: fleetCompanies.map((company) => ({ label: company, value: company })),
+              options: [...fleetCompanies.map((company) => ({ label: company, value: company })), { label: "Unassigned", value: UNASSIGNED_FLEET }],
             },
             {
               key: "unit",
               label: "Truck / trailer",
               allLabel: "All trucks and trailers",
               defaultValue: params.unit ?? "",
-              options: options.units.map((unit) => ({
+              options: filteredUnits.map((unit) => ({
                 value: unit.id,
                 label: `${unit.company ? `${unit.company} - ` : ""}${unit.unit_type} ${unit.unit_number}`,
               })),
@@ -266,7 +282,7 @@ export default async function BookkeepingPage({
               label: "Load",
               allLabel: "All loads",
               defaultValue: params.load ?? "",
-              options: options.loads.map((load) => ({ label: load.load_number, value: load.id })),
+              options: filteredLoads.map((load) => ({ label: load.load_number, value: load.id })),
             },
           ]}
           items={[
@@ -333,7 +349,7 @@ export default async function BookkeepingPage({
       <FleetScopeTabs
         basePath="/bookkeeping"
         companies={fleetCompanies}
-        selectedFleet={fleet}
+        scope={scope}
         params={{
           from: params.from,
           to: params.to,
@@ -368,7 +384,7 @@ export default async function BookkeepingPage({
           <div className="mb-3 flex justify-end"><DetailsCloseButton /></div>
           <BookkeepingExpenseForm
             action={addBookkeepingExpense}
-            options={options}
+            options={addOptions}
             submitLabel="Add expense"
             pendingText="Adding..."
             includeReceipt

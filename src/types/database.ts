@@ -579,6 +579,7 @@ export type Database = {
           pickup_city: string
           start_date: string
           truck_number: string
+          unit_id: string | null
           updated_at: string
         }
         Insert: {
@@ -591,6 +592,7 @@ export type Database = {
           pickup_city: string
           start_date: string
           truck_number: string
+          unit_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -603,6 +605,7 @@ export type Database = {
           pickup_city?: string
           start_date?: string
           truck_number?: string
+          unit_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -611,6 +614,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ifta_trips_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "fleet_units"
             referencedColumns: ["id"]
           },
         ]

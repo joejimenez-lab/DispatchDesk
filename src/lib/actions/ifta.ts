@@ -38,6 +38,7 @@ export async function addIftaTrip(_state: ActionState, formData: FormData): Prom
   try {
     const { supabase, user } = await createAuthenticatedClient();
     const trip = iftaTripSchema.parse({
+      unit_id: value(formData, "unit_id"),
       truck_number: value(formData, "truck_number"),
       start_date: value(formData, "start_date"),
       end_date: value(formData, "end_date"),
