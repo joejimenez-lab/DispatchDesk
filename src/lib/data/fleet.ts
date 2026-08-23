@@ -55,6 +55,27 @@ export async function getFleetCompanies() {
   return [...new Map(companies.map((company) => [company.toLocaleLowerCase(), company])).values()];
 }
 
+export async function getLoadFleetCompanies() {
+  const supabase = await createClient();
+  const [units, loads] = await Promise.all([
+    supabase.from("fleet_units").select("company").not("company", "is", null).order("company"),
+    supabase.from("loads").select("fleet_company").not("fleet_company", "is", null).order("fleet_company"),
+  ]);
+
+  if (units.error) throw units.error;
+  if (loads.error) throw loads.error;
+
+  const companies = [
+    ...(units.data ?? []).map((row) => row.company),
+    ...(loads.data ?? []).map((row) => row.fleet_company),
+  ]
+    .map((company) => company?.trim())
+    .filter((company): company is string => Boolean(company));
+
+  return [...new Map(companies.map((company) => [company.toLocaleLowerCase(), company])).values()]
+    .sort((a, b) => a.localeCompare(b));
+}
+
 export async function getFleetTruckNumbers(company: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

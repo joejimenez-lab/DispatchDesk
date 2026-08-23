@@ -5,8 +5,7 @@ import { clientCollected, clientOutstanding, deductionsTotal, isClientPaymentPai
 import { ilikeOr, searchTokens } from "@/lib/search";
 import type { LoadStatus } from "@/types/database";
 
-const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "return_location", "carrier_company"];
-type RouteSupabase = Extract<Awaited<ReturnType<typeof createAuthenticatedRouteClient>>, { supabase: unknown }>["supabase"];
+const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "return_location", "carrier_company", "fleet_company", "truck_number", "trailer_number"];
 
 type ExportLoad = {
   load_number: string;
@@ -28,9 +27,12 @@ type ExportLoad = {
   factoring_amount: number;
   load_deductions: { label: string; amount: number; position: number }[];
   carrier_company: string | null;
+  fleet_company: string | null;
+  truck_number: string | null;
+  trailer_number: string | null;
   notes: string | null;
   brokers: { company_name: string | null; contact_name: string | null } | null;
-  drivers: { name: string | null; truck_number: string | null; trailer_number: string | null } | null;
+  drivers: { name: string | null } | null;
   payments:
     | {
         invoice_sent: boolean;
@@ -53,19 +55,6 @@ type ExportLoad = {
     | null;
 };
 
-async function truckNumbersForFleet(supabase: RouteSupabase, fleet: string | null) {
-  if (!fleet) return null;
-
-  const { data, error } = await supabase
-    .from("fleet_units")
-    .select("unit_number")
-    .eq("unit_type", "Truck")
-    .eq("company", fleet);
-
-  if (error) throw error;
-  return new Set((data ?? []).map((unit) => unit.unit_number?.trim()).filter(Boolean));
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const auth = await createAuthenticatedRouteClient({
@@ -79,7 +68,7 @@ export async function GET(request: Request) {
   const { supabase } = auth;
   let query = supabase
     .from("loads")
-    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, notes, brokers(company_name, contact_name), drivers(name, truck_number, trailer_number), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
+    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
     .order("created_at", { ascending: false });
 
   const status = searchParams.get("status");
@@ -92,6 +81,7 @@ export async function GET(request: Request) {
   if (status) query = query.eq("status", status as LoadStatus);
   if (broker) query = query.eq("broker_id", broker);
   if (driver) query = query.eq("driver_id", driver);
+  if (fleet) query = query.eq("fleet_company", fleet);
   for (const token of searchTokens(q)) {
     query = query.or(ilikeOr(LOAD_SEARCH_COLUMNS, token));
   }
@@ -101,14 +91,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Could not export loads." }, { status: 500 });
   }
 
-  const fleetTruckNumbers = await truckNumbersForFleet(supabase, fleet);
   const rows = (data ?? []) as unknown as ExportLoad[];
   const filteredRows = rows.filter((load) => {
-    if (fleetTruckNumbers) {
-      const truckNumber = load.drivers?.truck_number?.trim();
-      if (!truckNumber || !fleetTruckNumbers.has(truckNumber)) return false;
-    }
-
     const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
     const paid = isClientPaymentPaid(load.load_rate, payment);
     if (paymentFilter === "paid") return paid;
@@ -121,6 +105,7 @@ export async function GET(request: Request) {
     "Broker",
     "Broker Contact",
     "Carrier",
+    "Fleet",
     "Driver",
     "Truck",
     "Trailer",
@@ -168,9 +153,10 @@ export async function GET(request: Request) {
         load.brokers?.company_name,
         load.brokers?.contact_name,
         load.carrier_company,
+        load.fleet_company,
         load.drivers?.name,
-        load.drivers?.truck_number,
-        load.drivers?.trailer_number,
+        load.truck_number,
+        load.trailer_number,
         load.pickup_location,
         load.pickup_date,
         load.delivery_location,

@@ -143,8 +143,9 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
             <Detail label="Broker Contact" value={load.brokers?.contact_name ?? "Not set"} />
             <Detail label="Carrier" value={load.carrier_company ?? "Not set"} />
             <Detail label="Driver" value={load.drivers?.name ?? "Unassigned"} />
-            <Detail label="Truck" value={load.drivers?.truck_number ?? "Not set"} />
-            <Detail label="Trailer" value={load.drivers?.trailer_number ?? "Not set"} />
+            <Detail label="Fleet" value={load.fleet_company ?? "Not set"} />
+            <Detail label="Truck" value={load.truck_number ?? "Not set"} />
+            <Detail label="Trailer" value={load.trailer_number ?? "Not set"} />
             <Detail label="Round Trip" value={load.is_round_trip ? "Yes" : "No"} />
             <Detail label="Created" value={new Date(load.created_at).toLocaleString()} />
           </dl>

@@ -28,7 +28,10 @@ describe("/api/loads/export", () => {
           status: "Delivered",
           brokers: { company_name: "+Broker", contact_name: "@Contact" },
           carrier_company: "-Carrier",
-          drivers: { name: "\t=Driver", truck_number: "TRK-1", trailer_number: "TRL-1" },
+          fleet_company: "Fleet A",
+          truck_number: "LOAD-TRK",
+          trailer_number: "LOAD-TRL",
+          drivers: { name: "\t=Driver", truck_number: "DRIVER-TRK", trailer_number: "DRIVER-TRL" },
           pickup_location: " =Pickup",
           pickup_date: "2026-01-05",
           delivery_location: "\u0000@Delivery",
@@ -69,6 +72,10 @@ describe("/api/loads/export", () => {
     expect(csv).toContain("'@Contact");
     expect(csv).toContain("'-Carrier");
     expect(csv).toContain("'\t=Driver");
+    expect(csv).toContain("Fleet A");
+    expect(csv).toContain("LOAD-TRK,LOAD-TRL");
+    expect(csv).not.toContain("DRIVER-TRK");
+    expect(csv).not.toContain("DRIVER-TRL");
     expect(csv).toContain("' =Pickup");
     expect(csv).toContain("'\u0000@Delivery");
     expect(csv).toContain("'=Notes");

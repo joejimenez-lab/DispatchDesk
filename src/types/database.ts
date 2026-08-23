@@ -731,6 +731,7 @@ export type Database = {
           factoring_fixed_amount: number
           factoring_mode: string
           factoring_percent: number
+          fleet_company: string | null
           fuel_cost: number
           id: string
           is_round_trip: boolean
@@ -743,6 +744,10 @@ export type Database = {
           return_location: string | null
           round_trip_details: string | null
           status: Database["public"]["Enums"]["load_status"]
+          trailer_number: string | null
+          trailer_unit_id: string | null
+          truck_number: string | null
+          truck_unit_id: string | null
           updated_at: string
         }
         Insert: {
@@ -758,6 +763,7 @@ export type Database = {
           factoring_fixed_amount?: number
           factoring_mode?: string
           factoring_percent?: number
+          fleet_company?: string | null
           fuel_cost?: number
           id?: string
           is_round_trip?: boolean
@@ -770,6 +776,10 @@ export type Database = {
           return_location?: string | null
           round_trip_details?: string | null
           status?: Database["public"]["Enums"]["load_status"]
+          trailer_number?: string | null
+          trailer_unit_id?: string | null
+          truck_number?: string | null
+          truck_unit_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -785,6 +795,7 @@ export type Database = {
           factoring_fixed_amount?: number
           factoring_mode?: string
           factoring_percent?: number
+          fleet_company?: string | null
           fuel_cost?: number
           id?: string
           is_round_trip?: boolean
@@ -797,6 +808,10 @@ export type Database = {
           return_location?: string | null
           round_trip_details?: string | null
           status?: Database["public"]["Enums"]["load_status"]
+          trailer_number?: string | null
+          trailer_unit_id?: string | null
+          truck_number?: string | null
+          truck_unit_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -819,6 +834,20 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loads_trailer_unit_id_fkey"
+            columns: ["trailer_unit_id"]
+            isOneToOne: false
+            referencedRelation: "fleet_units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loads_truck_unit_id_fkey"
+            columns: ["truck_unit_id"]
+            isOneToOne: false
+            referencedRelation: "fleet_units"
             referencedColumns: ["id"]
           },
         ]

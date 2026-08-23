@@ -18,7 +18,7 @@ type LoadLink = {
   load_number: string;
   pickup_location: string;
   delivery_location: string;
-  drivers?: { truck_number: string | null } | null;
+  fleet_company: string | null;
 };
 type DriverLink = { id: string; name: string; truck_number?: string | null };
 type ServiceLink = { id: string; service_date: string | null; description: string; fleet_units?: UnitLink | null };
@@ -105,13 +105,11 @@ export function bookkeepingExpenseMatchesFleet(expense: BookkeepingExpense, flee
     expense.service_records?.fleet_units?.company,
     expense.inspection_records?.fleet_units?.company,
     expense.repair_logs?.fleet_units?.company,
+    expense.loads?.fleet_company,
   ];
   if (unitCompanies.some((company) => company === fleet)) return true;
 
-  const truckNumbers = [
-    expense.drivers?.truck_number,
-    expense.loads?.drivers?.truck_number,
-  ];
+  const truckNumbers = [expense.drivers?.truck_number];
   return truckNumbers.some((truckNumber) => truckNumber?.trim() && fleetTruckNumbers.has(truckNumber.trim()));
 }
 
@@ -202,7 +200,7 @@ export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
       bookkeeping_expenses(*),
       bookkeeping_receipts(*),
       fleet_units(id, unit_number, unit_type, company),
-      loads(id, load_number, pickup_location, delivery_location, drivers(truck_number)),
+      loads(id, load_number, pickup_location, delivery_location, fleet_company),
       drivers(id, name, truck_number),
       service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
       inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),

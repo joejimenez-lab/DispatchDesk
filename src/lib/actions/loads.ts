@@ -25,6 +25,19 @@ function errorMessage(error: unknown) {
   return String(error);
 }
 
+function loadWriteError(error: unknown, fallback: string) {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+  const message = errorMessage(error).toLocaleLowerCase();
+  const equipmentError = ["truck", "trailer", "fleet", "equipment"].some((term) => message.includes(term));
+  if (code === "23503" && equipmentError) {
+    return errorState(new Error("Choose equipment that belongs to your organization."));
+  }
+  if (code === "23514" && equipmentError) {
+    return errorState(new Error("Choose a truck and trailer from the selected fleet and equipment types."));
+  }
+  return errorState(error, fallback);
+}
+
 async function markStorageCleanupFailure(
   supabase: AuthenticatedSupabase,
   jobs: StorageCleanupJob[],
@@ -102,6 +115,9 @@ function loadPayload(formData: FormData) {
     broker_id: value(formData, "broker_id"),
     carrier_company: value(formData, "carrier_company"),
     driver_id: value(formData, "driver_id"),
+    fleet_company: value(formData, "fleet_company"),
+    truck_unit_id: value(formData, "truck_unit_id"),
+    trailer_unit_id: value(formData, "trailer_unit_id"),
     pickup_location: value(formData, "pickup_location"),
     pickup_date: value(formData, "pickup_date"),
     delivery_location: value(formData, "delivery_location"),
@@ -168,7 +184,7 @@ export async function createLoad(_state: ActionState, formData: FormData): Promi
       p_load: payload,
       p_deductions: deductions,
     });
-    if (error) return errorState(error, "Could not create load.");
+    if (error) return loadWriteError(error, "Could not create load.");
     if (!data) return errorState(new Error("Load creation did not return an id."));
     loadId = data;
   } catch (error) {
@@ -195,7 +211,7 @@ export async function updateLoad(loadId: string, _state: ActionState, formData: 
     });
     if (error) {
       logError("load.update_failed", error, { loadId });
-      return errorState(error, "Could not save load.");
+      return loadWriteError(error, "Could not save load.");
     }
   } catch (error) {
     return errorState(error, "Could not save load.");

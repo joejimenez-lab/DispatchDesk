@@ -3,7 +3,7 @@ import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-ta
 import { Field, Input, Select } from "@/components/field";
 import { ExportMenu, type ExportMenuItem } from "@/components/export-menu";
 import { SummaryTotals, WeeklySummaryList } from "@/components/weekly-report";
-import { getFleetCompanies } from "@/lib/data/fleet";
+import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import { getFormOptions } from "@/lib/data/options";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
 
@@ -25,7 +25,7 @@ export default async function ReportsPage({
 }) {
   const params = await searchParams;
   const period = normalizePeriod(params.period);
-  const [options, fleetCompanies] = await Promise.all([getFormOptions(), getFleetCompanies()]);
+  const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
   const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
   const exportParams = new URLSearchParams();
   exportParams.set("period", period);
