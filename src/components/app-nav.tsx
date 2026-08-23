@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Fuel,
   Gauge,
+  History,
   LogOut,
   Plus,
   Truck,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { signOut } from "@/lib/actions/auth";
+import { CURRENT_VERSION } from "@/lib/version-history";
 
 type NavItem = { label: string; href: string; icon: LucideIcon };
 
@@ -49,7 +51,9 @@ export function AppNav() {
     pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/")),
   )?.label ?? (pathname === "/status"
     ? "System status"
-    : pathname === "/AI_Assistant" ? "Dispatch Assistant" : "Dashboard");
+    : pathname === "/AI_Assistant"
+      ? "Dispatch Assistant"
+      : pathname === "/versions" ? "Version history" : "Dashboard");
 
   return (
     <>
@@ -84,12 +88,27 @@ export function AppNav() {
           </div>
         </nav>
 
-        <form action={signOut}>
-          <button className="command-signout" type="submit">
-            <LogOut className="size-4" aria-hidden="true" />
-            <span>Sign out</span>
-          </button>
-        </form>
+        <div className="command-footer">
+          <Link
+            href="/versions"
+            aria-current={pathname === "/versions" ? "page" : undefined}
+            aria-label={`View version history, current version v${CURRENT_VERSION}`}
+            className={pathname === "/versions" ? "command-version command-version-active" : "command-version"}
+          >
+            <History className="size-4" aria-hidden="true" />
+            <span className="command-version-copy">
+              <span>Version</span>
+              <strong>v{CURRENT_VERSION}</strong>
+            </span>
+            <LinkPendingIndicator />
+          </Link>
+          <form action={signOut}>
+            <button className="command-signout" type="submit" aria-label="Sign out">
+              <LogOut className="size-4" aria-hidden="true" />
+              <span>Sign out</span>
+            </button>
+          </form>
+        </div>
       </div>
       </aside>
       <header className="workspace-bar">
