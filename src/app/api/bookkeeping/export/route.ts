@@ -9,10 +9,11 @@ import {
   bookkeepingExpenseMatchesFleet,
   bookkeepingExpenseToExportRows,
   normalizeExpenseCategory,
+  resolveBookkeepingFleet,
   type BookkeepingExpense,
 } from "@/lib/data/bookkeeping";
-import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
+import { fleetScopeLabel, fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
 
 export const runtime = "nodejs";
 
@@ -29,7 +30,7 @@ function validUuid(value: string | null) {
 
 const moneyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
-function filterLabel(filters: { from: string | null; to: string | null; category: string | null; fleet: string | null }) {
+function filterLabel(filters: { from: string | null; to: string | null; category: string | null; fleet: string }) {
   const date = filters.from && filters.to
     ? `${filters.from} through ${filters.to}`
     : filters.from
@@ -37,7 +38,7 @@ function filterLabel(filters: { from: string | null; to: string | null; category
       : filters.to
         ? `Through ${filters.to}`
         : "All available dates";
-  return [date, filters.category ? `Category: ${filters.category}` : null, filters.fleet ? `Fleet: ${filters.fleet}` : null]
+  return [date, filters.category ? `Category: ${filters.category}` : null, `Fleet: ${filters.fleet}`]
     .filter(Boolean)
     .join(" · ");
 }
@@ -65,8 +66,13 @@ export async function GET(request: Request) {
   const unit = validUuid(searchParams.get("unit"));
   const load = validUuid(searchParams.get("load"));
   const driver = validUuid(searchParams.get("driver"));
-  const fleet = searchParams.get("fleet")?.trim() || null;
-  const fleetTruckNumbers = fleet ? new Set(await getFleetTruckNumbers(fleet)) : null;
+  let scope;
+  try {
+    scope = await resolveExportFleetScope(supabase, searchParams.get("fleet"));
+  } catch {
+    return NextResponse.json({ error: "Could not validate fleet." }, { status: 500 });
+  }
+  if (!scope) return NextResponse.json({ error: "Unknown fleet." }, { status: 400 });
 
   let query = supabase
     .from("bookkeeping_expense_groups")
@@ -80,7 +86,7 @@ export async function GET(request: Request) {
       service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
       inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),
       repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company)),
-      ifta_fuel_purchases(id, purchase_date, state, city, gallons, truck_number)
+      ifta_fuel_purchases(id, purchase_date, state, city, gallons, truck_number, fleet_units(id, unit_number, unit_type, company))
     `)
     .order("expense_date", { ascending: false })
     .order("created_at", { ascending: false });
@@ -94,12 +100,13 @@ export async function GET(request: Request) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: "Could not export bookkeeping expenses." }, { status: 500 });
 
-  const rows = ((data ?? []) as unknown as BookkeepingExpense[])
-    .filter((expense) => !fleet || !fleetTruckNumbers || bookkeepingExpenseMatchesFleet(expense, fleet, fleetTruckNumbers))
+  const expenses = ((data ?? []) as unknown as BookkeepingExpense[]).map((expense) => ({ ...expense, ...resolveBookkeepingFleet(expense) }));
+  const rows = expenses
+    .filter((expense) => bookkeepingExpenseMatchesFleet(expense, scope))
     .filter((expense) => !category || expense.bookkeeping_expenses.some((line) => line.category === category))
     .flatMap((expense) => bookkeepingExpenseToExportRows(expense, category));
   const stamp = new Date().toISOString().slice(0, 10);
-  const baseFilename = `dispatchdesk-bookkeeping-${view}-${stamp}`;
+  const baseFilename = `dispatchdesk-bookkeeping-${view}-${fleetScopeSlug(scope)}-${stamp}`;
 
   if (format === "pdf") {
     const summaryRows = summarizeBookkeepingRows(rows);
@@ -107,7 +114,7 @@ export async function GET(request: Request) {
     const receiptCount = rows.reduce((sum, row) => sum + row.receiptCount, 0);
     const pdf = await renderBusinessReportPdf(view === "summary" ? {
       title: "Bookkeeping Summary",
-      subtitle: filterLabel({ from, to, category, fleet }),
+      subtitle: filterLabel({ from, to, category, fleet: fleetScopeLabel(scope) }),
       metrics: [
         { label: "Categories", value: String(summaryRows.length) },
         { label: "Expense lines", value: String(rows.length) },
@@ -115,16 +122,17 @@ export async function GET(request: Request) {
         { label: "Total", value: moneyFormatter.format(total) },
       ],
       columns: [
-        { label: "Category", width: "45%" },
+        { label: "Fleet", width: "20%" },
+        { label: "Category", width: "25%" },
         { label: "Expense lines", width: "18%", align: "right" },
         { label: "Receipts", width: "17%", align: "right" },
         { label: "Total", width: "20%", align: "right" },
       ],
-      rows: summaryRows.map((row) => [row.category, String(row.expenseLines), String(row.receiptCount), moneyFormatter.format(row.total)]),
+      rows: summaryRows.map((row) => [row.fleet, row.category, String(row.expenseLines), String(row.receiptCount), moneyFormatter.format(row.total)]),
       emptyMessage: "No bookkeeping expenses match the selected filters.",
     } : {
       title: "Detailed Bookkeeping Expenses",
-      subtitle: filterLabel({ from, to, category, fleet }),
+      subtitle: filterLabel({ from, to, category, fleet: fleetScopeLabel(scope) }),
       metrics: [
         { label: "Expense lines", value: String(rows.length) },
         { label: "Receipts", value: String(receiptCount) },
@@ -132,15 +140,17 @@ export async function GET(request: Request) {
       ],
       columns: [
         { label: "Date", width: "10%" },
+        { label: "Fleet", width: "10%" },
         { label: "Category", width: "12%" },
-        { label: "Vendor", width: "18%" },
-        { label: "Unit", width: "14%" },
-        { label: "Load / Driver", width: "16%" },
-        { label: "Receipt files", width: "20%" },
+        { label: "Vendor", width: "14%" },
+        { label: "Unit", width: "12%" },
+        { label: "Load / Driver", width: "14%" },
+        { label: "Receipt files", width: "16%" },
         { label: "Amount", width: "10%", align: "right" },
       ],
       rows: rows.map((row) => [
         row.expenseDate,
+        row.fleet,
         row.category,
         row.vendor ?? "",
         row.unit ?? "",

@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { LinkButton } from "@/components/button";
 import { Field, Input, Select } from "@/components/field";
-import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
+import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
 import { LoadPaymentSelect } from "@/components/load-payment-select";
 import { LoadStatusSelect } from "@/components/load-status-select";
 import { getFormOptions } from "@/lib/data/options";
@@ -9,6 +10,7 @@ import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import { getLoads, isLoadClientPaymentPaid } from "@/lib/data/loads";
 import { currency, formatDate } from "@/lib/utils";
 import { loadStatuses } from "@/types/database";
+import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
 
 export default async function LoadsPage({
   searchParams,
@@ -17,8 +19,10 @@ export default async function LoadsPage({
 }) {
   const params = await searchParams;
   const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
-  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
-  const loads = await getLoads({ ...params, fleet });
+  const scope = parseFleetScope(params.fleet, fleetCompanies);
+  if (!scope) notFound();
+  const fleet = fleetScopeParam(scope);
+  const loads = await getLoads({ ...params, fleetScope: scope });
   const exportParams = new URLSearchParams();
   if (params.q) exportParams.set("q", params.q);
   if (params.status) exportParams.set("status", params.status);
@@ -42,7 +46,7 @@ export default async function LoadsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">Loads</h1>
-          <p className="text-sm text-zinc-600">Search, filter, and manage dispatch loads.</p>
+          <p className="text-sm text-zinc-600">{fleetScopeLabel(scope)} · Search, filter, and manage dispatch loads.</p>
         </div>
         <div className="flex gap-2">
           <LinkButton href={exportHref} variant="secondary">Export CSV</LinkButton>
@@ -53,7 +57,7 @@ export default async function LoadsPage({
       <FleetScopeTabs
         basePath="/loads"
         companies={fleetCompanies}
-        selectedFleet={fleet}
+        scope={scope}
         params={{
           q: params.q,
           status: params.status,

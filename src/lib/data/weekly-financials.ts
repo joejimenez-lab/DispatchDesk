@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { deductionsTotal, profitForLoad, roundCents, totalDeductionsForLoad } from "@/lib/financials";
 import type { LoadStatus } from "@/types/database";
+import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
 
 type WeeklyFinancialLoad = {
   id: string;
@@ -32,6 +33,7 @@ export type WeeklyDriverFinancialSummary = {
   weekEnd: string;
   driverId: string | null;
   driverName: string;
+  fleetCompany?: string | null;
   loadCount: number;
   loadRateTotal: number;
   driverPayTotal: number;
@@ -61,6 +63,7 @@ export type WeeklyDriverFinancialSummary = {
     otherDeductionTotal: number;
     totalDeductions: number;
     estimatedProfit: number;
+    fleetCompany?: string | null;
   }[];
 };
 
@@ -71,7 +74,7 @@ export type WeeklyFinancialFilters = {
   from?: string;
   to?: string;
   driver?: string;
-  fleet?: string;
+  fleetScope?: FleetScope;
 };
 
 // Date bounds (inclusive, YYYY-MM-DD) that the report was actually filtered to,
@@ -136,11 +139,6 @@ function normalizeDriverId(value: string | undefined): string | null {
   return value && UUID.test(value) ? value : null;
 }
 
-function normalizeFleetCompany(value: string | undefined): string | null {
-  const company = value?.trim();
-  return company || null;
-}
-
 // Resolve the requested filter into concrete inclusive date bounds. Presets are
 // computed relative to "today" in Pacific time so the report matches the user's
 // wall-clock week regardless of where the server runs.
@@ -171,7 +169,6 @@ export async function getWeeklyDriverFinancialSummary(
   const supabase = await createClient();
   const range = resolveRange(filters);
   const driverId = normalizeDriverId(filters.driver);
-  const fleetCompany = normalizeFleetCompany(filters.fleet);
 
   let query = supabase
     .from("loads")
@@ -183,7 +180,7 @@ export async function getWeeklyDriverFinancialSummary(
 
   if (filters.driver && !driverId) return { summaries: [], range };
   if (driverId) query = query.eq("driver_id", driverId);
-  if (fleetCompany) query = query.eq("fleet_company", fleetCompany);
+  if (filters.fleetScope) query = applyFleetScope(query, filters.fleetScope);
 
   const { data, error } = await query;
   if (error) throw error;
@@ -199,7 +196,7 @@ export async function getWeeklyDriverFinancialSummary(
     const { weekStart, weekEnd } = weekRange(date);
     const driverId = load.driver_id;
     const driverName = load.drivers?.name?.trim() || "Unassigned";
-    const key = `${weekStart}:${driverId ?? "unassigned"}`;
+    const key = `${weekStart}:${driverId ?? "unassigned"}:${load.fleet_company ?? "unassigned-fleet"}`;
     const otherDeductions = [...load.load_deductions]
       .sort((a, b) => a.position - b.position)
       .map(({ label, amount }) => ({ label, amount: Number(amount) }));
@@ -214,6 +211,7 @@ export async function getWeeklyDriverFinancialSummary(
         weekEnd,
         driverId,
         driverName,
+        fleetCompany: load.fleet_company,
         loadCount: 0,
         loadRateTotal: 0,
         driverPayTotal: 0,
@@ -255,6 +253,7 @@ export async function getWeeklyDriverFinancialSummary(
       otherDeductionTotal,
       totalDeductions,
       estimatedProfit,
+      fleetCompany: load.fleet_company,
     });
 
     summaries.set(key, summary);

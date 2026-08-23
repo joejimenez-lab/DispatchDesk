@@ -4,6 +4,7 @@ import { classifyMaintenanceReminder, sortMaintenanceAlerts, type MaintenanceAle
 import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import type { Database } from "@/types/database";
 import type { UnitType } from "@/types/database";
+import { matchesFleetScope, type FleetScope } from "@/lib/fleet-scope";
 
 type ReminderRow = Database["public"]["Tables"]["maintenance_reminders"]["Row"];
 type ReminderJoin = ReminderRow & {
@@ -34,7 +35,7 @@ export function mapMaintenanceAlerts(rows: unknown[], today?: string) {
   return sortMaintenanceAlerts(alerts);
 }
 
-export async function getMaintenanceAlerts(fleet?: string) {
+export async function getMaintenanceAlerts(scope: FleetScope = { kind: "all" }) {
   const { supabase } = await createAuthenticatedClient();
   const { data, error } = await supabase
     .from("maintenance_reminders")
@@ -44,7 +45,7 @@ export async function getMaintenanceAlerts(fleet?: string) {
 
   if (error) throw error;
   const alerts = mapMaintenanceAlerts((data ?? []) as unknown[]);
-  return fleet ? alerts.filter((alert) => alert.unit.company === fleet) : alerts;
+  return alerts.filter((alert) => matchesFleetScope(alert.unit.company, scope));
 }
 
 export async function getMaintenanceReminder(reminderId: string) {

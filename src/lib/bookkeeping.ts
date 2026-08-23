@@ -42,6 +42,7 @@ export function expenseCategoryTone(category: ExpenseCategory) {
 }
 
 export type BookkeepingExportRow = {
+  fleet: string;
   expenseDate: string;
   category: string;
   amount: number;
@@ -58,6 +59,7 @@ export type BookkeepingExportRow = {
 };
 
 export type BookkeepingSummaryRow = {
+  fleet: string;
   category: string;
   expenseLines: number;
   receiptCount: number;
@@ -68,7 +70,9 @@ export function summarizeBookkeepingRows(rows: BookkeepingExportRow[]): Bookkeep
   const categories = new Map<string, BookkeepingSummaryRow>();
 
   for (const row of rows) {
-    const summary = categories.get(row.category) ?? {
+    const key = `${row.fleet.toLocaleLowerCase()}:${row.category}`;
+    const summary = categories.get(key) ?? {
+      fleet: row.fleet,
       category: row.category,
       expenseLines: 0,
       receiptCount: 0,
@@ -77,17 +81,17 @@ export function summarizeBookkeepingRows(rows: BookkeepingExportRow[]): Bookkeep
     summary.expenseLines += 1;
     summary.receiptCount += row.receiptCount;
     summary.total += row.amount;
-    categories.set(row.category, summary);
+    categories.set(key, summary);
   }
 
-  return [...categories.values()].sort((a, b) => b.total - a.total || a.category.localeCompare(b.category));
+  return [...categories.values()].sort((a, b) => a.fleet.localeCompare(b.fleet) || b.total - a.total || a.category.localeCompare(b.category));
 }
 
 export function bookkeepingSummaryCsv(rows: BookkeepingExportRow[]) {
   return [
-    csvRow(["Category", "Expense Lines", "Receipt Count", "Total"]),
+    csvRow(["Fleet", "Category", "Expense Lines", "Receipt Count", "Total"]),
     ...summarizeBookkeepingRows(rows).map((row) => csvRow([
-      row.category,
+      row.fleet, row.category,
       row.expenseLines,
       row.receiptCount,
       row.total.toFixed(2),
@@ -99,6 +103,7 @@ export function bookkeepingCsv(rows: BookkeepingExportRow[]) {
   return [
     csvRow([
       "Date",
+      "Fleet",
       "Category",
       "Amount",
       "Vendor",
@@ -114,6 +119,7 @@ export function bookkeepingCsv(rows: BookkeepingExportRow[]) {
     ]),
     ...rows.map((row) => csvRow([
       row.expenseDate,
+      row.fleet,
       row.category,
       row.amount.toFixed(2),
       row.vendor,

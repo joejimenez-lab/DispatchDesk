@@ -60,7 +60,7 @@ export function MaintenanceReminderCard({ alert }: { alert: MaintenanceAlert }) 
             {alert.snoozed ? <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200">Snoozed</span> : null}
           </div>
           <Link href={`/fleet/${unitId}`} className="mt-1 inline-block text-sm font-medium text-zinc-700 underline-offset-2 hover:underline">
-            {alert.unit.unit_number} · {alert.unit.unit_type}
+            {alert.unit.company ?? "Unassigned"} · {alert.unit.unit_number} · {alert.unit.unit_type}
           </Link>
           <p className="mt-2 text-sm font-medium text-zinc-900">{targetLabel(alert)}</p>
           <p className="text-xs text-zinc-500">{remainingLabel(alert)}</p>

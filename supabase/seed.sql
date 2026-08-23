@@ -164,15 +164,15 @@ insert into public.maintenance_reminders (
   ('16000000-0000-4000-8000-000000000010', '13000000-0000-4000-8000-000000000012', 'Annual inspection', current_date + 210, null, 365, null, 30, 500, null, 'Long-range upcoming schedule.', null, null, null, null, null, '10000000-0000-4000-8000-000000000001', 'andres.castillo@dispatchdesk.demo', now() - interval '150 days'),
   ('16000000-0000-4000-8000-000000000011', '13000000-0000-4000-8000-000000000001', 'Monthly service', current_date - 31, null, 30, null, 14, 500, null, 'Completed recurring schedule sample.', now() - interval '31 days', '10000000-0000-4000-8000-000000000001', 'andres.castillo@dispatchdesk.demo', 'service_records', '15000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'andres.castillo@dispatchdesk.demo', now() - interval '62 days');
 
-insert into public.ifta_trips (id, truck_number, start_date, end_date, pickup_city, dropoff_city, notes, created_at) values
-  ('17000000-0000-4000-8000-000000000001', 'RD-101', current_date - 1, current_date + 1, 'Ontario, CA', 'Phoenix, AZ', 'Current showcase trip.', now() - interval '1 day'),
-  ('17000000-0000-4000-8000-000000000002', 'RC-201', current_date - 10, current_date - 8, 'San Diego, CA', 'Las Vegas, NV', 'Completed via I-15.', now() - interval '10 days'),
-  ('17000000-0000-4000-8000-000000000003', 'RD-102', current_date - 18, current_date - 15, 'Fontana, CA', 'El Paso, TX', 'I-10 eastbound route.', now() - interval '18 days'),
-  ('17000000-0000-4000-8000-000000000004', 'RC-202', current_date - 24, current_date - 21, 'Fresno, CA', 'Portland, OR', 'I-5 northbound route.', now() - interval '24 days'),
-  ('17000000-0000-4000-8000-000000000005', 'RD-103', current_date - 32, current_date - 30, 'Riverside, CA', 'Tucson, AZ', 'Customer return trip was empty.', now() - interval '32 days'),
-  ('17000000-0000-4000-8000-000000000006', 'RC-203', current_date - 40, current_date - 37, 'Stockton, CA', 'Eugene, OR', 'Retail replenishment lane.', now() - interval '40 days'),
-  ('17000000-0000-4000-8000-000000000007', 'RD-101', current_date - 82, current_date - 79, 'Ontario, CA', 'Denver, CO', 'Prior-quarter mileage.', now() - interval '82 days'),
-  ('17000000-0000-4000-8000-000000000008', 'RC-201', current_date - 70, current_date - 68, 'San Diego, CA', 'Flagstaff, AZ', 'Prior-quarter round trip outbound leg.', now() - interval '70 days');
+insert into public.ifta_trips (id, unit_id, truck_number, start_date, end_date, pickup_city, dropoff_city, notes, created_at) values
+  ('17000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000001', 'RD-101', current_date - 1, current_date + 1, 'Ontario, CA', 'Phoenix, AZ', 'Current showcase trip.', now() - interval '1 day'),
+  ('17000000-0000-4000-8000-000000000002', '13000000-0000-4000-8000-000000000007', 'RC-201', current_date - 10, current_date - 8, 'San Diego, CA', 'Las Vegas, NV', 'Completed via I-15.', now() - interval '10 days'),
+  ('17000000-0000-4000-8000-000000000003', '13000000-0000-4000-8000-000000000002', 'RD-102', current_date - 18, current_date - 15, 'Fontana, CA', 'El Paso, TX', 'I-10 eastbound route.', now() - interval '18 days'),
+  ('17000000-0000-4000-8000-000000000004', '13000000-0000-4000-8000-000000000008', 'RC-202', current_date - 24, current_date - 21, 'Fresno, CA', 'Portland, OR', 'I-5 northbound route.', now() - interval '24 days'),
+  ('17000000-0000-4000-8000-000000000005', '13000000-0000-4000-8000-000000000003', 'RD-103', current_date - 32, current_date - 30, 'Riverside, CA', 'Tucson, AZ', 'Customer return trip was empty.', now() - interval '32 days'),
+  ('17000000-0000-4000-8000-000000000006', '13000000-0000-4000-8000-000000000009', 'RC-203', current_date - 40, current_date - 37, 'Stockton, CA', 'Eugene, OR', 'Retail replenishment lane.', now() - interval '40 days'),
+  ('17000000-0000-4000-8000-000000000007', '13000000-0000-4000-8000-000000000001', 'RD-101', current_date - 82, current_date - 79, 'Ontario, CA', 'Denver, CO', 'Prior-quarter mileage.', now() - interval '82 days'),
+  ('17000000-0000-4000-8000-000000000008', '13000000-0000-4000-8000-000000000007', 'RC-201', current_date - 70, current_date - 68, 'San Diego, CA', 'Flagstaff, AZ', 'Prior-quarter round trip outbound leg.', now() - interval '70 days');
 
 insert into public.ifta_trip_miles (id, trip_id, state, miles) values
   ('17100000-0000-4000-8000-000000000001', '17000000-0000-4000-8000-000000000001', 'CA', 221.4),

@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
+import { notFound } from "next/navigation";
+import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
 import { Field, Input, Select } from "@/components/field";
 import { ExportMenu, type ExportMenuItem } from "@/components/export-menu";
 import { SummaryTotals, WeeklySummaryList } from "@/components/weekly-report";
 import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import { getFormOptions } from "@/lib/data/options";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
+import { fleetScopeLabel, fleetScopeParam, parseFleetScope, UNASSIGNED_FLEET } from "@/lib/fleet-scope";
 
 const PERIODS: { value: WeeklyFinancialPeriod; label: string }[] = [
   { value: "this", label: "This week" },
@@ -26,7 +28,9 @@ export default async function ReportsPage({
   const params = await searchParams;
   const period = normalizePeriod(params.period);
   const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
-  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
+  const scope = parseFleetScope(params.fleet, fleetCompanies);
+  if (!scope) notFound();
+  const fleet = fleetScopeParam(scope);
   const exportParams = new URLSearchParams();
   exportParams.set("period", period);
   if (fleet) exportParams.set("fleet", fleet);
@@ -47,7 +51,7 @@ export default async function ReportsPage({
     from: params.from,
     to: params.to,
     driver: params.driver || undefined,
-    fleet: fleet || undefined,
+    fleetScope: scope,
   });
   const exports: ExportMenuItem[] = [
     {
@@ -111,7 +115,7 @@ export default async function ReportsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">Reports</h1>
-          <p className="text-sm text-zinc-600">Financial review and business exports.</p>
+          <p className="text-sm text-zinc-600">{fleetScopeLabel(scope)} · Financial review and business exports.</p>
         </div>
         <ExportMenu
           items={exports}
@@ -121,7 +125,7 @@ export default async function ReportsPage({
               label: "Fleet",
               allLabel: "All fleets",
               defaultValue: fleet,
-              options: fleetCompanies.map((company) => ({ label: company, value: company })),
+              options: [...fleetCompanies.map((company) => ({ label: company, value: company })), { label: "Unassigned", value: UNASSIGNED_FLEET }],
             },
             {
               key: "driver",
@@ -173,7 +177,7 @@ export default async function ReportsPage({
       <FleetScopeTabs
         basePath="/reports"
         companies={fleetCompanies}
-        selectedFleet={fleet}
+        scope={scope}
         params={{ period, from: params.from, to: params.to, driver: params.driver }}
       />
 

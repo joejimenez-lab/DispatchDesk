@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 import { renderWeeklySummaryPdf } from "@/lib/weekly-summary-pdf";
+import { fleetScopeLabel, fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
 
 export const runtime = "nodejs";
 
@@ -23,20 +24,22 @@ export async function GET(request: Request) {
 
   try {
     const { searchParams } = url;
+    const scope = await resolveExportFleetScope(auth.supabase, searchParams.get("fleet"));
+    if (!scope) return NextResponse.json({ error: "Unknown fleet." }, { status: 400 });
     const { summaries, range } = await getWeeklyDriverFinancialSummary({
       period: normalizePeriod(searchParams.get("period")),
       from: searchParams.get("from") ?? undefined,
       to: searchParams.get("to") ?? undefined,
       driver: searchParams.get("driver") ?? undefined,
-      fleet: searchParams.get("fleet") ?? undefined,
+      fleetScope: scope,
     });
-    const pdf = await renderWeeklySummaryPdf(summaries, range);
+    const pdf = await renderWeeklySummaryPdf(summaries, range, undefined, fleetScopeLabel(scope));
     const stamp = new Date().toISOString().slice(0, 10);
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="dispatchdesk-financial-summary-${stamp}.pdf"`,
+        "Content-Disposition": `attachment; filename="dispatchdesk-financial-summary-${fleetScopeSlug(scope)}-${stamp}.pdf"`,
         "Cache-Control": "private, no-store",
       },
     });

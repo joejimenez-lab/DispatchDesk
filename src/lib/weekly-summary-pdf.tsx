@@ -97,10 +97,12 @@ export function WeeklySummaryPdf({
   summaries,
   range,
   generatedAt = new Date(),
+  fleetLabel = "All fleets",
 }: {
   summaries: WeeklyDriverFinancialSummary[];
   range: WeeklyFinancialRange;
   generatedAt?: Date;
+  fleetLabel?: string;
 }) {
   const totals = summaries.reduce(
     (result, summary) => ({
@@ -116,10 +118,12 @@ export function WeeklySummaryPdf({
     { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, factoring: 0, otherDeductions: 0, profit: 0 },
   );
 
-  const weeks = new Map<string, typeof totals & { weekEnd: string }>();
-  const drivers = new Map<string, { name: string; loads: number; pay: number; revenue: number }>();
+  const weeks = new Map<string, typeof totals & { weekEnd: string; fleet: string }>();
+  const drivers = new Map<string, { name: string; fleet: string; loads: number; pay: number; revenue: number }>();
   for (const summary of summaries) {
-    const week = weeks.get(summary.weekStart) ?? { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, factoring: 0, otherDeductions: 0, profit: 0, weekEnd: summary.weekEnd };
+    const fleet = summary.fleetCompany ?? "Unassigned";
+    const weekKey = `${summary.weekStart}:${fleet}`;
+    const week = weeks.get(weekKey) ?? { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, factoring: 0, otherDeductions: 0, profit: 0, weekEnd: summary.weekEnd, fleet };
     week.loads += summary.loadCount;
     week.revenue += summary.loadRateTotal;
     week.driverPay += summary.driverPayTotal;
@@ -128,10 +132,10 @@ export function WeeklySummaryPdf({
     week.factoring += summary.factoringTotal;
     week.otherDeductions += summary.otherDeductionTotal;
     week.profit += summary.estimatedProfitTotal;
-    weeks.set(summary.weekStart, week);
+    weeks.set(weekKey, week);
 
-    const driverKey = summary.driverId ?? "unassigned";
-    const driver = drivers.get(driverKey) ?? { name: summary.driverName, loads: 0, pay: 0, revenue: 0 };
+    const driverKey = `${summary.driverId ?? "unassigned"}:${fleet}`;
+    const driver = drivers.get(driverKey) ?? { name: summary.driverName, fleet, loads: 0, pay: 0, revenue: 0 };
     driver.loads += summary.loadCount;
     driver.pay += summary.driverPayTotal;
     driver.revenue += summary.loadRateTotal;
@@ -166,7 +170,7 @@ export function WeeklySummaryPdf({
           <View>
             <Text style={styles.brand}>DISPATCHDESK</Text>
             <Text style={styles.title}>Financial Summary</Text>
-            <Text style={styles.subtitle}>{rangeLabel(range)}</Text>
+            <Text style={styles.subtitle}>{rangeLabel(range)} · Fleet: {fleetLabel}</Text>
           </View>
           <Text style={styles.generated}>PREPARED{`\n`}{dateFormatter.format(generatedAt)}</Text>
         </View>
@@ -185,9 +189,9 @@ export function WeeklySummaryPdf({
           </View>
           <View style={styles.table}>
             <TableHeader columns={weeklyColumns} />
-            {weeklyRows.length ? weeklyRows.map(([weekStart, week], index) => (
-              <View key={weekStart} style={[styles.row, index === weeklyRows.length - 1 ? styles.rowLast : {}]} wrap={false}>
-                <Text style={[styles.cell, styles.cellStrong, { width: "20%" }]}>{dateLabel(weekStart)} - {dateLabel(week.weekEnd)}</Text>
+            {weeklyRows.length ? weeklyRows.map(([weekKey, week], index) => (
+              <View key={weekKey} style={[styles.row, index === weeklyRows.length - 1 ? styles.rowLast : {}]} wrap={false}>
+                <Text style={[styles.cell, styles.cellStrong, { width: "20%" }]}>{dateLabel(weekKey.slice(0, 10))} - {dateLabel(week.weekEnd)} · {week.fleet}</Text>
                 <Text style={[styles.cell, styles.right, { width: "7%" }]}>{week.loads}</Text>
                 <Text style={[styles.cell, styles.right, { width: "13%" }]}>{money(week.revenue)}</Text>
                 <Text style={[styles.cell, styles.right, { width: "13%" }]}>{money(week.driverPay)}</Text>
@@ -209,7 +213,7 @@ export function WeeklySummaryPdf({
             <TableHeader columns={driverColumns} />
             {driverRows.length ? driverRows.map(([driverKey, driver], index) => (
               <View key={driverKey} style={[styles.row, index === driverRows.length - 1 ? styles.rowLast : {}]} wrap={false}>
-                <Text style={[styles.cell, styles.cellStrong, { width: "42%" }]}>{driver.name}</Text>
+                <Text style={[styles.cell, styles.cellStrong, { width: "42%" }]}>{driver.name} · {driver.fleet}</Text>
                 <Text style={[styles.cell, styles.right, { width: "16%" }]}>{driver.loads}</Text>
                 <Text style={[styles.cell, styles.right, { width: "21%" }]}>{money(driver.revenue)}</Text>
                 <Text style={[styles.cell, styles.cellStrong, styles.right, { width: "21%" }]}>{money(driver.pay)}</Text>
@@ -232,6 +236,7 @@ export async function renderWeeklySummaryPdf(
   summaries: WeeklyDriverFinancialSummary[],
   range: WeeklyFinancialRange,
   generatedAt = new Date(),
+  fleetLabel = "All fleets",
 ) {
-  return renderToBuffer(<WeeklySummaryPdf summaries={summaries} range={range} generatedAt={generatedAt} />);
+  return renderToBuffer(<WeeklySummaryPdf summaries={summaries} range={range} generatedAt={generatedAt} fleetLabel={fleetLabel} />);
 }

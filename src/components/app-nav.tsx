@@ -15,7 +15,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { signOut } from "@/lib/actions/auth";
 
 type NavItem = { label: string; href: string; icon: LucideIcon };
@@ -40,6 +40,11 @@ function LinkPendingIndicator() {
 
 export function AppNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const fleet = searchParams.get("fleet")?.trim();
+  const scopedHref = (href: string) => fleet
+    ? `${href}?fleet=${encodeURIComponent(fleet)}`
+    : href;
   const currentPage = links.find(({ href }) =>
     pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/")),
   )?.label ?? (pathname === "/status"
@@ -50,7 +55,7 @@ export function AppNav() {
     <>
       <aside className="command-header">
       <div className="command-masthead">
-        <Link href="/dashboard" className="command-brand" aria-label="DispatchDesk dashboard">
+        <Link href={scopedHref("/dashboard")} className="command-brand" aria-label="DispatchDesk dashboard">
           <span className="command-brand-mark" aria-hidden="true">DD</span>
           <span className="command-brand-copy">
             <span className="command-brand-name">DispatchDesk</span>
@@ -66,7 +71,7 @@ export function AppNav() {
               return (
                 <Link
                   key={href}
-                  href={href}
+                  href={scopedHref(href)}
                   aria-current={active ? "page" : undefined}
                   className={active ? "module-link module-link-active" : "module-link"}
                 >
@@ -92,7 +97,7 @@ export function AppNav() {
         <span>DispatchDesk</span>
         <strong>{currentPage}</strong>
       </div>
-      <Link href="/loads/new" className="workspace-create">
+      <Link href={scopedHref("/loads/new")} className="workspace-create">
         <Plus aria-hidden="true" />
         <span>New load</span>
         <LinkPendingIndicator />

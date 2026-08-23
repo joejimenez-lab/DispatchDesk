@@ -177,6 +177,7 @@ export const maintenanceSnoozeSchema = z.object({
 const iftaState = z.enum(iftaStateCodes, "Choose a state");
 
 export const iftaTripSchema = z.object({
+  unit_id: z.string().uuid("Choose a truck"),
   truck_number: z.string().trim().min(1, "Truck number is required"),
   start_date: requiredDate,
   end_date: optionalDate,

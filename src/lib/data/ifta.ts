@@ -1,95 +1,70 @@
 import { buildRouteTemplates, type IftaStateMilesEntry } from "@/lib/ifta";
-import { getFleetTruckNumbers } from "@/lib/data/fleet";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
+import { matchesFleetScope, type FleetScope } from "@/lib/fleet-scope";
 
 type TripRow = Database["public"]["Tables"]["ifta_trips"]["Row"];
 type FuelPurchaseRow = Database["public"]["Tables"]["ifta_fuel_purchases"]["Row"];
 
-export type IftaTripWithMiles = TripRow & { ifta_trip_miles: IftaStateMilesEntry[] };
+type IftaUnit = { id: string; unit_number: string; company: string | null } | null;
+export type IftaTripWithMiles = TripRow & { ifta_trip_miles: IftaStateMilesEntry[]; fleet_units: IftaUnit };
 export type IftaFuelPurchase = FuelPurchaseRow & {
   bookkeeping_expense_groups?: { id: string; bookkeeping_receipts: { id: string }[] }[];
+  fleet_units: IftaUnit;
 };
 
 export type IftaPeriodFilters = {
   start: string;
   end: string;
   truck?: string;
-  fleet?: string;
+  fleetScope?: FleetScope;
 };
 
-async function resolveTruckFilter(truck?: string, fleet?: string) {
-  if (truck) return [truck];
-  if (!fleet) return null;
-  return getFleetTruckNumbers(fleet);
-}
-
-export async function getIftaTrips({ start, end, truck, fleet }: IftaPeriodFilters) {
+export async function getIftaTrips({ start, end, truck, fleetScope = { kind: "all" } }: IftaPeriodFilters) {
   const supabase = await createClient();
-  const truckFilter = await resolveTruckFilter(truck, fleet);
-  if (truckFilter && !truckFilter.length) return [];
 
   let query = supabase
     .from("ifta_trips")
-    .select("*, ifta_trip_miles(state, miles)")
+    .select("*, ifta_trip_miles(state, miles), fleet_units(id, unit_number, company)")
     .gte("start_date", start)
     .lte("start_date", end)
     .order("start_date", { ascending: false })
     .order("created_at", { ascending: false });
-  if (truckFilter) query = query.in("truck_number", truckFilter);
+  if (truck) query = query.eq("truck_number", truck);
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as IftaTripWithMiles[];
+  return ((data ?? []) as unknown as IftaTripWithMiles[]).filter((row) => matchesFleetScope(row.fleet_units?.company, fleetScope));
 }
 
-export async function getIftaFuelPurchases({ start, end, truck, fleet }: IftaPeriodFilters) {
+export async function getIftaFuelPurchases({ start, end, truck, fleetScope = { kind: "all" } }: IftaPeriodFilters) {
   const supabase = await createClient();
-  const truckFilter = await resolveTruckFilter(truck, fleet);
-  if (truckFilter && !truckFilter.length) return [];
 
   let query = supabase
     .from("ifta_fuel_purchases")
-    .select("*, bookkeeping_expense_groups(id, bookkeeping_receipts(id))")
+    .select("*, bookkeeping_expense_groups(id, bookkeeping_receipts(id)), fleet_units(id, unit_number, company)")
     .gte("purchase_date", start)
     .lte("purchase_date", end)
     .order("purchase_date", { ascending: false })
     .order("created_at", { ascending: false });
-  if (truckFilter) query = query.in("truck_number", truckFilter);
+  if (truck) query = query.eq("truck_number", truck);
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as IftaFuelPurchase[];
+  return ((data ?? []) as unknown as IftaFuelPurchase[]).filter((row) => matchesFleetScope(row.fleet_units?.company, fleetScope));
 }
 
-export async function getIftaTruckOptions(fleet?: string) {
+export async function getIftaTruckOptions(scope: FleetScope = { kind: "all" }) {
   const supabase = await createClient();
-  let query = supabase.from("fleet_units").select("id, unit_number, company").eq("unit_type", "Truck").order("unit_number");
-  if (fleet) query = query.eq("company", fleet);
+  const query = supabase.from("fleet_units").select("id, unit_number, company").eq("unit_type", "Truck").order("unit_number");
   const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).filter((row) => matchesFleetScope(row.company, scope));
 }
 
-export async function getIftaTruckNumbers(fleet?: string) {
-  if (fleet) return getFleetTruckNumbers(fleet);
-
-  const supabase = await createClient();
-  const [units, trips, purchases] = await Promise.all([
-    supabase.from("fleet_units").select("unit_number").eq("unit_type", "Truck"),
-    supabase.from("ifta_trips").select("truck_number"),
-    supabase.from("ifta_fuel_purchases").select("truck_number"),
-  ]);
-
-  if (units.error) throw units.error;
-  if (trips.error) throw trips.error;
-  if (purchases.error) throw purchases.error;
-
-  const numbers = new Set([
-    ...(units.data ?? []).map((row) => row.unit_number),
-    ...(trips.data ?? []).map((row) => row.truck_number),
-    ...(purchases.data ?? []).map((row) => row.truck_number),
-  ]);
+export async function getIftaTruckNumbers(scope: FleetScope = { kind: "all" }) {
+  const units = await getIftaTruckOptions(scope);
+  const numbers = new Set(units.map((row) => row.unit_number));
   return [...numbers].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 }
 

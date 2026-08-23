@@ -1,17 +1,12 @@
 import Link from "next/link";
+import { fleetScopeParam, UNASSIGNED_FLEET, type FleetScope } from "@/lib/fleet-scope";
 
 type FleetScopeTabsProps = {
   basePath: string;
   companies: string[];
-  selectedFleet: string;
+  scope: FleetScope;
   params?: Record<string, string | null | undefined>;
 };
-
-export function normalizeFleetScope(value: string | undefined, companies: string[]) {
-  const requested = value?.trim().toLocaleLowerCase();
-  if (!requested) return "";
-  return companies.find((company) => company.toLocaleLowerCase() === requested) ?? "";
-}
 
 export function fleetScopedHref(
   basePath: string,
@@ -27,14 +22,15 @@ export function fleetScopedHref(
   return query ? `${basePath}?${query}` : basePath;
 }
 
-export function FleetScopeTabs({ basePath, companies, selectedFleet, params }: FleetScopeTabsProps) {
-  if (!companies.length) return null;
+export function FleetScopeTabs({ basePath, companies, scope, params }: FleetScopeTabsProps) {
+  const selectedFleet = fleetScopeParam(scope);
 
   return (
     <nav aria-label="Fleet scope" className="flex flex-wrap gap-2">
       {[
-        { label: "All", value: "" },
+        { label: "All fleets", value: "" },
         ...companies.map((company) => ({ label: company, value: company })),
+        { label: "Unassigned", value: UNASSIGNED_FLEET },
       ].map((option) => {
         const active = option.value === selectedFleet;
         return (

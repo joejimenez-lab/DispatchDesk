@@ -23,9 +23,10 @@ type LoadFormProps = {
   payment?: PaymentRow | null;
   deductions?: DeductionRow[];
   showPayments?: boolean;
+  initialFleet?: string | null;
 };
 
-export function LoadForm({ action, drivers, brokers, equipment, load, payment, deductions = [], showPayments = false }: LoadFormProps) {
+export function LoadForm({ action, drivers, brokers, equipment, load, payment, deductions = [], showPayments = false, initialFleet }: LoadFormProps) {
   return (
     <ActionForm action={action} className="space-y-8" successMessage={false}>
       <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 md:grid-cols-2">
@@ -54,7 +55,7 @@ export function LoadForm({ action, drivers, brokers, equipment, load, payment, d
           drivers={drivers}
           equipment={equipment}
           defaultDriverId={load?.driver_id}
-          defaultFleet={load?.fleet_company}
+          defaultFleet={load?.fleet_company ?? initialFleet}
           defaultTruckUnitId={load?.truck_unit_id}
           defaultTrailerUnitId={load?.trailer_unit_id}
         />

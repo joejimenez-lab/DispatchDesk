@@ -24,12 +24,27 @@ const summary = {
   loads: [],
 };
 
+function catalogClient(companies = ["West"]) {
+  return {
+    from: vi.fn((table: string) => ({
+      select: vi.fn(() => ({
+        not: vi.fn(async () => ({
+          data: table === "fleet_units"
+            ? companies.map((company) => ({ company }))
+            : companies.map((fleet_company) => ({ fleet_company })),
+          error: null,
+        })),
+      })),
+    })),
+  };
+}
+
 describe("/api/reports/exports/[report]", () => {
   beforeEach(() => {
     vi.resetModules();
     createAuthenticatedRouteClient.mockReset();
     getWeeklyDriverFinancialSummary.mockReset();
-    createAuthenticatedRouteClient.mockResolvedValue({ supabase: {} });
+    createAuthenticatedRouteClient.mockResolvedValue({ supabase: catalogClient() });
     getWeeklyDriverFinancialSummary.mockResolvedValue({
       summaries: [summary],
       range: { from: "2026-01-05", to: "2026-01-11" },
@@ -45,14 +60,14 @@ describe("/api/reports/exports/[report]", () => {
     if (!response) throw new Error("Expected a report export response");
 
     expect(response.headers.get("content-type")).toContain("text/csv");
-    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-weekly-payroll-\d{4}-\d{2}-\d{2}\.csv/);
+    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-weekly-payroll-west-\d{4}-\d{2}-\d{2}\.csv/);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(getWeeklyDriverFinancialSummary).toHaveBeenCalledWith({
       period: "custom",
       from: "2026-01-05",
       to: "2026-01-11",
       driver: "123e4567-e89b-42d3-a456-426614174000",
-      fleet: "West",
+      fleetScope: { kind: "fleet", company: "West" },
     });
   });
 
@@ -65,7 +80,7 @@ describe("/api/reports/exports/[report]", () => {
     if (!response) throw new Error("Expected a report export response");
 
     expect(response.headers.get("content-type")).toBe("application/pdf");
-    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-weekly-payroll-\d{4}-\d{2}-\d{2}\.pdf/);
+    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-weekly-payroll-all-fleets-\d{4}-\d{2}-\d{2}\.pdf/);
     expect(Buffer.from(await response.arrayBuffer()).subarray(0, 4).toString()).toBe("%PDF");
   });
 
@@ -73,6 +88,18 @@ describe("/api/reports/exports/[report]", () => {
     const { GET } = await import("./route");
     const response = await GET(
       new Request("http://localhost/api/reports/exports/weekly-payroll?format=xlsx"),
+      { params: Promise.resolve({ report: "weekly-payroll" }) },
+    );
+    if (!response) throw new Error("Expected a report export response");
+
+    expect(response.status).toBe(400);
+    expect(getWeeklyDriverFinancialSummary).not.toHaveBeenCalled();
+  });
+
+  it("rejects a named fleet outside the authenticated tenant catalogue", async () => {
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/reports/exports/weekly-payroll?fleet=Unknown"),
       { params: Promise.resolve({ report: "weekly-payroll" }) },
     );
     if (!response) throw new Error("Expected a report export response");

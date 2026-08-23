@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { DetailsCloseButton } from "@/components/details-close-button";
 import { ExportMenu } from "@/components/export-menu";
-import { FleetScopeTabs, normalizeFleetScope } from "@/components/fleet-scope-tabs";
+import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
 import { Field, Select } from "@/components/field";
 import { ConfirmSubmitButton } from "@/components/form-buttons";
 import { IftaFuelForm } from "@/components/ifta-fuel-form";
@@ -23,6 +24,7 @@ import {
   type IftaQuarter,
 } from "@/lib/ifta";
 import { currency, formatDate } from "@/lib/utils";
+import { fleetScopeLabel, fleetScopeParam, parseFleetScope, UNASSIGNED_FLEET } from "@/lib/fleet-scope";
 
 function selectedQuarter(params: { year?: string; quarter?: string }): IftaQuarter {
   const fallback = currentIftaQuarter();
@@ -43,15 +45,17 @@ export default async function IftaPage({
   const period = selectedQuarter(params);
   const range = quarterDateRange(period);
   const fleetCompanies = await getFleetCompanies();
-  const fleet = normalizeFleetScope(params.fleet, fleetCompanies);
+  const scope = parseFleetScope(params.fleet, fleetCompanies);
+  if (!scope) notFound();
+  const fleet = fleetScopeParam(scope);
   const truck = params.truck || undefined;
 
   const [trips, purchases, truckNumbers, routes, fuelTrucks] = await Promise.all([
-    getIftaTrips({ ...range, truck, fleet: fleet || undefined }),
-    getIftaFuelPurchases({ ...range, truck, fleet: fleet || undefined }),
-    getIftaTruckNumbers(fleet || undefined),
+    getIftaTrips({ ...range, truck, fleetScope: scope }),
+    getIftaFuelPurchases({ ...range, truck, fleetScope: scope }),
+    getIftaTruckNumbers(scope),
     getIftaRouteTemplates(),
-    getIftaTruckOptions(fleet || undefined),
+    getIftaTruckOptions(scope),
   ]);
 
   const summary = summarizeIftaByState(trips, purchases);
@@ -84,7 +88,7 @@ export default async function IftaPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">IFTA Fuel Tax</h1>
-          <p className="text-sm text-zinc-600">Miles per state and fuel purchases per state, totaled by quarter for IFTA filing.</p>
+          <p className="text-sm text-zinc-600">{fleetScopeLabel(scope)} · Miles and fuel purchases by quarter.</p>
         </div>
         <ExportMenu
           heading={`IFTA exports · ${quarterLabel(period)}`}
@@ -106,6 +110,7 @@ export default async function IftaPage({
               formats: [{ label: "CSV", href: exportHref("fuel"), type: "csv" }],
             },
           ]}
+          filters={[{ key: "fleet", label: "Fleet", allLabel: "All fleets", defaultValue: fleet, options: [...fleetCompanies.map((company) => ({ label: company, value: company })), { label: "Unassigned", value: UNASSIGNED_FLEET }] }]}
         />
       </div>
 
@@ -139,7 +144,7 @@ export default async function IftaPage({
       <FleetScopeTabs
         basePath="/ifta"
         companies={fleetCompanies}
-        selectedFleet={fleet}
+        scope={scope}
         params={{ year: String(period.year), quarter: String(period.quarter) }}
       />
 
@@ -203,7 +208,7 @@ export default async function IftaPage({
             <summary className="cursor-pointer list-none rounded-[10px] bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-700">+ Add trip</summary>
             <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 lg:absolute lg:left-1/2 lg:z-10 lg:w-[min(68rem,calc(100vw-2rem))] lg:-translate-x-1/2 lg:shadow-xl">
               <div className="mb-3 flex justify-end"><DetailsCloseButton /></div>
-              <IftaTripForm action={addIftaTrip} truckNumbers={truckNumbers} routes={routes} />
+              <IftaTripForm action={addIftaTrip} trucks={fuelTrucks} routes={routes} />
             </div>
           </details>
         </div>
@@ -212,6 +217,7 @@ export default async function IftaPage({
             <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-500">
               <tr>
                 <th className="px-4 py-3">T#</th>
+                <th className="px-4 py-3">Fleet</th>
                 <th className="px-4 py-3">Dates</th>
                 <th className="px-4 py-3">Pickup</th>
                 <th className="px-4 py-3">Drop-off</th>
@@ -224,6 +230,7 @@ export default async function IftaPage({
               {trips.map((trip) => (
                 <tr key={trip.id} className="hover:bg-zinc-50">
                   <td className="px-4 py-3 font-semibold text-zinc-950">{trip.truck_number}</td>
+                  <td className="px-4 py-3">{trip.fleet_units?.company ?? "Unassigned"}</td>
                   <td className="px-4 py-3">
                     <div className="min-w-28 font-medium text-zinc-900">{formatDate(trip.start_date)}</div>
                     {trip.end_date ? <div className="mt-1 text-xs text-zinc-500">to {formatDate(trip.end_date)}</div> : null}
@@ -244,7 +251,7 @@ export default async function IftaPage({
               ))}
               {trips.length ? (
                 <tr className="bg-zinc-50 font-semibold text-zinc-950">
-                  <td className="px-4 py-3" colSpan={4}>Total miles</td>
+                  <td className="px-4 py-3" colSpan={5}>Total miles</td>
                   {tripStates.map((state) => <td key={state} className="px-4 py-3 text-right">{formatQuantity(tripStateTotals.get(state) ?? 0)}</td>)}
                   <td className="px-4 py-3 text-right">{formatQuantity(totals.miles)}</td>
                   <td className="px-4 py-3" />
@@ -278,6 +285,7 @@ export default async function IftaPage({
             <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-500">
               <tr>
                 <th className="px-4 py-3">T#</th>
+                <th className="px-4 py-3">Fleet</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">City</th>
                 <th className="px-4 py-3">State</th>
@@ -290,6 +298,7 @@ export default async function IftaPage({
               {purchases.map((purchase) => (
                 <tr key={purchase.id} className="hover:bg-zinc-50">
                   <td className="px-4 py-3 font-semibold text-zinc-950">{purchase.truck_number}</td>
+                  <td className="px-4 py-3">{purchase.fleet_units?.company ?? "Unassigned"}</td>
                   <td className="px-4 py-3">{formatDate(purchase.purchase_date)}</td>
                   <td className="px-4 py-3">{purchase.city ?? ""}</td>
                   <td className="px-4 py-3">{purchase.state}</td>

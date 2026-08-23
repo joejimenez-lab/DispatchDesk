@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 import {
   CircleCheckBig,
@@ -11,6 +12,9 @@ import { LinkButton } from "@/components/button";
 import { StatusBadge } from "@/components/status-badge";
 import { currency, formatDate } from "@/lib/utils";
 import { getDashboardMetrics } from "@/lib/data/dashboard";
+import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
+import { getLoadFleetCompanies } from "@/lib/data/fleet";
+import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
 
 function overdueAge(value: string | null) {
   if (!value) return "Delivery date unavailable";
@@ -36,8 +40,13 @@ function ProgressBar({ label, value, max }: { label: string; value: number; max:
   );
 }
 
-export default async function DashboardPage() {
-  const metrics = await getDashboardMetrics();
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ fleet?: string }> }) {
+  const params = await searchParams;
+  const companies = await getLoadFleetCompanies();
+  const scope = parseFleetScope(params.fleet, companies);
+  if (!scope) notFound();
+  const metrics = await getDashboardMetrics(scope);
+  const fleet = fleetScopeParam(scope);
   const maxStatusCount = Math.max(0, ...metrics.statusCounts.map(([, count]) => count));
   const totalRevenue = Math.max(metrics.totalRevenue, 1);
   const collectedWidth = Math.round((metrics.collectedRevenue / totalRevenue) * 100);
@@ -55,9 +64,9 @@ export default async function DashboardPage() {
         <div className="dashboard-hero-heading">
           <div>
             <h1>Dashboard</h1>
-            <p>Overview of loads, payments, revenue, and maintenance.</p>
+            <p>{fleetScopeLabel(scope)} · Loads, payments, revenue, and maintenance.</p>
           </div>
-          <LinkButton href="/loads/new">
+          <LinkButton href={fleet ? `/loads/new?fleet=${encodeURIComponent(fleet)}` : "/loads/new"}>
             <span aria-hidden="true">+</span> Create load
           </LinkButton>
         </div>
@@ -78,6 +87,8 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      <FleetScopeTabs basePath="/dashboard" companies={companies} scope={scope} />
+
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="dispatch-panel lg:col-span-2">
           <div className="panel-heading">
@@ -85,7 +96,7 @@ export default async function DashboardPage() {
               <h2>Current loads</h2>
               <p>Active loads ordered by delivery date.</p>
             </div>
-            <Link href="/loads" className="panel-link">View all loads</Link>
+            <Link href={fleet ? `/loads?fleet=${encodeURIComponent(fleet)}` : "/loads"} className="panel-link">View all loads</Link>
           </div>
           <div className="divide-y divide-zinc-200 px-5">
             {metrics.currentLoads.map((load) => {
@@ -117,7 +128,7 @@ export default async function DashboardPage() {
                     ) : null}
                   </div>
                   <div className="text-xs text-zinc-500 md:col-span-2 md:col-start-2">
-                    {load.brokers?.company_name ?? "No broker"} · {load.drivers?.name ?? "No driver"}
+                    {load.fleet_company ?? "Unassigned"} · {load.brokers?.company_name ?? "No broker"} · {load.drivers?.name ?? "No driver"}
                   </div>
                   <div className="justify-self-start md:col-start-4 md:row-start-1">
                     <StatusBadge status={load.status} />
@@ -153,7 +164,7 @@ export default async function DashboardPage() {
                 <h2>Maintenance alerts</h2>
                 <p>Scheduled service that needs attention.</p>
               </div>
-              <Link href="/maintenance" className="panel-link">View maintenance</Link>
+              <Link href={fleet ? `/maintenance?fleet=${encodeURIComponent(fleet)}` : "/maintenance"} className="panel-link">View maintenance</Link>
             </div>
             <div className="dispatch-panel-inner">
               <div className="maintenance-tally">

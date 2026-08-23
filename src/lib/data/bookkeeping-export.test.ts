@@ -47,10 +47,10 @@ describe("Bookkeeping transaction exports", () => {
     const rows = bookkeepingExpenseToExportRows(transaction);
 
     expect(summarizeBookkeepingRows(rows)).toEqual([
-      { category: "Maintenance", expenseLines: 1, receiptCount: 1, total: 180 },
-      { category: "Parts", expenseLines: 1, receiptCount: 0, total: 70 },
+      { fleet: "Fleet A", category: "Maintenance", expenseLines: 1, receiptCount: 1, total: 180 },
+      { fleet: "Fleet A", category: "Parts", expenseLines: 1, receiptCount: 0, total: 70 },
     ]);
-    expect(bookkeepingSummaryCsv(rows)).toContain("Category,Expense Lines,Receipt Count,Total");
+    expect(bookkeepingSummaryCsv(rows)).toContain("Fleet,Category,Expense Lines,Receipt Count,Total");
     expect(bookkeepingSummaryCsv(rows)).toContain("Maintenance,1,1,180.00");
   });
 });

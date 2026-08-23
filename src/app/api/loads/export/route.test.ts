@@ -14,6 +14,21 @@ function loadsClient(data: unknown[]) {
   };
 }
 
+function catalogueClient(companies: string[]) {
+  return {
+    from: vi.fn((table: string) => ({
+      select: vi.fn(() => ({
+        not: vi.fn(async () => ({
+          data: table === "fleet_units"
+            ? companies.map((company) => ({ company }))
+            : companies.map((fleet_company) => ({ fleet_company })),
+          error: null,
+        })),
+      })),
+    })),
+  };
+}
+
 describe("/api/loads/export", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -73,6 +88,7 @@ describe("/api/loads/export", () => {
     expect(csv).toContain("'-Carrier");
     expect(csv).toContain("'\t=Driver");
     expect(csv).toContain("Fleet A");
+    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-loads-all-fleets-\d{4}-\d{2}-\d{2}\.csv/);
     expect(csv).toContain("LOAD-TRK,LOAD-TRL");
     expect(csv).not.toContain("DRIVER-TRK");
     expect(csv).not.toContain("DRIVER-TRL");
@@ -82,5 +98,15 @@ describe("/api/loads/export", () => {
     expect(csv).toContain("'=Lumper: 20.00");
     expect(csv).toContain(",1000,500,100,50,Percentage,3%,30,20,");
     expect(csv).toContain(",50,300,true,0,1000,false,false,false,");
+  });
+
+  it("returns 400 for a fleet outside the authenticated tenant catalogue", async () => {
+    createAuthenticatedRouteClient.mockResolvedValue({ supabase: catalogueClient(["West"]) });
+    const { GET } = await import("./route");
+
+    const response = await GET(new Request("http://localhost/api/loads/export?fleet=Unknown"));
+    if (!response) throw new Error("Expected an export response");
+
+    expect(response.status).toBe(400);
   });
 });
