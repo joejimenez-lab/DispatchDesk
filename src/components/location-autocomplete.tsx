@@ -30,7 +30,7 @@ export function LocationAutocomplete({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const selectedValueRef = useRef<string | null>(null);
+  const selectedValueRef = useRef<string | null>(defaultValue?.trim() || null);
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {

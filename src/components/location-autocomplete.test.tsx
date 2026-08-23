@@ -12,6 +12,42 @@ afterEach(() => {
 });
 
 describe("LocationAutocomplete", () => {
+  it("does not search for a prefilled location until the user edits it", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({
+      locations: [{
+        id: "R:287487",
+        label: "West Valley City, Utah",
+        fullLabel: "West Valley City, Utah, United States",
+        type: "city",
+      }],
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <LocationAutocomplete
+        name="pickup_location"
+        defaultValue="West Valley City, Utah"
+      />,
+    );
+
+    const input = screen.getByPlaceholderText("Start typing a city or address");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+
+    expect(input).toHaveProperty("value", "West Valley City, Utah");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /West Valley City, Utah/ })).toBeNull();
+
+    fireEvent.change(input, { target: { value: "West Valley City, Uta" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /West Valley City, Utah/ })).toBeTruthy();
+  });
+
   it("keeps suggestions closed after a location is selected", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockImplementation(() => Response.json({
