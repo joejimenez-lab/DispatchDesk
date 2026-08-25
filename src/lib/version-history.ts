@@ -9,6 +9,7 @@ export type ProductRelease = {
 };
 
 export const VERSION_HISTORY: readonly ProductRelease[] = [
+  { version: "2.8.1", date: "2026-08-25", title: "Edit-load location dropdown fix", summary: "Stopped prefilled location suggestions from opening automatically when editing loads.", kind: "patch" },
   { version: "2.8.0", date: "2026-08-23", title: "Version history", summary: "Added a visible current-version link and a complete in-app release history.", kind: "minor" },
   { version: "2.7.0", date: "2026-08-22", title: "Fleet views and exports", summary: "Added first-class fleet views and separate fleet-scoped exports.", kind: "minor" },
   { version: "2.6.0", date: "2026-08-22", title: "Equipment assignments", summary: "Linked loads to durable fleet, truck, and trailer assignments.", kind: "minor" },
@@ -51,4 +52,3 @@ export const VERSION_HISTORY: readonly ProductRelease[] = [
 ] as const;
 
 export const CURRENT_VERSION = VERSION_HISTORY[0].version;
-

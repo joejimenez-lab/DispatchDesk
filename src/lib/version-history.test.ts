@@ -7,8 +7,12 @@ function semverParts(version: string) {
 
 describe("version history", () => {
   it("exposes the current release first", () => {
-    expect(CURRENT_VERSION).toBe("2.8.0");
-    expect(VERSION_HISTORY[0]).toMatchObject({ version: CURRENT_VERSION, title: "Version history" });
+    expect(CURRENT_VERSION).toBe("2.8.1");
+    expect(VERSION_HISTORY[0]).toMatchObject({
+      version: CURRENT_VERSION,
+      title: "Edit-load location dropdown fix",
+      kind: "patch",
+    });
   });
 
   it("contains unique, valid public versions in newest-first order", () => {
@@ -36,4 +40,3 @@ describe("version history", () => {
     expect(serialized).not.toContain("demo dataset");
   });
 });
-

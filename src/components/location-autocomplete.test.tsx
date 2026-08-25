@@ -12,21 +12,29 @@ afterEach(() => {
 });
 
 describe("LocationAutocomplete", () => {
-  it("does not search for a prefilled location until the user edits it", async () => {
+  it.each([
+    ["pickup_location", "West Valley City, Utah", "West Valley City, Uta"],
+    ["delivery_location", "Fontana, California", "Fontana, Californi"],
+    ["return_location", "Los Angeles, California", "Los Angeles, Californi"],
+  ])("does not search for a prefilled %s until the user edits it", async (
+    name,
+    defaultValue,
+    editedValue,
+  ) => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue(Response.json({
       locations: [{
         id: "R:287487",
-        label: "West Valley City, Utah",
-        fullLabel: "West Valley City, Utah, United States",
+        label: defaultValue,
+        fullLabel: `${defaultValue}, United States`,
         type: "city",
       }],
     }));
     vi.stubGlobal("fetch", fetchMock);
     render(
       <LocationAutocomplete
-        name="pickup_location"
-        defaultValue="West Valley City, Utah"
+        name={name}
+        defaultValue={defaultValue}
       />,
     );
 
@@ -35,17 +43,17 @@ describe("LocationAutocomplete", () => {
       await vi.advanceTimersByTimeAsync(1_000);
     });
 
-    expect(input).toHaveProperty("value", "West Valley City, Utah");
+    expect(input).toHaveProperty("value", defaultValue);
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: /West Valley City, Utah/ })).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
 
-    fireEvent.change(input, { target: { value: "West Valley City, Uta" } });
+    fireEvent.change(input, { target: { value: editedValue } });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(350);
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: /West Valley City, Utah/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: new RegExp(defaultValue) })).toBeTruthy();
   });
 
   it("keeps suggestions closed after a location is selected", async () => {
