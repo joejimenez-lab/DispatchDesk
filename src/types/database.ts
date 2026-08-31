@@ -327,6 +327,59 @@ export type Database = {
           },
         ]
       }
+      contact_merge_logs: {
+        Row: {
+          contact_type: string
+          created_at: string
+          duplicate_before: Json
+          duplicate_id: string
+          id: string
+          merged_by: string
+          merged_by_email: string | null
+          organization_id: string
+          reassigned_records: Json
+          survivor_after: Json
+          survivor_before: Json
+          survivor_id: string
+        }
+        Insert: {
+          contact_type: string
+          created_at?: string
+          duplicate_before: Json
+          duplicate_id: string
+          id?: string
+          merged_by: string
+          merged_by_email?: string | null
+          organization_id: string
+          reassigned_records?: Json
+          survivor_after: Json
+          survivor_before: Json
+          survivor_id: string
+        }
+        Update: {
+          contact_type?: string
+          created_at?: string
+          duplicate_before?: Json
+          duplicate_id?: string
+          id?: string
+          merged_by?: string
+          merged_by_email?: string | null
+          organization_id?: string
+          reassigned_records?: Json
+          survivor_after?: Json
+          survivor_before?: Json
+          survivor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_merge_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           category: Database["public"]["Enums"]["document_category"]
@@ -1368,6 +1421,14 @@ export type Database = {
           load_id: string
           storage_path: string
         }[]
+      }
+      merge_broker_records: {
+        Args: { p_duplicate_id: string; p_survivor_id: string; p_values: Json }
+        Returns: Json
+      }
+      merge_driver_records: {
+        Args: { p_duplicate_id: string; p_survivor_id: string; p_values: Json }
+        Returns: Json
       }
       queue_bookkeeping_group_delete: {
         Args: { p_allow_source?: string; p_group_id: string }
