@@ -1,11 +1,11 @@
 import { LoadForm } from "@/components/load-form";
 import { updateLoad } from "@/lib/actions/loads";
-import { getLoad } from "@/lib/data/loads";
+import { getAssignmentWindows, getLoad } from "@/lib/data/loads";
 import { getFormOptions } from "@/lib/data/options";
 
 export default async function EditLoadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [load, options] = await Promise.all([getLoad(id), getFormOptions()]);
+  const [load, options, assignmentWindows] = await Promise.all([getLoad(id), getFormOptions(), getAssignmentWindows()]);
   const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
 
   return (
@@ -22,6 +22,8 @@ export default async function EditLoadPage({ params }: { params: Promise<{ id: s
         load={load}
         payment={payment}
         deductions={load.load_deductions}
+        stops={load.load_stops}
+        assignmentWindows={assignmentWindows}
         showPayments
       />
     </div>

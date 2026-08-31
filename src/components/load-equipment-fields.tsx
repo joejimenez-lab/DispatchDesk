@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Field, Select } from "@/components/field";
 import type { LoadDriverOption, LoadEquipmentOption } from "@/lib/data/options";
 
@@ -11,6 +11,7 @@ type Props = {
   defaultFleet?: string | null;
   defaultTruckUnitId?: string | null;
   defaultTrailerUnitId?: string | null;
+  onAssignmentChange?: (assignment: { driverId: string | null; truckUnitId: string | null; trailerUnitId: string | null }) => void;
 };
 
 function normalized(value: string | null | undefined) {
@@ -45,12 +46,17 @@ export function LoadEquipmentFields({
   defaultFleet = null,
   defaultTruckUnitId = null,
   defaultTrailerUnitId = null,
+  onAssignmentChange,
 }: Props) {
   const [driverId, setDriverId] = useState(defaultDriverId ?? "");
   const [fleet, setFleet] = useState(defaultFleet ?? "");
   const [truckUnitId, setTruckUnitId] = useState(defaultTruckUnitId ?? "");
   const [trailerUnitId, setTrailerUnitId] = useState(defaultTrailerUnitId ?? "");
   const equipmentTouched = useRef(Boolean(defaultFleet || defaultTruckUnitId || defaultTrailerUnitId));
+
+  useEffect(() => {
+    onAssignmentChange?.({ driverId: driverId || null, truckUnitId: truckUnitId || null, trailerUnitId: trailerUnitId || null });
+  }, [driverId, onAssignmentChange, trailerUnitId, truckUnitId]);
 
   const companies = [...new Map(
     equipment

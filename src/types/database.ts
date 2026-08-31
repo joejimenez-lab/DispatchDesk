@@ -780,10 +780,80 @@ export type Database = {
           },
         ]
       }
+      load_stops: {
+        Row: {
+          appointment_number: string | null
+          created_at: string
+          id: string
+          instructions: string | null
+          load_id: string
+          location: string
+          organization_id: string
+          position: number
+          reference_number: string | null
+          schedule_precision: string
+          scheduled_end: string | null
+          scheduled_start: string | null
+          stop_type: string
+          time_zone: string | null
+          updated_at: string
+        }
+        Insert: {
+          appointment_number?: string | null
+          created_at?: string
+          id?: string
+          instructions?: string | null
+          load_id: string
+          location: string
+          organization_id?: string
+          position: number
+          reference_number?: string | null
+          schedule_precision?: string
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          stop_type: string
+          time_zone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          appointment_number?: string | null
+          created_at?: string
+          id?: string
+          instructions?: string | null
+          load_id?: string
+          location?: string
+          organization_id?: string
+          position?: number
+          reference_number?: string | null
+          schedule_precision?: string
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          stop_type?: string
+          time_zone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "load_stops_load_id_fkey"
+            columns: ["load_id"]
+            isOneToOne: false
+            referencedRelation: "loads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "load_stops_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loads: {
         Row: {
           broker_id: string | null
           carrier_company: string | null
+          commodity: string | null
           created_at: string
           delivery_date: string | null
           delivery_location: string
@@ -802,20 +872,24 @@ export type Database = {
           load_rate: number
           notes: string | null
           organization_id: string
+          pallet_count: number | null
           pickup_date: string | null
           pickup_location: string
           return_location: string | null
           round_trip_details: string | null
           status: Database["public"]["Enums"]["load_status"]
+          special_instructions: string | null
           trailer_number: string | null
           trailer_unit_id: string | null
           truck_number: string | null
           truck_unit_id: string | null
           updated_at: string
+          weight_lbs: number | null
         }
         Insert: {
           broker_id?: string | null
           carrier_company?: string | null
+          commodity?: string | null
           created_at?: string
           delivery_date?: string | null
           delivery_location: string
@@ -834,20 +908,24 @@ export type Database = {
           load_rate?: number
           notes?: string | null
           organization_id?: string
+          pallet_count?: number | null
           pickup_date?: string | null
           pickup_location: string
           return_location?: string | null
           round_trip_details?: string | null
           status?: Database["public"]["Enums"]["load_status"]
+          special_instructions?: string | null
           trailer_number?: string | null
           trailer_unit_id?: string | null
           truck_number?: string | null
           truck_unit_id?: string | null
           updated_at?: string
+          weight_lbs?: number | null
         }
         Update: {
           broker_id?: string | null
           carrier_company?: string | null
+          commodity?: string | null
           created_at?: string
           delivery_date?: string | null
           delivery_location?: string
@@ -866,16 +944,19 @@ export type Database = {
           load_rate?: number
           notes?: string | null
           organization_id?: string
+          pallet_count?: number | null
           pickup_date?: string | null
           pickup_location?: string
           return_location?: string | null
           round_trip_details?: string | null
           status?: Database["public"]["Enums"]["load_status"]
+          special_instructions?: string | null
           trailer_number?: string | null
           trailer_unit_id?: string | null
           truck_number?: string | null
           truck_unit_id?: string | null
           updated_at?: string
+          weight_lbs?: number | null
         }
         Relationships: [
           {
@@ -1386,10 +1467,15 @@ export type Database = {
         }
         Returns: Json
       }
-      create_load_with_deductions: {
-        Args: { p_deductions: Json; p_load: Json }
-        Returns: string
-      }
+      create_load_with_deductions:
+        | {
+            Args: { p_deductions: Json; p_load: Json }
+            Returns: string
+          }
+        | {
+            Args: { p_deductions: Json; p_load: Json; p_stops: Json }
+            Returns: string
+          }
       create_manual_bookkeeping_expense: {
         Args: { p_expense: Json; p_group_id: string; p_receipt?: Json }
         Returns: string
@@ -1476,6 +1562,16 @@ export type Database = {
               p_load: Json
               p_load_id: string
               p_payment: Json
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_deductions: Json
+              p_load: Json
+              p_load_id: string
+              p_payment: Json
+              p_stops: Json
             }
             Returns: undefined
           }

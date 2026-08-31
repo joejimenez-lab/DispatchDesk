@@ -5,8 +5,10 @@ import { clientCollected, clientOutstanding, deductionsTotal, isClientPaymentPai
 import { ilikeOr, searchTokens } from "@/lib/search";
 import type { LoadStatus } from "@/types/database";
 import { applyFleetScope, fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
+import { formatStopWindow, type DispatchStop } from "@/lib/dispatch";
 
-const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "return_location", "carrier_company", "fleet_company", "truck_number", "trailer_number"];
+const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "return_location", "carrier_company", "fleet_company", "truck_number", "trailer_number", "commodity", "special_instructions"];
+const STOP_SEARCH_COLUMNS = ["location", "appointment_number", "reference_number", "instructions"];
 
 type ExportLoad = {
   load_number: string;
@@ -32,6 +34,11 @@ type ExportLoad = {
   truck_number: string | null;
   trailer_number: string | null;
   notes: string | null;
+  commodity: string | null;
+  weight_lbs: number | null;
+  pallet_count: number | null;
+  special_instructions: string | null;
+  load_stops: DispatchStop[];
   brokers: { company_name: string | null; contact_name: string | null } | null;
   drivers: { name: string | null } | null;
   payments:
@@ -82,7 +89,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("loads")
-    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
+    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, commodity, weight_lbs, pallet_count, special_instructions, load_stops(*), load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
     .order("created_at", { ascending: false });
 
   if (status) query = query.eq("status", status as LoadStatus);
@@ -90,7 +97,10 @@ export async function GET(request: Request) {
   if (driver) query = query.eq("driver_id", driver);
   query = applyFleetScope(query, scope);
   for (const token of searchTokens(q)) {
-    query = query.or(ilikeOr(LOAD_SEARCH_COLUMNS, token));
+    const stopMatches = await supabase.from("load_stops").select("load_id").or(ilikeOr(STOP_SEARCH_COLUMNS, token));
+    if (stopMatches.error) return NextResponse.json({ error: "Could not search structured stops." }, { status: 500 });
+    const ids = [...new Set((stopMatches.data ?? []).map((stop) => stop.load_id))];
+    query = query.or([ilikeOr(LOAD_SEARCH_COLUMNS, token), ids.length ? `id.in.(${ids.join(",")})` : null].filter(Boolean).join(","));
   }
 
   const { data, error } = await query;
@@ -123,6 +133,11 @@ export async function GET(request: Request) {
     "Round Trip",
     "Return Location",
     "Round Trip Details",
+    "Commodity",
+    "Weight (lb)",
+    "Pallets",
+    "Special Instructions",
+    "Structured Stops",
     "Load Rate Total",
     "Driver Pay",
     "Dispatcher Fee",
@@ -153,6 +168,16 @@ export async function GET(request: Request) {
       const deductionDetails = customDeductions
         .map((deduction) => `${deduction.label}: ${Number(deduction.amount).toFixed(2)}`)
         .join("; ");
+      const stopDetails = [...(load.load_stops ?? [])]
+        .sort((first, second) => first.position - second.position)
+        .map((stop, index) => [
+          `${index + 1}. ${stop.stop_type}: ${stop.location}`,
+          formatStopWindow(stop),
+          stop.appointment_number ? `Appointment ${stop.appointment_number}` : null,
+          stop.reference_number ? `Reference ${stop.reference_number}` : null,
+          stop.instructions,
+        ].filter(Boolean).join(" | "))
+        .join("; ");
 
       return csvRow([
         load.load_number,
@@ -171,6 +196,11 @@ export async function GET(request: Request) {
         load.is_round_trip,
         load.return_location,
         load.round_trip_details,
+        load.commodity,
+        load.weight_lbs,
+        load.pallet_count,
+        load.special_instructions,
+        stopDetails,
         load.load_rate,
         load.driver_pay,
         load.dispatcher_fee,

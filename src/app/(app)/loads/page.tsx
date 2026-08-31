@@ -11,6 +11,7 @@ import { getLoads, isLoadClientPaymentPaid } from "@/lib/data/loads";
 import { currency, formatDate } from "@/lib/utils";
 import { loadStatuses } from "@/types/database";
 import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
+import { formatStopWindow, type DispatchStop } from "@/lib/dispatch";
 
 export default async function LoadsPage({
   searchParams,
@@ -33,6 +34,8 @@ export default async function LoadsPage({
   const exportHref = `/api/loads/export${exportParams.size ? `?${exportParams.toString()}` : ""}`;
   const roundTripSummary = (load: (typeof loads)[number]) =>
     load.is_round_trip ? `Returns to ${load.return_location || load.pickup_location}` : null;
+  const stopOfType = (load: (typeof loads)[number], type: "Pickup" | "Delivery") =>
+    load.load_stops.find((stop) => stop.stop_type === type);
   const linkedCell = (loadId: string, children: React.ReactNode, className = "") => (
     <td className={`p-0 ${className}`}>
       <Link href={`/loads/${loadId}`} className="block h-full px-4 py-3">
@@ -137,6 +140,7 @@ export default async function LoadsPage({
                         Details: {load.round_trip_details}
                       </div>
                     ) : null}
+                    {load.load_stops.length > 2 ? <div className="mt-1 text-xs font-medium text-violet-700">{load.load_stops.length} stops</div> : null}
                   </div>,
                   "font-semibold text-zinc-950",
                 )}
@@ -156,15 +160,15 @@ export default async function LoadsPage({
                 {linkedCell(
                   load.id,
                   <div className="min-w-40">
-                    <div className="font-medium text-zinc-900">{load.pickup_location}</div>
-                    <div className="mt-1 text-xs text-zinc-500">{formatDate(load.pickup_date)}</div>
+                    <div className="font-medium text-zinc-900">{stopOfType(load, "Pickup")?.location ?? load.pickup_location}</div>
+                    <div className="mt-1 text-xs text-zinc-500">{stopOfType(load, "Pickup") ? formatStopWindow(stopOfType(load, "Pickup") as DispatchStop) : formatDate(load.pickup_date)}</div>
                   </div>,
                 )}
                 {linkedCell(
                   load.id,
                   <div className="min-w-40">
-                    <div className="font-medium text-zinc-900">{load.delivery_location}</div>
-                    <div className="mt-1 text-xs text-zinc-500">{formatDate(load.delivery_date)}</div>
+                    <div className="font-medium text-zinc-900">{stopOfType(load, "Delivery")?.location ?? load.delivery_location}</div>
+                    <div className="mt-1 text-xs text-zinc-500">{stopOfType(load, "Delivery") ? formatStopWindow(stopOfType(load, "Delivery") as DispatchStop) : formatDate(load.delivery_date)}</div>
                     {roundTripSummary(load) ? (
                       <div className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900">
                         {roundTripSummary(load)}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LoadEquipmentFields } from "./load-equipment-fields";
 
 afterEach(cleanup);
@@ -54,5 +54,12 @@ describe("LoadEquipmentFields", () => {
     expect((screen.getByLabelText("Fleet") as HTMLSelectElement).value).toBe("Fleet B");
     expect((screen.getByLabelText("Truck") as HTMLSelectElement).value).toBe("truck-b");
     expect((screen.getByLabelText("Trailer") as HTMLSelectElement).value).toBe("trailer-b");
+  });
+
+  it("reports assignment changes for advisory conflict detection", () => {
+    const onAssignmentChange = vi.fn();
+    render(<LoadEquipmentFields drivers={drivers} equipment={equipment} onAssignmentChange={onAssignmentChange} />);
+    fireEvent.change(screen.getByLabelText(/^Driver/), { target: { value: "driver-a" } });
+    expect(onAssignmentChange).toHaveBeenLastCalledWith({ driverId: "driver-a", truckUnitId: "truck-a", trailerUnitId: "trailer-a" });
   });
 });

@@ -97,6 +97,38 @@ insert into public.loads (
   ('14000000-0000-4000-8000-000000000013', 'RD-260428-01', '12000000-0000-4000-8000-000000000001', 'RD', '11000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000004', 'Ontario, CA', current_date - 82, 'Denver, CO', current_date - 79, false, null, null, 4800, 2660, 480, 970, 'Prior-quarter paid load retained for trend reporting.', 'Closed', now() - interval '84 days'),
   ('14000000-0000-4000-8000-000000000014', 'RC-260509-01', '12000000-0000-4000-8000-000000000002', 'RC', '11000000-0000-4000-8000-000000000004', '13000000-0000-4000-8000-000000000007', '13000000-0000-4000-8000-000000000010', 'San Diego, CA', current_date - 70, 'Flagstaff, AZ', current_date - 68, true, 'San Diego, CA', 'Return two empty display racks to San Diego.', 2950, 1680, 295, 540, 'Prior-quarter round trip; all payments complete.', 'Closed', now() - interval '72 days');
 
+-- Migrations run before seed data, so populate conservative date-only stops for
+-- showcase loads here as well. Dispatchers can replace these with true windows.
+insert into public.load_stops (
+  organization_id, load_id, position, stop_type, location,
+  scheduled_start, scheduled_end, schedule_precision, time_zone
+)
+select
+  organization_id, id, 0, 'Pickup', pickup_location,
+  pickup_date::timestamp, pickup_date::timestamp + interval '23 hours 59 minutes',
+  'date', 'America/Los_Angeles'
+from public.loads;
+
+insert into public.load_stops (
+  organization_id, load_id, position, stop_type, location,
+  scheduled_start, scheduled_end, schedule_precision, time_zone
+)
+select
+  organization_id, id, 1, 'Delivery', delivery_location,
+  delivery_date::timestamp, delivery_date::timestamp + interval '23 hours 59 minutes',
+  'date', 'America/Los_Angeles'
+from public.loads;
+
+insert into public.load_stops (
+  organization_id, load_id, position, stop_type, location,
+  schedule_precision, instructions
+)
+select
+  organization_id, id, 2, 'Return', coalesce(nullif(return_location, ''), pickup_location),
+  'window', round_trip_details
+from public.loads
+where is_round_trip;
+
 update public.payments set invoice_sent = true, invoice_sent_date = current_date - 5 where load_id = '14000000-0000-4000-8000-000000000005';
 update public.payments set invoice_sent = true, invoice_sent_date = current_date - 8, client_paid = true, client_amount_received = 3300, client_date_received = current_date - 2, driver_paid = true, driver_amount_paid = 1850, driver_date_paid = current_date - 3, dispatcher_paid = true, dispatcher_date_paid = current_date - 3 where load_id = '14000000-0000-4000-8000-000000000006';
 update public.payments set invoice_sent = true, invoice_sent_date = current_date - 44, client_paid = false, client_amount_received = 1800, client_date_received = current_date - 20, driver_paid = true, driver_amount_paid = 1760, driver_date_paid = current_date - 40, dispatcher_paid = false where load_id = '14000000-0000-4000-8000-000000000007';

@@ -67,6 +67,24 @@ function loadFormData() {
   formData.set("factoring_fixed_amount", "0");
   formData.set("notes", "");
   formData.set("status", "Booked");
+  formData.set("commodity", "General freight");
+  formData.set("weight_lbs", "42000");
+  formData.set("pallet_count", "24");
+  formData.set("special_instructions", "Keep dry");
+  for (const stop of [
+    { type: "Pickup", location: "Los Angeles, CA", start: "2026-08-31T09:00", end: "2026-08-31T10:00", zone: "America/Los_Angeles" },
+    { type: "Delivery", location: "Phoenix, AZ", start: "2026-09-01T13:00", end: "2026-09-01T14:00", zone: "America/Phoenix" },
+  ]) {
+    formData.append("stop_type", stop.type);
+    formData.append("stop_location", stop.location);
+    formData.append("stop_scheduled_start", stop.start);
+    formData.append("stop_scheduled_end", stop.end);
+    formData.append("stop_schedule_precision", "window");
+    formData.append("stop_time_zone", stop.zone);
+    formData.append("stop_appointment_number", "");
+    formData.append("stop_reference_number", "");
+    formData.append("stop_instructions", "");
+  }
   formData.set("invoice_sent_date", "");
   formData.set("client_amount_received", "0");
   formData.set("client_date_received", "");
@@ -140,6 +158,10 @@ describe("load and document actions", () => {
       }),
       p_payment: expect.objectContaining({ dispatcher_fee_amount: 100 }),
       p_deductions: [{ label: "Lumper fee", amount: 75 }],
+      p_stops: expect.arrayContaining([
+        expect.objectContaining({ stop_type: "Pickup", location: "Los Angeles, CA", time_zone: "America/Los_Angeles" }),
+        expect.objectContaining({ stop_type: "Delivery", location: "Phoenix, AZ", time_zone: "America/Phoenix" }),
+      ]),
     });
     expect(redirect).toHaveBeenCalledWith("/loads/load-1");
   });
@@ -165,6 +187,7 @@ describe("load and document actions", () => {
         trailer_unit_id: "00000000-0000-4000-8000-000000000501",
       }),
       p_deductions: [{ label: "Scale fee", amount: 24.5 }],
+      p_stops: expect.any(Array),
     });
     expect(redirect).toHaveBeenCalledWith("/loads/load-1");
   });
