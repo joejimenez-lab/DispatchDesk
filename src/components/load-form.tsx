@@ -1,18 +1,24 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { ActionForm } from "@/components/action-form";
 import { LinkButton } from "@/components/button";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/field";
 import { SubmitButton } from "@/components/form-buttons";
 import { LoadFinancialFields } from "@/components/load-financial-fields";
 import { LoadEquipmentFields } from "@/components/load-equipment-fields";
-import { LocationAutocomplete } from "@/components/location-autocomplete";
+import { LoadStopsEditor, type EditableStop } from "@/components/load-stops-editor";
 import type { ActionState } from "@/lib/actions/state";
 import type { LoadDriverOption, LoadEquipmentOption } from "@/lib/data/options";
 import { inputDate } from "@/lib/utils";
+import { findAssignmentConflicts, type AssignmentSelection, type AssignmentWindow, type DispatchStop } from "@/lib/dispatch";
 import { loadStatuses, type Database } from "@/types/database";
 
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Database["public"]["Tables"]["payments"]["Row"];
 type DeductionRow = Database["public"]["Tables"]["load_deductions"]["Row"];
+type LoadStopRow = Database["public"]["Tables"]["load_stops"]["Row"];
 
 type LoadFormProps = {
   action: (state: ActionState, formData: FormData) => ActionState | Promise<ActionState>;
@@ -24,9 +30,39 @@ type LoadFormProps = {
   deductions?: DeductionRow[];
   showPayments?: boolean;
   initialFleet?: string | null;
+  stops?: LoadStopRow[];
+  assignmentWindows?: AssignmentWindow[];
 };
 
-export function LoadForm({ action, drivers, brokers, equipment, load, payment, deductions = [], showPayments = false, initialFleet }: LoadFormProps) {
+function editableStops(load?: LoadRow, stops: LoadStopRow[] = []): EditableStop[] {
+  if (stops.length) return [...stops].sort((a, b) => a.position - b.position).map((stop) => ({
+    ...stop,
+    key: stop.id,
+    stop_type: stop.stop_type as DispatchStop["stop_type"],
+    schedule_precision: stop.schedule_precision === "date" ? "date" : "window",
+  }));
+  return [
+    {
+      key: "initial-pickup", position: 0, stop_type: "Pickup", location: load?.pickup_location ?? "",
+      scheduled_start: load?.pickup_date ? `${load.pickup_date}T00:00` : null,
+      scheduled_end: load?.pickup_date ? `${load.pickup_date}T23:59` : null,
+      schedule_precision: load?.pickup_date ? "date" : "window", time_zone: "America/Los_Angeles",
+      appointment_number: null, reference_number: null, instructions: null,
+    },
+    {
+      key: "initial-delivery", position: 1, stop_type: "Delivery", location: load?.delivery_location ?? "",
+      scheduled_start: load?.delivery_date ? `${load.delivery_date}T00:00` : null,
+      scheduled_end: load?.delivery_date ? `${load.delivery_date}T23:59` : null,
+      schedule_precision: load?.delivery_date ? "date" : "window", time_zone: "America/Los_Angeles",
+      appointment_number: null, reference_number: null, instructions: null,
+    },
+  ];
+}
+
+export function LoadForm({ action, drivers, brokers, equipment, load, payment, deductions = [], showPayments = false, initialFleet, stops: savedStops = [], assignmentWindows = [] }: LoadFormProps) {
+  const [stops, setStops] = useState<EditableStop[]>(() => editableStops(load, savedStops));
+  const [assignment, setAssignment] = useState<AssignmentSelection>({ driverId: load?.driver_id ?? null, truckUnitId: load?.truck_unit_id ?? null, trailerUnitId: load?.trailer_unit_id ?? null });
+  const conflicts = useMemo(() => findAssignmentConflicts(assignment, stops, assignmentWindows, load?.id), [assignment, assignmentWindows, load?.id, stops]);
   return (
     <ActionForm action={action} className="space-y-8" successMessage={false}>
       <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 md:grid-cols-2">
@@ -58,32 +94,28 @@ export function LoadForm({ action, drivers, brokers, equipment, load, payment, d
           defaultFleet={load?.fleet_company ?? initialFleet}
           defaultTruckUnitId={load?.truck_unit_id}
           defaultTrailerUnitId={load?.trailer_unit_id}
+          onAssignmentChange={setAssignment}
         />
-        <Field label="Pickup Location">
-          <LocationAutocomplete name="pickup_location" required defaultValue={load?.pickup_location} />
+        {conflicts.length ? (
+          <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 md:col-span-2">
+            <div className="font-semibold text-amber-950">Assignment conflict warning</div>
+            <p className="mt-1 text-sm text-amber-900">This is advisory. Review the overlap before saving or continue if the assignment is intentional.</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
+              {conflicts.map((conflict) => <li key={conflict.loadId}><Link className="font-semibold underline" href={`/loads/${conflict.loadId}`}>Load {conflict.loadNumber}</Link> overlaps for {conflict.resources.join(" and ")}.</li>)}
+            </ul>
+          </div>
+        ) : null}
+        <Field label="Commodity">
+          <Input name="commodity" defaultValue={load?.commodity ?? ""} placeholder="General freight, produce, machinery..." />
         </Field>
-        <Field label="Pickup Date">
-          <Input type="date" name="pickup_date" defaultValue={inputDate(load?.pickup_date)} />
+        <Field label="Weight (lb)">
+          <Input type="number" min="0" step="0.01" name="weight_lbs" defaultValue={load?.weight_lbs ?? ""} />
         </Field>
-        <Field label="Delivery Location">
-          <LocationAutocomplete name="delivery_location" required defaultValue={load?.delivery_location} />
+        <Field label="Pallets">
+          <Input type="number" min="0" step="1" name="pallet_count" defaultValue={load?.pallet_count ?? ""} />
         </Field>
-        <Field label="Delivery Date">
-          <Input type="date" name="delivery_date" defaultValue={inputDate(load?.delivery_date)} />
-        </Field>
-        <div className="space-y-1 pb-2 md:col-span-2">
-          <Checkbox name="is_round_trip" label="Round trip" defaultChecked={load?.is_round_trip} />
-          <p className="text-xs text-zinc-500">Marks this as needing a return destination after delivery.</p>
-        </div>
-        <Field label="Return Location" className="md:col-span-2">
-          <LocationAutocomplete name="return_location" defaultValue={load?.return_location ?? ""} />
-        </Field>
-        <Field label="Round Trip Return Details" className="md:col-span-2">
-          <Textarea
-            name="round_trip_details"
-            defaultValue={load?.round_trip_details ?? ""}
-            placeholder="Return appointment, backhaul notes, deadhead instructions, or other return details"
-          />
+        <Field label="Special instructions" className="md:col-span-2">
+          <Textarea name="special_instructions" defaultValue={load?.special_instructions ?? ""} placeholder="Temperature, handling, accessorial, or shipment-wide instructions" />
         </Field>
         <LoadFinancialFields
           loadRate={load?.load_rate}
@@ -99,6 +131,8 @@ export function LoadForm({ action, drivers, brokers, equipment, load, payment, d
           <Textarea name="notes" defaultValue={load?.notes ?? ""} />
         </Field>
       </section>
+
+      <LoadStopsEditor stops={stops} onChange={setStops} />
 
       {showPayments ? (
         <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5">

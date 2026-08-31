@@ -2,6 +2,7 @@ import { z } from "zod";
 import { iftaStateCodes } from "@/lib/ifta";
 import { factoringModes } from "@/lib/financials";
 import { documentCategories, expenseCategories, loadStatuses, maintenanceReminderTypes, repairLogTypes, unitTypes } from "@/types/database";
+import { dispatchTimeZones, stopTypes } from "@/lib/dispatch";
 
 const money = z.coerce.number().min(0).multipleOf(0.01, "Use no more than two decimal places").default(0);
 const positiveMoney = z.coerce.number().positive("Amount must be greater than zero");
@@ -23,6 +24,11 @@ const optionalNonNegativeInteger = z
   .string()
   .trim()
   .transform((value) => (value === "" ? null : Math.trunc(Number(value))))
+  .refine((value) => value === null || (Number.isFinite(value) && value >= 0), "Enter zero or a positive number");
+const optionalNonNegativeNumber = z
+  .string()
+  .trim()
+  .transform((value) => (value === "" ? null : Number(value)))
   .refine((value) => value === null || (Number.isFinite(value) && value >= 0), "Enter zero or a positive number");
 
 export const loadSchema = z.object({
@@ -55,8 +61,35 @@ export const loadSchema = z.object({
     .multipleOf(0.01, "Use no more than two decimal places")
     .default(0),
   factoring_fixed_amount: money,
+  commodity: optionalText,
+  weight_lbs: optionalNonNegativeNumber,
+  pallet_count: optionalNonNegativeInteger,
+  special_instructions: optionalText,
   notes: optionalText,
   status: z.enum(loadStatuses),
+});
+
+export const loadStopsSchema = z.array(z.object({
+  stop_type: z.enum(stopTypes),
+  location: z.string().trim().min(1, "Stop location is required"),
+  scheduled_start: optionalText,
+  scheduled_end: optionalText,
+  schedule_precision: z.enum(["date", "window"]).default("window"),
+  time_zone: z.preprocess((value) => value || "America/Los_Angeles", z.enum(dispatchTimeZones)),
+  appointment_number: optionalText,
+  reference_number: optionalText,
+  instructions: optionalText,
+})).min(2, "Add at least a pickup and delivery stop").superRefine((stops, context) => {
+  if (!stops.some((stop) => stop.stop_type === "Pickup")) context.addIssue({ code: "custom", message: "Add a pickup stop" });
+  if (!stops.some((stop) => stop.stop_type === "Delivery")) context.addIssue({ code: "custom", message: "Add a delivery stop" });
+  stops.forEach((stop, index) => {
+    if (Boolean(stop.scheduled_start) !== Boolean(stop.scheduled_end)) {
+      context.addIssue({ code: "custom", path: [index, "scheduled_end"], message: "Enter both appointment start and end" });
+    }
+    if (stop.scheduled_start && stop.scheduled_end && stop.scheduled_end < stop.scheduled_start) {
+      context.addIssue({ code: "custom", path: [index, "scheduled_end"], message: "Appointment end must be after its start" });
+    }
+  });
 });
 
 export const loadDeductionsSchema = z.array(z.object({

@@ -27,5 +27,6 @@ describe("AppNav", () => {
     expect(versionLink.getAttribute("href")).toBe("/versions");
     expect(versionLink.getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("v2.8.1")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Dispatch" }).getAttribute("href")).toBe("/dispatch");
   });
 });

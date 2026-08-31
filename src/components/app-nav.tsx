@@ -6,6 +6,7 @@ import {
   BookOpenText,
   Building2,
   ClipboardList,
+  CalendarDays,
   Fuel,
   Gauge,
   History,
@@ -24,6 +25,7 @@ type NavItem = { label: string; href: string; icon: LucideIcon };
 
 const links: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge },
+  { label: "Dispatch", href: "/dispatch", icon: CalendarDays },
   { label: "Loads", href: "/loads", icon: ClipboardList },
   { label: "Fleet", href: "/fleet", icon: Truck },
   { label: "Maintenance", href: "/maintenance", icon: Wrench },

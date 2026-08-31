@@ -6,7 +6,7 @@ import { errorState, successState, type ActionState } from "@/lib/actions/state"
 import { validateUploadedDocument } from "@/lib/document-security";
 import { logError } from "@/lib/logger";
 import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
-import { documentSchema, loadDeductionsSchema, loadSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
+import { documentSchema, loadDeductionsSchema, loadSchema, loadStopsSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
 import { loadStatuses, type Database, type LoadStatus } from "@/types/database";
 
 type PaymentFlag = "invoice_sent" | "client_paid" | "driver_paid" | "dispatcher_paid";
@@ -109,7 +109,27 @@ function value(formData: FormData, key: string) {
   return formData.get(key) ?? "";
 }
 
-function loadPayload(formData: FormData) {
+function stopEntries(formData: FormData) {
+  const fields = ["stop_type", "stop_location", "stop_scheduled_start", "stop_scheduled_end", "stop_schedule_precision", "stop_time_zone", "stop_appointment_number", "stop_reference_number", "stop_instructions"] as const;
+  const values = Object.fromEntries(fields.map((field) => [field, formData.getAll(field)]));
+  const rowCount = Math.max(...fields.map((field) => values[field].length), 0);
+  return loadStopsSchema.parse(Array.from({ length: rowCount }, (_, index) => ({
+    stop_type: values.stop_type[index] ?? "",
+    location: values.stop_location[index] ?? "",
+    scheduled_start: values.stop_scheduled_start[index] ?? "",
+    scheduled_end: values.stop_scheduled_end[index] ?? "",
+    schedule_precision: values.stop_schedule_precision[index] ?? "window",
+    time_zone: values.stop_time_zone[index] ?? "America/Los_Angeles",
+    appointment_number: values.stop_appointment_number[index] ?? "",
+    reference_number: values.stop_reference_number[index] ?? "",
+    instructions: values.stop_instructions[index] ?? "",
+  })));
+}
+
+function loadPayload(formData: FormData, stops: ReturnType<typeof stopEntries>) {
+  const pickup = stops.find((stop) => stop.stop_type === "Pickup")!;
+  const delivery = stops.find((stop) => stop.stop_type === "Delivery")!;
+  const returnStop = stops.find((stop) => stop.stop_type === "Return");
   const load = loadSchema.parse({
     load_number: value(formData, "load_number"),
     broker_id: value(formData, "broker_id"),
@@ -118,13 +138,13 @@ function loadPayload(formData: FormData) {
     fleet_company: value(formData, "fleet_company"),
     truck_unit_id: value(formData, "truck_unit_id"),
     trailer_unit_id: value(formData, "trailer_unit_id"),
-    pickup_location: value(formData, "pickup_location"),
-    pickup_date: value(formData, "pickup_date"),
-    delivery_location: value(formData, "delivery_location"),
-    delivery_date: value(formData, "delivery_date"),
-    is_round_trip: formData.get("is_round_trip") === "on",
-    return_location: value(formData, "return_location"),
-    round_trip_details: value(formData, "round_trip_details"),
+    pickup_location: pickup.location,
+    pickup_date: pickup.scheduled_start?.slice(0, 10) ?? "",
+    delivery_location: delivery.location,
+    delivery_date: delivery.scheduled_start?.slice(0, 10) ?? "",
+    is_round_trip: Boolean(returnStop),
+    return_location: returnStop?.location ?? "",
+    round_trip_details: returnStop?.instructions ?? "",
     load_rate: value(formData, "load_rate"),
     driver_pay: value(formData, "driver_pay"),
     dispatcher_fee: value(formData, "dispatcher_fee"),
@@ -132,6 +152,10 @@ function loadPayload(formData: FormData) {
     factoring_mode: value(formData, "factoring_mode"),
     factoring_percent: value(formData, "factoring_percent"),
     factoring_fixed_amount: value(formData, "factoring_fixed_amount"),
+    commodity: value(formData, "commodity"),
+    weight_lbs: value(formData, "weight_lbs"),
+    pallet_count: value(formData, "pallet_count"),
+    special_instructions: value(formData, "special_instructions"),
     notes: value(formData, "notes"),
     status: value(formData, "status"),
   });
@@ -177,12 +201,14 @@ export async function createLoad(_state: ActionState, formData: FormData): Promi
 
   try {
     const { supabase } = await createAuthenticatedClient();
-    const payload = loadPayload(formData);
+    const stops = stopEntries(formData);
+    const payload = loadPayload(formData, stops);
     const deductions = deductionEntries(formData);
 
     const { data, error } = await supabase.rpc("create_load_with_deductions", {
       p_load: payload,
       p_deductions: deductions,
+      p_stops: stops,
     });
     if (error) return loadWriteError(error, "Could not create load.");
     if (!data) return errorState(new Error("Load creation did not return an id."));
@@ -193,13 +219,15 @@ export async function createLoad(_state: ActionState, formData: FormData): Promi
 
   revalidatePath("/loads");
   revalidatePath("/dashboard");
+  revalidatePath("/dispatch");
   redirect(`/loads/${loadId}`);
 }
 
 export async function updateLoad(loadId: string, _state: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const { supabase } = await createAuthenticatedClient();
-    const load = loadPayload(formData);
+    const stops = stopEntries(formData);
+    const load = loadPayload(formData, stops);
     const payment = paymentPayload(formData);
     const deductions = deductionEntries(formData);
 
@@ -208,6 +236,7 @@ export async function updateLoad(loadId: string, _state: ActionState, formData: 
       p_load: load,
       p_payment: payment,
       p_deductions: deductions,
+      p_stops: stops,
     });
     if (error) {
       logError("load.update_failed", error, { loadId });
@@ -220,6 +249,7 @@ export async function updateLoad(loadId: string, _state: ActionState, formData: 
   revalidatePath("/loads");
   revalidatePath(`/loads/${loadId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/dispatch");
   redirect(`/loads/${loadId}`);
 }
 
@@ -270,6 +300,7 @@ export async function updatePaymentFlag(loadId: string, flag: PaymentFlag, paid:
   revalidatePath(`/loads/${loadId}`);
   revalidatePath("/loads");
   revalidatePath("/dashboard");
+  revalidatePath("/dispatch");
   return successState("Load progress updated.");
 }
 
@@ -289,6 +320,7 @@ export async function updateLoadStatus(loadId: string, status: LoadStatus): Prom
   revalidatePath("/loads");
   revalidatePath(`/loads/${loadId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/dispatch");
   return successState("Status updated.");
 }
 

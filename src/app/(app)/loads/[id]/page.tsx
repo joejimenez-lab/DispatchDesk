@@ -5,10 +5,11 @@ import { Field, Select, Textarea } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import { StatusBadge } from "@/components/status-badge";
 import { addNote, deleteDocument, deleteLoad, updatePaymentFlag, uploadDocument } from "@/lib/actions/loads";
-import { getLoad, getLoadRelated } from "@/lib/data/loads";
+import { getAssignmentWindows, getLoad, getLoadRelated } from "@/lib/data/loads";
 import { clientCollected, clientOutstanding, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
 import { currency, formatDate } from "@/lib/utils";
 import { documentCategories } from "@/types/database";
+import { findAssignmentConflicts, formatStopWindow, type DispatchStop } from "@/lib/dispatch";
 
 function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -65,7 +66,7 @@ function PaymentToggle({
 
 export default async function LoadDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [load, related] = await Promise.all([getLoad(id), getLoadRelated(id)]);
+  const [load, related, assignmentWindows] = await Promise.all([getLoad(id), getLoadRelated(id), getAssignmentWindows()]);
   const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
   const profit = profitForLoad(load);
   const totalDeductions = totalDeductionsForLoad(load);
@@ -75,6 +76,12 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
   const laneSummary = load.is_round_trip
     ? `${load.pickup_location} to ${load.delivery_location} and returns to ${returnLocation}`
     : `${load.pickup_location} to ${load.delivery_location}`;
+  const conflicts = findAssignmentConflicts(
+    { driverId: load.driver_id, truckUnitId: load.truck_unit_id, trailerUnitId: load.trailer_unit_id },
+    load.load_stops as DispatchStop[],
+    assignmentWindows,
+    load.id,
+  );
 
   return (
     <div className="space-y-6">
@@ -104,40 +111,35 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
+      {conflicts.length ? (
+        <section className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <h2 className="font-semibold text-amber-950">Assignment conflicts</h2>
+          <p className="mt-1 text-sm text-amber-900">This load overlaps another active assignment. The warning is advisory.</p>
+          <ul className="mt-2 list-disc pl-5 text-sm text-amber-900">
+            {conflicts.map((conflict) => <li key={conflict.loadId}><Link className="font-semibold underline" href={`/loads/${conflict.loadId}`}>Load {conflict.loadNumber}</Link>: {conflict.resources.join(", ")}</li>)}
+          </ul>
+        </section>
+      ) : null}
+
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
           <h2 className="mb-4 text-lg font-semibold text-zinc-950">Load Details</h2>
-          {load.is_round_trip ? (
-            <div className="mb-5 rounded-md border border-amber-200 bg-amber-50 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-amber-800">Round trip return</div>
-              <div className="mt-1 text-sm font-semibold text-amber-950">Returns to {returnLocation}</div>
-              <div className="mt-1 text-xs text-amber-900">
-                Outbound delivery is {load.delivery_location}; return destination can be a different city.
-              </div>
-              {load.round_trip_details ? (
-                <p className="mt-3 whitespace-pre-wrap text-sm text-amber-950">{load.round_trip_details}</p>
-              ) : null}
-            </div>
-          ) : null}
-          <dl className={`mb-5 grid gap-3 ${load.is_round_trip ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-            <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-              <dt className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Pickup</dt>
-              <dd className="mt-2 break-words font-semibold text-zinc-950">{load.pickup_location}</dd>
-              <dd className="mt-1 text-sm text-zinc-600">{formatDate(load.pickup_date)}</dd>
-            </div>
-            <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-              <dt className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Delivery</dt>
-              <dd className="mt-2 break-words font-semibold text-zinc-950">{load.delivery_location}</dd>
-              <dd className="mt-1 text-sm text-zinc-600">{formatDate(load.delivery_date)}</dd>
-            </div>
-            {load.is_round_trip ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
-                <dt className="text-xs font-semibold uppercase tracking-wide text-amber-800">Return</dt>
-                <dd className="mt-2 break-words font-semibold text-amber-950">{returnLocation}</dd>
-                <dd className="mt-1 text-sm text-amber-900">After delivery</dd>
-              </div>
-            ) : null}
-          </dl>
+          <div className="mb-5 space-y-3">
+            {load.load_stops.map((stop, index) => (
+              <article key={stop.id} className={`rounded-md border p-4 ${stop.stop_type === "Return" ? "border-amber-200 bg-amber-50" : "border-zinc-200 bg-zinc-50"}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Stop {index + 1} · {stop.stop_type}</div>
+                  <div className="text-xs font-medium text-zinc-600">{formatStopWindow(stop as DispatchStop)}</div>
+                </div>
+                <div className="mt-2 break-words font-semibold text-zinc-950">{stop.location}</div>
+                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-zinc-600">
+                  {stop.appointment_number ? <span>Appointment: {stop.appointment_number}</span> : null}
+                  {stop.reference_number ? <span>Reference: {stop.reference_number}</span> : null}
+                </div>
+                {stop.instructions ? <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">{stop.instructions}</p> : null}
+              </article>
+            ))}
+          </div>
           <dl className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <Detail label="Broker" value={load.brokers?.company_name ?? "Unassigned"} />
             <Detail label="Broker Contact" value={load.brokers?.contact_name ?? "Not set"} />
@@ -147,8 +149,12 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
             <Detail label="Truck" value={load.truck_number ?? "Not set"} />
             <Detail label="Trailer" value={load.trailer_number ?? "Not set"} />
             <Detail label="Round Trip" value={load.is_round_trip ? "Yes" : "No"} />
+            <Detail label="Commodity" value={load.commodity ?? "Not set"} />
+            <Detail label="Weight" value={load.weight_lbs === null ? "Not set" : `${Number(load.weight_lbs).toLocaleString()} lb`} />
+            <Detail label="Pallets" value={load.pallet_count === null ? "Not set" : load.pallet_count} />
             <Detail label="Created" value={new Date(load.created_at).toLocaleString()} />
           </dl>
+          {load.special_instructions ? <div className="mt-5 border-t border-zinc-100 pt-4"><h3 className="text-sm font-semibold text-zinc-950">Special Instructions</h3><p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">{load.special_instructions}</p></div> : null}
           {load.notes ? (
             <div className="mt-5 border-t border-zinc-100 pt-4">
               <h3 className="text-sm font-semibold text-zinc-950">Load Notes</h3>

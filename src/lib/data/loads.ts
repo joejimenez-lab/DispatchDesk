@@ -5,6 +5,7 @@ import { ilikeOr, searchTokens } from "@/lib/search";
 import { isClientPaymentPaid } from "@/lib/financials";
 import type { Database, LoadStatus } from "@/types/database";
 import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
+import { scheduleWindow, type AssignmentWindow, type DispatchStop } from "@/lib/dispatch";
 
 const LOAD_SEARCH_COLUMNS = [
   "load_number",
@@ -15,7 +16,10 @@ const LOAD_SEARCH_COLUMNS = [
   "fleet_company",
   "truck_number",
   "trailer_number",
+  "commodity",
+  "special_instructions",
 ];
+const STOP_SEARCH_COLUMNS = ["location", "appointment_number", "reference_number", "instructions"];
 
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Pick<
@@ -26,12 +30,14 @@ type LoadListItem = LoadRow & {
   brokers: { company_name: string } | null;
   drivers: { name: string } | null;
   payments: PaymentRow | PaymentRow[] | null;
+  load_stops: Database["public"]["Tables"]["load_stops"]["Row"][];
 };
 type LoadDetail = LoadRow & {
   brokers: Database["public"]["Tables"]["brokers"]["Row"] | null;
   drivers: Database["public"]["Tables"]["drivers"]["Row"] | null;
   payments: Database["public"]["Tables"]["payments"]["Row"] | Database["public"]["Tables"]["payments"]["Row"][] | null;
   load_deductions: Database["public"]["Tables"]["load_deductions"]["Row"][];
+  load_stops: Database["public"]["Tables"]["load_stops"]["Row"][];
 };
 type DocumentRow = Database["public"]["Tables"]["documents"]["Row"];
 type NoteRow = Database["public"]["Tables"]["notes"]["Row"];
@@ -48,7 +54,7 @@ export async function getLoads(params: {
   const supabase = await createClient();
   let query = supabase
     .from("loads")
-    .select("*, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, dispatcher_paid)")
+    .select("*, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, dispatcher_paid), load_stops(*)")
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
@@ -59,7 +65,10 @@ export async function getLoads(params: {
   // Each token must match at least one column; chained `.or()` calls are ANDed
   // together, so "Dallas Memphis" matches a load whose lane spans both cities.
   for (const token of searchTokens(params.q)) {
-    query = query.or(ilikeOr(LOAD_SEARCH_COLUMNS, token));
+    const stopMatches = await supabase.from("load_stops").select("load_id").or(ilikeOr(STOP_SEARCH_COLUMNS, token));
+    if (stopMatches.error) throw stopMatches.error;
+    const stopLoadIds = [...new Set((stopMatches.data ?? []).map((stop) => stop.load_id))];
+    query = query.or([ilikeOr(LOAD_SEARCH_COLUMNS, token), stopLoadIds.length ? `id.in.(${stopLoadIds.join(",")})` : null].filter(Boolean).join(","));
   }
 
   const { data, error } = await query;
@@ -89,7 +98,7 @@ export async function getLoad(loadId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("loads")
-    .select("*, brokers(*), drivers(*), payments(*), load_deductions(*)")
+    .select("*, brokers(*), drivers(*), payments(*), load_deductions(*), load_stops(*)")
     .eq("id", loadId)
     .single();
 
@@ -99,7 +108,36 @@ export async function getLoad(loadId: string) {
   return {
     ...load,
     load_deductions: [...load.load_deductions].sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at)),
+    load_stops: [...load.load_stops].sort((a, b) => a.position - b.position),
   };
+}
+
+type AssignmentLoad = Pick<LoadRow, "id" | "load_number" | "driver_id" | "truck_unit_id" | "truck_number" | "trailer_unit_id" | "trailer_number"> & {
+  drivers: { name: string } | null;
+  load_stops: Database["public"]["Tables"]["load_stops"]["Row"][];
+};
+
+export async function getAssignmentWindows(): Promise<AssignmentWindow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("loads")
+    .select("id, load_number, driver_id, truck_unit_id, truck_number, trailer_unit_id, trailer_number, drivers(name), load_stops(*)")
+    .in("status", ["Booked", "Dispatched", "Picked Up", "In Transit"]);
+  if (error) throw error;
+  return ((data ?? []) as unknown as AssignmentLoad[]).flatMap((load) => {
+    const window = scheduleWindow(load.load_stops as DispatchStop[]);
+    return window ? [{
+      loadId: load.id,
+      loadNumber: load.load_number,
+      driverId: load.driver_id,
+      driverName: load.drivers?.name ?? null,
+      truckUnitId: load.truck_unit_id,
+      truckNumber: load.truck_number,
+      trailerUnitId: load.trailer_unit_id,
+      trailerNumber: load.trailer_number,
+      ...window,
+    }] : [];
+  });
 }
 
 export async function getLoadRelated(loadId: string) {
