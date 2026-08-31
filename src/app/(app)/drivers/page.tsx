@@ -1,9 +1,13 @@
 import { ActionForm } from "@/components/action-form";
+import { ContactImportPanel } from "@/components/contact-import-panel";
+import { ContactMergeForm } from "@/components/contact-merge-form";
+import { ContactQualityBadge } from "@/components/contact-quality-badge";
 import { DetailsCloseButton } from "@/components/details-close-button";
-import { Field, Input, Textarea } from "@/components/field";
+import { Field, Input, Select, Textarea } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
-import { createDriver, deleteDriver, updateDriver } from "@/lib/actions/drivers";
+import { createDriver, deleteDriver, importDrivers, mergeDrivers, updateDriver } from "@/lib/actions/drivers";
 import { getDrivers } from "@/lib/data/contacts";
+import { driverCompleteness, findDriverDuplicates, recordMatchesQuery } from "@/lib/contact-quality";
 
 function DetailItem({ label, value }: { label: string; value: string | null }) {
   return (
@@ -17,10 +21,20 @@ function DetailItem({ label, value }: { label: string; value: string | null }) {
 export default async function DriversPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; quality?: string }>;
 }) {
   const params = await searchParams;
-  const drivers = await getDrivers(params.q);
+  const allDrivers = await getDrivers();
+  const duplicateSuggestions = findDriverDuplicates(allDrivers);
+  const duplicateIds = new Set(duplicateSuggestions.flatMap((suggestion) => [suggestion.first.id, suggestion.second.id]));
+  const quality = ["all", "incomplete", "duplicates"].includes(params.quality ?? "") ? params.quality : "all";
+  const drivers = allDrivers.filter((driver) => {
+    if (!recordMatchesQuery(driver, params.q)) return false;
+    if (quality === "incomplete") return !driverCompleteness(driver).complete;
+    if (quality === "duplicates") return duplicateIds.has(driver.id);
+    return true;
+  });
+  const incompleteCount = allDrivers.filter((driver) => !driverCompleteness(driver).complete).length;
 
   return (
     <div className="space-y-6">
@@ -49,11 +63,49 @@ export default async function DriversPage({
         </details>
       </div>
 
-      <form className="rounded-lg border border-zinc-200 bg-white p-4">
-        <Field label="Search Drivers">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-zinc-200 bg-white p-4"><div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Total drivers</div><div className="mt-1 text-2xl font-semibold">{allDrivers.length}</div></div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Incomplete</div><div className="mt-1 text-2xl font-semibold text-amber-950">{incompleteCount}</div></div>
+        <div className="rounded-lg border border-violet-200 bg-violet-50 p-4"><div className="text-xs font-semibold uppercase tracking-wide text-violet-700">Duplicate suggestions</div><div className="mt-1 text-2xl font-semibold text-violet-950">{duplicateSuggestions.length}</div></div>
+      </div>
+
+      <ContactImportPanel kind="driver" existing={allDrivers} action={importDrivers} templateHref="/templates/drivers-import.csv" />
+
+      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:items-end">
+        <Field label="Search drivers">
           <Input name="q" defaultValue={params.q ?? ""} placeholder="Name, phone, email, truck" />
         </Field>
+        <Field label="Data quality">
+          <Select name="quality" defaultValue={quality}><option value="all">All records</option><option value="incomplete">Incomplete</option><option value="duplicates">Possible duplicates</option></Select>
+        </Field>
+        <SubmitButton variant="secondary">Filter</SubmitButton>
       </form>
+
+      {duplicateSuggestions.length ? (
+        <section className="space-y-3">
+          <div><h2 className="text-lg font-semibold text-zinc-950">Duplicate review</h2><p className="text-sm text-zinc-600">Suggestions only. Nothing is merged until you choose every conflicting value and confirm.</p></div>
+          {duplicateSuggestions.map((suggestion) => (
+            <ContactMergeForm
+              key={`${suggestion.first.id}-${suggestion.second.id}`}
+              first={suggestion.first}
+              second={suggestion.second}
+              firstLabel={suggestion.first.name}
+              secondLabel={suggestion.second.name}
+              signals={suggestion.signals}
+              confidence={suggestion.confidence}
+              fields={[
+                { key: "name", label: "name" },
+                { key: "phone", label: "phone" },
+                { key: "email", label: "email" },
+                { key: "truck_number", label: "default truck" },
+                { key: "trailer_number", label: "default trailer" },
+                { key: "notes", label: "notes", combine: true },
+              ]}
+              action={mergeDrivers.bind(null, suggestion.first.id, suggestion.second.id)}
+            />
+          ))}
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         {drivers.map((driver) => (
@@ -66,6 +118,7 @@ export default async function DriversPage({
                     .filter(Boolean)
                     .join(" / ") || "No truck or trailer assigned"}
                 </p>
+                <div className="mt-2"><ContactQualityBadge completeness={driverCompleteness(driver)} duplicate={duplicateIds.has(driver.id)} /></div>
               </div>
               <details className="group shrink-0 open:w-full">
                 <summary className="ml-auto w-fit cursor-pointer list-none rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50">
