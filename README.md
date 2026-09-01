@@ -88,8 +88,11 @@ All provider credentials remain server-only. Status responses use private, no-st
 
 ```bash
 npm run lint
+npm run typecheck
 npm test
 npm run build
 ```
+
+Pull requests also run the database regression suite and a disposable local browser smoke test. Required jobs, fork behavior, test isolation, and local reproduction steps are documented in [`docs/testing-and-ci.md`](docs/testing-and-ci.md).
 
 Production backup, health-check, logging, and error-monitoring setup is documented in [`docs/production-operations.md`](docs/production-operations.md).
