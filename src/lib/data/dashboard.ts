@@ -1,10 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { clientCollected, clientOutstanding, profitForLoad, roundCents, totalDeductionsForLoad } from "@/lib/financials";
+import { clientCollected, profitForLoad, roundCents, totalDeductionsForLoad } from "@/lib/financials";
 import { mapMaintenanceAlerts } from "@/lib/data/maintenance";
 import { buildMaintenanceReadiness, getDashboardMaintenanceSummary, summarizeMaintenanceReadiness } from "@/lib/maintenance";
 import type { LoadStatus } from "@/types/database";
 import { applyFleetScope, matchesFleetScope, type FleetScope } from "@/lib/fleet-scope";
 import { closeoutReason, isActiveTransportation, summarizeLifecycle, type LoadCloseoutStatus } from "@/lib/load-lifecycle";
+import { receivableBalance, type ReceivableEntry } from "@/lib/collections";
 
 type DashboardLoad = {
   id: string;
@@ -29,20 +30,24 @@ type DashboardLoad = {
   drivers: { name: string } | null;
   fleet_company: string | null;
   payments:
-    | { invoice_sent: boolean; client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean }
-    | { invoice_sent: boolean; client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean }[]
+    | { invoice_status: "Draft" | "Sent" | "Void"; invoice_sent: boolean; client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean; due_date: string | null }
+    | { invoice_status: "Draft" | "Sent" | "Void"; invoice_sent: boolean; client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean; due_date: string | null }[]
     | null;
+  receivable_entries: ReceivableEntry[];
 };
 
 export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
   const supabase = await createClient();
   const today = new Date(new Date().toDateString());
-  const thirtyDaysAgo = new Date(today);
-  thirtyDaysAgo.setDate(today.getDate() - 30);
-
+  const todayDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
   let loadsQuery = supabase
       .from("loads")
-      .select("id, load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, fleet_company, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_amount, load_deductions(amount), brokers(company_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
+      .select("id, load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, fleet_company, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_amount, load_deductions(amount), brokers(company_name), drivers(name), payments(invoice_status, invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, due_date), receivable_entries(entry_type, amount)")
       .order("created_at", { ascending: false });
   loadsQuery = applyFleetScope(loadsQuery, scope);
   const [loadsResult, remindersResult, unitsResult] = await Promise.all([
@@ -72,8 +77,9 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
       const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
       const billable = load.status !== "Cancelled";
       const delivered = load.status === "Delivered";
+      const outstanding = payment?.invoice_status === "Void" ? 0 : receivableBalance(load.load_rate, load.receivable_entries);
 
-      if (clientOutstanding(load.load_rate, payment) > 0 && load.status !== "Cancelled") metrics.unpaidLoads += 1;
+      if (outstanding > 0 && load.status !== "Cancelled") metrics.unpaidLoads += 1;
       if (!payment?.driver_paid && delivered) {
         metrics.pendingDriverPayments += Math.max(
           Number(load.driver_pay) - Number(payment?.driver_amount_paid ?? 0),
@@ -85,7 +91,7 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
       if (billable) {
         metrics.totalRevenue += Number(load.load_rate);
         metrics.collectedRevenue += clientCollected(load.load_rate, payment);
-        metrics.outstandingRevenue += clientOutstanding(load.load_rate, payment);
+        metrics.outstandingRevenue += outstanding;
         metrics.totalDeductions = roundCents(metrics.totalDeductions + totalDeductionsForLoad(load));
         metrics.estimatedProfit = roundCents(metrics.estimatedProfit + profitForLoad(load));
       }
@@ -112,18 +118,21 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
   const unpaidAlerts = rows
     .filter((load) => {
       const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
-      if (clientOutstanding(load.load_rate, payment) <= 0 || load.status === "Cancelled") return false;
-      const basis = load.delivery_date ?? load.pickup_date;
-      if (!basis) return false;
-      return new Date(`${basis}T00:00:00`) <= thirtyDaysAgo;
+      if (payment?.invoice_status === "Void" || receivableBalance(load.load_rate, load.receivable_entries) <= 0 || load.status === "Cancelled") return false;
+      return Boolean(payment?.due_date && payment.due_date < todayDate);
     })
-    .sort((a, b) => (a.delivery_date ?? a.pickup_date ?? "").localeCompare(b.delivery_date ?? b.pickup_date ?? ""))
+    .sort((a, b) => {
+      const ap = Array.isArray(a.payments) ? a.payments[0] : a.payments;
+      const bp = Array.isArray(b.payments) ? b.payments[0] : b.payments;
+      return (ap?.due_date ?? "9999-12-31").localeCompare(bp?.due_date ?? "9999-12-31");
+    })
     .slice(0, 5)
     .map((load) => {
       const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
       return {
         ...load,
-        outstandingAmount: clientOutstanding(load.load_rate, payment),
+        dueDate: payment?.due_date ?? null,
+        outstandingAmount: receivableBalance(load.load_rate, load.receivable_entries),
       };
     });
 

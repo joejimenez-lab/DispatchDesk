@@ -17,11 +17,11 @@ import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
 
 function overdueAge(value: string | null) {
-  if (!value) return "Delivery date unavailable";
+  if (!value) return "Due date unavailable";
   const then = new Date(`${value}T00:00:00`).getTime();
   const now = new Date(new Date().toDateString()).getTime();
   const days = Math.max(0, Math.floor((now - then) / 86_400_000));
-  return `Overdue by ${days} day${days === 1 ? "" : "s"}`;
+  return `${days} day${days === 1 ? "" : "s"} overdue`;
 }
 
 function ProgressBar({ label, value, max }: { label: string; value: number; max: number }) {
@@ -171,19 +171,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
         <div className="space-y-4">
           <div className="dispatch-panel">
-            <div className="panel-heading"><div><h2>Overdue payments</h2><p>Client payments overdue by 30 days or more.</p></div></div>
+            <div className="panel-heading"><div><h2>Overdue invoices</h2><p>Outstanding invoices whose due date has passed.</p></div><Link href={fleet ? `/collections?fleet=${encodeURIComponent(fleet)}` : "/collections"} className="panel-link">View collections</Link></div>
             <div className="dispatch-panel-inner space-y-3">
               {metrics.unpaidAlerts.map((load) => (
-                <Link key={load.id} href={`/loads/${load.id}`} className="block rounded-md border border-red-100 bg-red-50 p-3 hover:bg-red-100">
+                <Link key={load.id} href={`/collections/${load.id}`} className="block rounded-md border border-red-100 bg-red-50 p-3 hover:bg-red-100">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-semibold text-red-950">{load.load_number}</span>
-                    <span className="text-xs font-semibold text-red-700">{overdueAge(load.delivery_date ?? load.pickup_date)}</span>
+                    <span className="text-xs font-semibold text-red-700">{overdueAge(load.dueDate)}</span>
                   </div>
                   <div className="mt-1 text-sm text-red-900">{currency(load.outstandingAmount)} outstanding</div>
-                  <div className="text-xs text-red-700">Delivery: {formatDate(load.delivery_date)}</div>
+                  <div className="text-xs text-red-700">Due: {formatDate(load.dueDate)}</div>
                 </Link>
               ))}
-              {!metrics.unpaidAlerts.length ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">No client payments are more than 30 days overdue.</p> : null}
+              {!metrics.unpaidAlerts.length ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">No outstanding invoices are past due.</p> : null}
             </div>
           </div>
 

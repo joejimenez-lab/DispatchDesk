@@ -149,6 +149,44 @@ update public.payments set invoice_sent = true, invoice_sent_date = current_date
 update public.payments set invoice_sent = true, invoice_sent_date = current_date - 78, client_paid = true, client_amount_received = 4800, client_date_received = current_date - 55, driver_paid = true, driver_amount_paid = 2660, driver_date_paid = current_date - 73, dispatcher_paid = true, dispatcher_date_paid = current_date - 73 where load_id = '14000000-0000-4000-8000-000000000013';
 update public.payments set invoice_sent = true, invoice_sent_date = current_date - 67, client_paid = true, client_amount_received = 2950, client_date_received = current_date - 41, driver_paid = true, driver_amount_paid = 1680, driver_date_paid = current_date - 62, dispatcher_paid = true, dispatcher_date_paid = current_date - 62 where load_id = '14000000-0000-4000-8000-000000000014';
 
+-- Collection details are applied after the load-triggered payment rows exist.
+-- Invoice dates come only from the explicit invoice-sent dates above.
+update public.payments p
+set invoice_status = 'Sent',
+    invoice_number = 'DD-' || l.load_number,
+    invoice_date = p.invoice_sent_date,
+    payment_terms_days = 30,
+    due_date = p.invoice_sent_date + 30
+from public.loads l
+where l.id = p.load_id and p.invoice_sent_date is not null;
+
+insert into public.receivable_entries (
+  organization_id, load_id, entry_type, amount, entry_date, note,
+  created_by, created_by_email
+)
+select p.organization_id, p.load_id, 'Payment', p.client_amount_received,
+       coalesce(p.client_date_received, p.updated_at::date), 'Seeded payment history',
+       '10000000-0000-4000-8000-000000000001', 'andres.castillo@dispatchdesk.demo'
+from public.payments p
+where p.client_amount_received > 0;
+
+update public.payments
+set collection_owner_id = '10000000-0000-4000-8000-000000000001',
+    next_follow_up_date = current_date + 1
+where load_id in (
+  '14000000-0000-4000-8000-000000000007',
+  '14000000-0000-4000-8000-000000000009'
+);
+
+insert into public.collection_contacts (
+  organization_id, load_id, contact_type, contacted_at, note,
+  created_by, created_by_email
+)
+select organization_id, id, 'Phone', now() - interval '1 day',
+       'Broker accounting confirmed the invoice and requested a follow-up tomorrow.',
+       '10000000-0000-4000-8000-000000000001', 'andres.castillo@dispatchdesk.demo'
+from public.loads where id = '14000000-0000-4000-8000-000000000007';
+
 -- Seed closeout facts after payment facts so the lifecycle guard sees a valid
 -- sequence. Partially paid showcase loads intentionally remain open.
 update public.loads
