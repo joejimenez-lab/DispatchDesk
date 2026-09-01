@@ -257,7 +257,7 @@ export async function getWeeklyDriverFinancialSummary(
 
   const pageResponse = filters.pagination
     ? await pageQuery.range(pageRange(filters.pagination).from, pageRange(filters.pagination).to)
-    : await pageQuery;
+    : { data: [] as { id: string }[], error: null, count: null };
   if (pageResponse.error) throw pageResponse.error;
 
   // PostgREST installations commonly cap a response at 1,000 rows. Fetch the
@@ -377,6 +377,6 @@ export async function getWeeklyDriverFinancialSummary(
     summaries: result,
     detailSummaries,
     range,
-    total: pageResponse.count ?? loads.length,
+    total: filters.pagination ? pageResponse.count ?? loads.length : loads.length,
   };
 }

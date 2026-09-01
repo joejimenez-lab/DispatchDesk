@@ -1669,7 +1669,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      load_list_index: {
+        Row: {
+          broker_id: string | null
+          client_paid: boolean | null
+          created_at: string | null
+          delivery_date: string | null
+          dispatcher_fee_known: boolean | null
+          driver_id: string | null
+          driver_pay_known: boolean | null
+          fleet_company: string | null
+          fuel_cost_known: boolean | null
+          id: string | null
+          pickup_date: string | null
+          post_delivery_status:
+            | Database["public"]["Enums"]["load_closeout_status"]
+            | null
+          search_text: string | null
+          status: Database["public"]["Enums"]["load_status"] | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       configure_maintenance_units: {

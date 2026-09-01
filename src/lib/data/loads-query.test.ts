@@ -1,76 +1,61 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createClient = vi.fn();
+const getLoadIndexPage = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({ createClient }));
-
-function mainQuery(data: unknown[] = [], count = data.length) {
-  const query = {
-    select: vi.fn(),
-    order: vi.fn(),
-    eq: vi.fn(),
-    in: vi.fn(),
-    gte: vi.fn(),
-    is: vi.fn(),
-    or: vi.fn(),
-    range: vi.fn(),
-  };
-  query.select.mockReturnValue(query);
-  query.order.mockReturnValue(query);
-  query.eq.mockReturnValue(query);
-  query.in.mockReturnValue(query);
-  query.gte.mockReturnValue(query);
-  query.is.mockReturnValue(query);
-  query.or.mockReturnValue(query);
-  query.range.mockResolvedValue({ data, count, error: null });
-  return query;
-}
+vi.mock("@/lib/data/load-index", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/data/load-index")>();
+  return { ...original, getLoadIndexPage };
+});
 
 describe("getLoads database pagination", () => {
-  beforeEach(() => createClient.mockReset());
+  beforeEach(() => {
+    createClient.mockReset();
+    getLoadIndexPage.mockReset();
+  });
 
-  it("combines filters and requests only the selected server range", async () => {
-    const query = mainQuery([{ id: "load-26", load_stops: [] }], 74);
-    createClient.mockResolvedValue({ from: vi.fn(() => query) });
+  it("fetches details only for the ordered IDs on the selected index page", async () => {
+    getLoadIndexPage.mockResolvedValue({ ids: ["load-2", "load-1"], total: 74 });
+    const details = {
+      in: vi.fn().mockResolvedValue({
+        data: [{ id: "load-1", load_stops: [] }, { id: "load-2", load_stops: [] }],
+        error: null,
+      }),
+    };
+    const supabase = { from: vi.fn(() => ({ select: vi.fn(() => details) })) };
+    createClient.mockResolvedValue(supabase);
     const { getLoads } = await import("./loads");
 
     const result = await getLoads({
+      q: "Dallas",
       status: "Delivered",
-      broker: "broker-id",
-      driver: "driver-id",
+      payment: "paid",
+      financial: "complete",
       fleetScope: { kind: "fleet", company: "West Fleet" },
       pagination: { page: 2, pageSize: 25 },
     });
 
-    expect(query.select).toHaveBeenCalledWith(expect.any(String), { count: "exact" });
-    expect(query.eq).toHaveBeenCalledWith("status", "Delivered");
-    expect(query.eq).toHaveBeenCalledWith("broker_id", "broker-id");
-    expect(query.eq).toHaveBeenCalledWith("driver_id", "driver-id");
-    expect(query.eq).toHaveBeenCalledWith("fleet_company", "West Fleet");
-    expect(query.range).toHaveBeenCalledWith(25, 49);
-    expect(result).toMatchObject({ total: 74, page: 2, pageSize: 25 });
-    expect(result.items).toHaveLength(1);
+    expect(getLoadIndexPage).toHaveBeenCalledWith(supabase, expect.objectContaining({
+      q: "Dallas",
+      status: "Delivered",
+      payment: "paid",
+      financial: "complete",
+      fleetScope: { kind: "fleet", company: "West Fleet" },
+    }), { page: 2, pageSize: 25 });
+    expect(details.in).toHaveBeenCalledWith("id", ["load-2", "load-1"]);
+    expect(result.items.map((load) => load.id)).toEqual(["load-2", "load-1"]);
+    expect(result.total).toBe(74);
   });
 
-  it("uses the operational status set for the default view", async () => {
-    const query = mainQuery([], 0);
-    createClient.mockResolvedValue({ from: vi.fn(() => query) });
+  it("does not issue an unbounded detail query for an empty page", async () => {
+    getLoadIndexPage.mockResolvedValue({ ids: [], total: 0 });
+    const supabase = { from: vi.fn() };
+    createClient.mockResolvedValue(supabase);
     const { getLoads } = await import("./loads");
 
-    await getLoads({ pagination: { page: 1, pageSize: 50 } });
+    const result = await getLoads({ pagination: { page: 1, pageSize: 50 } });
 
-    expect(query.in).toHaveBeenCalledWith("status", ["Booked", "Dispatched", "Picked Up", "In Transit"]);
-    expect(query.range).toHaveBeenCalledWith(0, 49);
-  });
-
-  it("lets closeout filters take precedence over the default active view", async () => {
-    const query = mainQuery([], 0);
-    createClient.mockResolvedValue({ from: vi.fn(() => query) });
-    const { getLoads } = await import("./loads");
-
-    await getLoads({ closeout: "all-open", pagination: { page: 1, pageSize: 25 } });
-
-    expect(query.in).not.toHaveBeenCalledWith("status", expect.anything());
-    expect(query.eq).toHaveBeenCalledWith("status", "Delivered");
-    expect(query.or).toHaveBeenCalledWith("post_delivery_status.is.null,post_delivery_status.neq.Closed");
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ items: [], total: 0, page: 1, pageSize: 50 });
   });
 });

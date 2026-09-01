@@ -2,18 +2,15 @@ import { NextResponse } from "next/server";
 import { csvRow } from "@/lib/csv";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 import { clientCollected, deductionsTotal, financialCompleteness, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
-import { ilikeOr, searchTokens } from "@/lib/search";
 import type { LoadCloseoutStatus, LoadStatus } from "@/types/database";
-import { applyFleetScope, fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
+import { fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
 import { formatStopWindow, type DispatchStop } from "@/lib/dispatch";
 import { closeoutReason } from "@/lib/load-lifecycle";
+import { getAllLoadIndexIds } from "@/lib/data/load-index";
 import { receivableBalance, type ReceivableEntry } from "@/lib/collections";
-import { BROKER_SEARCH_COLUMNS, DRIVER_SEARCH_COLUMNS, loadSearchExpression, STOP_SEARCH_COLUMNS } from "@/lib/load-search";
-
-const ACTIVE_LOAD_STATUSES: LoadStatus[] = ["Booked", "Dispatched", "Picked Up", "In Transit"];
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 type ExportLoad = {
+  id: string;
   load_number: string;
   status: LoadStatus;
   post_delivery_status: LoadCloseoutStatus | null;
@@ -103,73 +100,37 @@ export async function GET(request: Request) {
   if (!scope) return NextResponse.json({ error: "Unknown fleet." }, { status: 400 });
   const q = searchParams.get("q");
 
-  let query = supabase
-    .from("loads")
-    .select("load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, commodity, weight_lbs, pallet_count, special_instructions, load_stops(*), load_rate, driver_pay, dispatcher_fee, fuel_cost, driver_pay_known, dispatcher_fee_known, fuel_cost_known, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_status, invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount), receivable_entries(entry_type, amount)")
-    .order("created_at", { ascending: false });
-
-  if (!closeout) {
-    if (status === "active") query = query.in("status", ACTIVE_LOAD_STATUSES);
-    else if (status === "recent") {
-      const cutoff = new Date();
-      cutoff.setUTCDate(cutoff.getUTCDate() - 30);
-      query = query.gte("created_at", cutoff.toISOString());
-    } else if (status && status !== "all") query = query.eq("status", status as LoadStatus);
-  }
-  if (broker) query = query.eq("broker_id", broker);
-  if (driver) query = query.eq("driver_id", driver);
-  if (closeout === "all-open") {
-    query = query.eq("status", "Delivered").or("post_delivery_status.is.null,post_delivery_status.neq.Closed");
-  } else if (closeout) {
-    query = query.eq("post_delivery_status", closeout as LoadCloseoutStatus);
-  }
-  query = applyFleetScope(query, scope);
-  if (from && ISO_DATE.test(from)) {
-    query = query.or([
-      `delivery_date.gte.${from}`,
-      `and(delivery_date.is.null,pickup_date.gte.${from})`,
-      `and(delivery_date.is.null,pickup_date.is.null,created_at.gte.${from}T00:00:00Z)`,
-    ].join(","));
-  }
-  if (to && ISO_DATE.test(to)) {
-    const exclusiveEnd = new Date(`${to}T00:00:00Z`);
-    exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
-    query = query.or([
-      `delivery_date.lte.${to}`,
-      `and(delivery_date.is.null,pickup_date.lte.${to})`,
-      `and(delivery_date.is.null,pickup_date.is.null,created_at.lt.${exclusiveEnd.toISOString()})`,
-    ].join(","));
-  }
-  for (const token of searchTokens(q)) {
-    const [stopMatches, brokerMatches, driverMatches] = await Promise.all([
-      supabase.from("load_stops").select("load_id").or(ilikeOr(STOP_SEARCH_COLUMNS, token)),
-      supabase.from("brokers").select("id").or(ilikeOr(BROKER_SEARCH_COLUMNS, token)),
-      supabase.from("drivers").select("id").or(ilikeOr(DRIVER_SEARCH_COLUMNS, token)),
-    ]);
-    if (stopMatches.error) return NextResponse.json({ error: "Could not search structured stops." }, { status: 500 });
-    if (brokerMatches.error || driverMatches.error) return NextResponse.json({ error: "Could not search contacts." }, { status: 500 });
-    const ids = [...new Set((stopMatches.data ?? []).map((stop) => stop.load_id))];
-    const brokerIds = (brokerMatches.data ?? []).map((row) => row.id);
-    const driverIds = (driverMatches.data ?? []).map((row) => row.id);
-    query = query.or(loadSearchExpression(token, { stopLoadIds: ids, brokerIds, driverIds }));
+  let ids: string[];
+  try {
+    ids = await getAllLoadIndexIds(supabase, {
+      q,
+      status,
+      closeout,
+      broker,
+      driver,
+      payment: paymentFilter,
+      financial: financialFilter,
+      fleetScope: scope,
+      from,
+      to,
+    });
+  } catch {
+    return NextResponse.json({ error: "Could not filter loads for export." }, { status: 500 });
   }
 
-  const { data, error } = await query;
-  if (error) {
-    return NextResponse.json({ error: "Could not export loads." }, { status: 500 });
+  const fetched: ExportLoad[] = [];
+  const exportChunkSize = 500;
+  for (let offset = 0; offset < ids.length; offset += exportChunkSize) {
+    const chunkIds = ids.slice(offset, offset + exportChunkSize);
+    const { data, error } = await supabase
+      .from("loads")
+      .select("id, load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, commodity, weight_lbs, pallet_count, special_instructions, load_stops(*), load_rate, driver_pay, dispatcher_fee, fuel_cost, driver_pay_known, dispatcher_fee_known, fuel_cost_known, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_status, invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount), receivable_entries(entry_type, amount)")
+      .in("id", chunkIds);
+    if (error) return NextResponse.json({ error: "Could not export loads." }, { status: 500 });
+    fetched.push(...(data ?? []) as unknown as ExportLoad[]);
   }
-
-  const rows = (data ?? []) as unknown as ExportLoad[];
-  const filteredRows = rows.filter((load) => {
-    const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
-    const voided = payment?.invoice_status === "Void";
-    const outstanding = voided || load.status === "Cancelled" ? 0 : receivableBalance(load.load_rate, load.receivable_entries);
-    const paid = !voided && outstanding <= 0;
-    const paymentMatches = paymentFilter === "paid" ? paid : paymentFilter === "unpaid" ? !voided && outstanding > 0 : true;
-    const complete = financialCompleteness(load).complete;
-    const financialMatches = financialFilter === "complete" ? complete : financialFilter === "incomplete" ? !complete : true;
-    return paymentMatches && financialMatches;
-  });
+  const byId = new Map(fetched.map((load) => [load.id, load]));
+  const filteredRows = ids.flatMap((id) => byId.get(id) ? [byId.get(id)!] : []);
   const headers = [
     "Load Number",
     "Status",
@@ -222,7 +183,9 @@ export async function GET(request: Request) {
     csvRow(headers),
     ...filteredRows.map((load) => {
       const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
-      const outstanding = load.status === "Cancelled" || payment?.invoice_status === "Void" ? 0 : receivableBalance(load.load_rate, load.receivable_entries);
+      const outstanding = load.status === "Cancelled" || payment?.invoice_status === "Void"
+        ? 0
+        : receivableBalance(load.load_rate, load.receivable_entries);
       const customDeductions = [...load.load_deductions].sort((a, b) => a.position - b.position);
       const otherDeductions = deductionsTotal(customDeductions);
       const deductionDetails = customDeductions
