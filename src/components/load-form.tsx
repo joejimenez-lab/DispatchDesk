@@ -138,15 +138,27 @@ export function LoadForm({ action, drivers, brokers, equipment, load, payment, d
       <LoadStopsEditor stops={stops} onChange={setStops} />
 
       {showPayments ? (
-        <section className="rounded-lg border border-violet-200 bg-violet-50 p-5">
-            <h2 className="font-semibold text-violet-950">Invoice and client collections</h2>
-            <p className="mt-1 text-sm text-violet-800">Invoice terms, payments, credits, adjustments, and write-offs are managed in the auditable collections workflow.</p>
-            {load ? <LinkButton href={`/collections/${load.id}`} variant="secondary" className="mt-3">Manage collections</LinkButton> : null}
+        <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="space-y-3">
+            <Checkbox name="invoice_sent" label="Invoice sent" defaultChecked={payment?.invoice_sent} />
+            <Field label="Invoice Sent Date">
+              <Input type="date" name="invoice_sent_date" defaultValue={inputDate(payment?.invoice_sent_date)} />
+            </Field>
+          </div>
         </section>
       ) : null}
 
       {showPayments ? (
-        <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 md:grid-cols-2">
+        <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 md:grid-cols-3">
+          <div className="space-y-3">
+            <Checkbox name="client_paid" label="Client paid" defaultChecked={payment?.client_paid} />
+            <Field label="Amount Received">
+              <Input type="number" step="0.01" min="0" name="client_amount_received" defaultValue={payment?.client_amount_received ?? 0} />
+            </Field>
+            <Field label="Date Received">
+              <Input type="date" name="client_date_received" defaultValue={inputDate(payment?.client_date_received)} />
+            </Field>
+          </div>
           <div className="space-y-3">
             <Checkbox name="driver_paid" label="Driver paid" defaultChecked={payment?.driver_paid} />
             <Field label="Amount Paid">

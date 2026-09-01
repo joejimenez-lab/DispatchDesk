@@ -48,8 +48,7 @@ describe("trusted assistant tools", () => {
           created_at: "2026-07-01T12:00:00Z",
           status: "Delivered",
           brokers: { company_name: "Trusted Broker" },
-          payments: { due_date: "2026-07-03" },
-          receivable_entries: [{ entry_type: "Payment", amount: 500 }],
+          payments: { client_paid: false, client_amount_received: 500 },
         },
         {
           id: "load-2",
@@ -60,8 +59,7 @@ describe("trusted assistant tools", () => {
           created_at: "2026-07-02T12:00:00Z",
           status: "Closed",
           brokers: null,
-          payments: { due_date: "2026-07-04" },
-          receivable_entries: [{ entry_type: "Payment", amount: 800 }],
+          payments: { client_paid: true, client_amount_received: 0 },
         },
       ],
       error: null,
@@ -71,7 +69,7 @@ describe("trusted assistant tools", () => {
     const result = await executeTrustedTool(supabase as never, "get_unpaid_load_summary", "{}");
 
     expect(result.data).toMatchObject({ unpaid_load_count: 1, outstanding_total: 1_000 });
-    expect(result.links).toEqual([{ label: "View collections", href: "/collections" }]);
+    expect(result.links).toEqual([{ label: "View unpaid loads", href: "/loads?payment=unpaid" }]);
   });
 
   it("returns a secure download route for the latest matching document", async () => {

@@ -13,7 +13,7 @@ export { normalizeLoadView } from "@/lib/data/load-index";
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Pick<
   Database["public"]["Tables"]["payments"]["Row"],
-  "invoice_status" | "client_paid" | "client_amount_received" | "driver_paid" | "dispatcher_paid"
+  "client_paid" | "client_amount_received" | "driver_paid" | "dispatcher_paid"
 >;
 export type LoadListItem = LoadRow & {
   brokers: { company_name: string } | null;
@@ -27,7 +27,6 @@ type LoadDetail = LoadRow & {
   payments: Database["public"]["Tables"]["payments"]["Row"] | Database["public"]["Tables"]["payments"]["Row"][] | null;
   load_deductions: Database["public"]["Tables"]["load_deductions"]["Row"][];
   load_stops: Database["public"]["Tables"]["load_stops"]["Row"][];
-  receivable_entries: Database["public"]["Tables"]["receivable_entries"]["Row"][];
 };
 type DocumentRow = Database["public"]["Tables"]["documents"]["Row"];
 type NoteRow = Database["public"]["Tables"]["notes"]["Row"];
@@ -52,7 +51,7 @@ export async function getLoads(params: {
 
   const { data, error } = await supabase
     .from("loads")
-    .select("*, brokers(company_name), drivers(name), payments(invoice_status, client_paid, client_amount_received, driver_paid, dispatcher_paid), load_stops(*)")
+    .select("*, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, dispatcher_paid), load_stops(*)")
     .in("id", index.ids);
   if (error) throw error;
   const byId = new Map(((data ?? []) as unknown as LoadListItem[]).map((load) => [load.id, load]));
@@ -64,15 +63,14 @@ export function loadPayment(load: Pick<LoadListItem, "payments">) {
 }
 
 export function isLoadClientPaymentPaid(load: Pick<LoadListItem, "load_rate" | "payments">) {
-  const payment = loadPayment(load);
-  return payment?.invoice_status !== "Void" && isClientPaymentPaid(load.load_rate, payment);
+  return isClientPaymentPaid(load.load_rate, loadPayment(load));
 }
 
 export async function getLoad(loadId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("loads")
-    .select("*, brokers(*), drivers(*), payments(*), load_deductions(*), load_stops(*), receivable_entries(*)")
+    .select("*, brokers(*), drivers(*), payments(*), load_deductions(*), load_stops(*)")
     .eq("id", loadId)
     .single();
 

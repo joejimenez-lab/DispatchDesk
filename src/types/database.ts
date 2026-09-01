@@ -1324,17 +1324,10 @@ export type Database = {
           driver_date_paid: string | null
           driver_paid: boolean
           id: string
-          invoice_date: string | null
-          invoice_number: string | null
           invoice_sent: boolean
           invoice_sent_date: string | null
-          invoice_status: Database["public"]["Enums"]["invoice_status"]
           load_id: string
-          collection_owner_id: string | null
-          due_date: string | null
-          next_follow_up_date: string | null
           organization_id: string
-          payment_terms_days: number
           updated_at: string
         }
         Insert: {
@@ -1349,17 +1342,10 @@ export type Database = {
           driver_date_paid?: string | null
           driver_paid?: boolean
           id?: string
-          invoice_date?: string | null
-          invoice_number?: string | null
           invoice_sent?: boolean
           invoice_sent_date?: string | null
-          invoice_status?: Database["public"]["Enums"]["invoice_status"]
           load_id: string
-          collection_owner_id?: string | null
-          due_date?: string | null
-          next_follow_up_date?: string | null
           organization_id?: string
-          payment_terms_days?: number
           updated_at?: string
         }
         Update: {
@@ -1374,17 +1360,10 @@ export type Database = {
           driver_date_paid?: string | null
           driver_paid?: boolean
           id?: string
-          invoice_date?: string | null
-          invoice_number?: string | null
           invoice_sent?: boolean
           invoice_sent_date?: string | null
-          invoice_status?: Database["public"]["Enums"]["invoice_status"]
           load_id?: string
-          collection_owner_id?: string | null
-          due_date?: string | null
-          next_follow_up_date?: string | null
           organization_id?: string
-          payment_terms_days?: number
           updated_at?: string
         }
         Relationships: [
@@ -1402,87 +1381,6 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      receivable_entries: {
-        Row: {
-          amount: number
-          created_at: string
-          created_by: string | null
-          created_by_email: string | null
-          entry_date: string
-          entry_type: Database["public"]["Enums"]["receivable_entry_type"]
-          id: string
-          load_id: string
-          note: string | null
-          organization_id: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          created_by?: string | null
-          created_by_email?: string | null
-          entry_date?: string
-          entry_type: Database["public"]["Enums"]["receivable_entry_type"]
-          id?: string
-          load_id: string
-          note?: string | null
-          organization_id?: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          created_by?: string | null
-          created_by_email?: string | null
-          entry_date?: string
-          entry_type?: Database["public"]["Enums"]["receivable_entry_type"]
-          id?: string
-          load_id?: string
-          note?: string | null
-          organization_id?: string
-        }
-        Relationships: [
-          { foreignKeyName: "receivable_entries_load_id_fkey"; columns: ["load_id"]; isOneToOne: false; referencedRelation: "loads"; referencedColumns: ["id"] },
-          { foreignKeyName: "receivable_entries_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
-        ]
-      }
-      collection_contacts: {
-        Row: {
-          contact_type: Database["public"]["Enums"]["collection_contact_type"]
-          contacted_at: string
-          created_at: string
-          created_by: string | null
-          created_by_email: string | null
-          id: string
-          load_id: string
-          note: string
-          organization_id: string
-        }
-        Insert: {
-          contact_type: Database["public"]["Enums"]["collection_contact_type"]
-          contacted_at?: string
-          created_at?: string
-          created_by?: string | null
-          created_by_email?: string | null
-          id?: string
-          load_id: string
-          note: string
-          organization_id?: string
-        }
-        Update: {
-          contact_type?: Database["public"]["Enums"]["collection_contact_type"]
-          contacted_at?: string
-          created_at?: string
-          created_by?: string | null
-          created_by_email?: string | null
-          id?: string
-          load_id?: string
-          note?: string
-          organization_id?: string
-        }
-        Relationships: [
-          { foreignKeyName: "collection_contacts_load_id_fkey"; columns: ["load_id"]; isOneToOne: false; referencedRelation: "loads"; referencedColumns: ["id"] },
-          { foreignKeyName: "collection_contacts_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
         ]
       }
       profiles: {
@@ -1747,30 +1645,6 @@ export type Database = {
         Returns: string
       }
       current_organization_id: { Args: never; Returns: string }
-      collection_owner_options: { Args: never; Returns: { id: string; full_name: string | null; email: string }[] }
-      invoice_aging_bucket: { Args: { p_due_date: string | null; p_as_of?: string }; Returns: string }
-      receivable_balance: { Args: { p_load_id: string }; Returns: number }
-      record_receivable_entry: {
-        Args: { p_load_id: string; p_entry_type: string; p_amount: number; p_entry_date: string; p_note: string }
-        Returns: string
-      }
-      record_collection_contact: {
-        Args: { p_load_id: string; p_contact_type: string; p_contacted_at: string; p_note: string; p_next_follow_up_date: string | null }
-        Returns: string
-      }
-      update_invoice_collection: {
-        Args: {
-          p_load_id: string
-          p_invoice_status: string
-          p_invoice_number: string
-          p_invoice_date: string | null
-          p_payment_terms_days: number
-          p_due_date: string | null
-          p_collection_owner_id: string | null
-          p_next_follow_up_date: string | null
-        }
-        Returns: undefined
-      }
       ifta_location_state: { Args: { p_location: string }; Returns: string }
       refresh_ifta_drafts: {
         Args: { p_end: string; p_start: string }
@@ -1900,7 +1774,6 @@ export type Database = {
           }
     }
     Enums: {
-      collection_contact_type: "Note" | "Phone" | "Email"
       document_category:
         | "Rate Confirmation"
         | "Invoice"
@@ -1920,7 +1793,6 @@ export type Database = {
         | "Parts"
         | "Supplies"
         | "Other"
-      invoice_status: "Draft" | "Sent" | "Void"
       load_status:
         | "Booked"
         | "Dispatched"
@@ -1929,7 +1801,6 @@ export type Database = {
         | "Delivered"
         | "Closed"
         | "Cancelled"
-      receivable_entry_type: "Payment" | "Adjustment" | "Credit" | "Write-off"
       load_closeout_status:
         | "Awaiting Documents"
         | "Documents Complete"
@@ -2074,7 +1945,6 @@ export const Constants = {
         "Carrier Packet",
         "Other",
       ],
-      collection_contact_type: ["Note", "Phone", "Email"],
       expense_category: [
         "Fuel",
         "Maintenance",
@@ -2086,7 +1956,6 @@ export const Constants = {
         "Supplies",
         "Other",
       ],
-      invoice_status: ["Draft", "Sent", "Void"],
       load_status: [
         "Booked",
         "Dispatched",
@@ -2103,7 +1972,6 @@ export const Constants = {
         "Paid",
         "Closed",
       ],
-      receivable_entry_type: ["Payment", "Adjustment", "Credit", "Write-off"],
       unit_type: ["Truck", "Trailer"],
     },
   },

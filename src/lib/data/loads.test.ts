@@ -9,16 +9,15 @@ describe("load list filters", () => {
     expect(normalizeLoadView("not-a-status")).toBe("active");
   });
 
-  it("does not classify a void invoice as paid", () => {
+  it("classifies a fully received client payment as paid", () => {
     expect(isLoadClientPaymentPaid({
       load_rate: 1_000,
       payments: {
-        invoice_status: "Void",
-        client_paid: true,
-        client_amount_received: 0,
+        client_paid: false,
+        client_amount_received: 1_000,
         driver_paid: false,
         dispatcher_paid: false,
       },
-    })).toBe(false);
+    })).toBe(true);
   });
 });

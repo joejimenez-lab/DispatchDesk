@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clientBillingCsv, weeklyFinancialCsv, weeklyPayrollCsv, yearlyFinancialCsv } from "./report-exports";
+import { weeklyFinancialCsv, weeklyPayrollCsv, yearlyFinancialCsv } from "./report-exports";
 import type { WeeklyDriverFinancialSummary } from "./data/weekly-financials";
 
 const summaries: WeeklyDriverFinancialSummary[] = [
@@ -61,18 +61,5 @@ describe("report exports", () => {
     incomplete[0].loads[0].financialComplete = false;
     incomplete[0].loads[0].missingFinancialFields = ["Fuel cost"];
     expect(yearlyFinancialCsv(incomplete)).toContain("2026,2,1800,900,180,270,54,30,84,166,1,1000,200");
-  });
-
-  it("exports structured invoice aging and collection ownership", () => {
-    const csv = clientBillingCsv([{
-      fleet: "RD", loadNumber: "L-100", loadDate: "2026-08-01", broker: "Camino",
-      status: "Delivered", postDeliveryStatus: "Invoiced", loadRate: 1000,
-      invoiceSent: true, invoiceSentDate: "2026-08-02", invoiceNumber: "INV-100",
-      invoiceStatus: "Sent", invoiceDate: "2026-08-02", dueDate: "2026-09-01",
-      agingBucket: "1–30", collectionOwner: "Jamie", nextFollowUpDate: "2026-09-05",
-      clientPaid: false, amountReceived: 400, dateReceived: "2026-08-15", outstanding: 600,
-    }]);
-    expect(csv).toContain("Invoice Number,Invoice Status,Invoice Date,Due Date,Aging Bucket,Collection Owner,Next Follow-up");
-    expect(csv).toContain("INV-100,Sent,2026-08-02,2026-09-01,1–30,Jamie,2026-09-05,1000,false,400,2026-08-15,600");
   });
 });

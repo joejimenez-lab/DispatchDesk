@@ -7,11 +7,11 @@ function semverParts(version: string) {
 
 describe("version history", () => {
   it("exposes the current release first", () => {
-    expect(CURRENT_VERSION).toBe("2.10.0");
+    expect(CURRENT_VERSION).toBe("2.10.1");
     expect(VERSION_HISTORY[0]).toMatchObject({
       version: CURRENT_VERSION,
-      title: "Operational and financial control",
-      kind: "minor",
+      title: "Simplified client payments",
+      kind: "patch",
     });
   });
 

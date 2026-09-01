@@ -88,7 +88,7 @@ insert into public.loads (
   ('14000000-0000-4000-8000-000000000004', 'RC-260720-01', '12000000-0000-4000-8000-000000000004', 'RC', '11000000-0000-4000-8000-000000000005', '13000000-0000-4000-8000-000000000008', '13000000-0000-4000-8000-000000000011', 'Fresno, CA', current_date + 3, 'Portland, OR', current_date + 5, false, null, null, 3650, 2050, 365, 690, 'Produce load. Trailer must be clean, dry, and odor free.', 'Booked', now() - interval '5 hours'),
   ('14000000-0000-4000-8000-000000000005', 'RD-260711-01', '12000000-0000-4000-8000-000000000002', 'RD', '11000000-0000-4000-8000-000000000003', '13000000-0000-4000-8000-000000000003', '13000000-0000-4000-8000-000000000006', 'Riverside, CA', current_date - 6, 'Tucson, AZ', current_date - 5, false, null, null, 2450, 1420, 245, 430, 'Delivered clean. POD received; invoice is ready for follow-up.', 'Delivered', now() - interval '8 days'),
   ('14000000-0000-4000-8000-000000000006', 'RC-260708-02', '12000000-0000-4000-8000-000000000001', 'RC', '11000000-0000-4000-8000-000000000006', '13000000-0000-4000-8000-000000000009', '13000000-0000-4000-8000-000000000012', 'Carson, CA', current_date - 9, 'Sacramento, CA', current_date - 8, true, 'Carson, CA', 'Return empty packaging to the Carson shipper after delivery.', 3300, 1850, 330, 540, 'Round trip completed with signed return receipt.', 'Delivered', now() - interval '11 days'),
-  ('14000000-0000-4000-8000-000000000007', 'RD-260601-03', '12000000-0000-4000-8000-000000000003', 'RD', '11000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000004', 'Los Angeles, CA', current_date - 47, 'Albuquerque, NM', current_date - 45, false, null, null, 3100, 1760, 310, 610, 'Aged receivable with a partial client payment. Collections call logged.', 'Delivered', now() - interval '49 days'),
+  ('14000000-0000-4000-8000-000000000007', 'RD-260601-03', '12000000-0000-4000-8000-000000000003', 'RD', '11000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000004', 'Los Angeles, CA', current_date - 47, 'Albuquerque, NM', current_date - 45, false, null, null, 3100, 1760, 310, 610, 'Aged client balance with a partial payment.', 'Delivered', now() - interval '49 days'),
   ('14000000-0000-4000-8000-000000000008', 'RC-260715-04', '12000000-0000-4000-8000-000000000004', 'RC', '11000000-0000-4000-8000-000000000005', '13000000-0000-4000-8000-000000000008', '13000000-0000-4000-8000-000000000011', 'Bakersfield, CA', current_date - 2, 'Reno, NV', current_date, false, null, null, 2250, 1280, 225, 390, 'Cancelled by broker before dispatch. Truck not ordered used.', 'Cancelled', now() - interval '3 days'),
   ('14000000-0000-4000-8000-000000000009', 'RD-260610-01', '12000000-0000-4000-8000-000000000001', 'RD', '11000000-0000-4000-8000-000000000002', '13000000-0000-4000-8000-000000000002', '13000000-0000-4000-8000-000000000005', 'Compton, CA', current_date - 39, 'Salt Lake City, UT', current_date - 36, false, null, null, 4200, 2320, 420, 810, 'Past-due invoice. Broker requested another invoice copy.', 'Delivered', now() - interval '41 days'),
   ('14000000-0000-4000-8000-000000000010', 'RC-260702-02', '12000000-0000-4000-8000-000000000002', 'RC', '11000000-0000-4000-8000-000000000004', '13000000-0000-4000-8000-000000000007', '13000000-0000-4000-8000-000000000010', 'Otay Mesa, CA', current_date - 16, 'Yuma, AZ', current_date - 15, false, null, null, 1850, 1075, 185, 310, 'Paid and fully reconciled.', 'Delivered', now() - interval '18 days'),
@@ -148,44 +148,6 @@ update public.payments set invoice_sent = true, invoice_sent_date = current_date
 update public.payments set invoice_sent = true, invoice_sent_date = current_date - 23, client_paid = true, client_amount_received = 5100, client_date_received = current_date - 4, driver_paid = false, driver_amount_paid = 1000, dispatcher_paid = true, dispatcher_date_paid = current_date - 4 where load_id = '14000000-0000-4000-8000-000000000011';
 update public.payments set invoice_sent = true, invoice_sent_date = current_date - 78, client_paid = true, client_amount_received = 4800, client_date_received = current_date - 55, driver_paid = true, driver_amount_paid = 2660, driver_date_paid = current_date - 73, dispatcher_paid = true, dispatcher_date_paid = current_date - 73 where load_id = '14000000-0000-4000-8000-000000000013';
 update public.payments set invoice_sent = true, invoice_sent_date = current_date - 67, client_paid = true, client_amount_received = 2950, client_date_received = current_date - 41, driver_paid = true, driver_amount_paid = 1680, driver_date_paid = current_date - 62, dispatcher_paid = true, dispatcher_date_paid = current_date - 62 where load_id = '14000000-0000-4000-8000-000000000014';
-
--- Collection details are applied after the load-triggered payment rows exist.
--- Invoice dates come only from the explicit invoice-sent dates above.
-update public.payments p
-set invoice_status = 'Sent',
-    invoice_number = 'DD-' || l.load_number,
-    invoice_date = p.invoice_sent_date,
-    payment_terms_days = 30,
-    due_date = p.invoice_sent_date + 30
-from public.loads l
-where l.id = p.load_id and p.invoice_sent_date is not null;
-
-insert into public.receivable_entries (
-  organization_id, load_id, entry_type, amount, entry_date, note,
-  created_by, created_by_email
-)
-select p.organization_id, p.load_id, 'Payment', p.client_amount_received,
-       coalesce(p.client_date_received, p.updated_at::date), 'Seeded payment history',
-       '10000000-0000-4000-8000-000000000001', 'andres.castillo@dispatchdesk.demo'
-from public.payments p
-where p.client_amount_received > 0;
-
-update public.payments
-set collection_owner_id = '10000000-0000-4000-8000-000000000001',
-    next_follow_up_date = current_date + 1
-where load_id in (
-  '14000000-0000-4000-8000-000000000007',
-  '14000000-0000-4000-8000-000000000009'
-);
-
-insert into public.collection_contacts (
-  organization_id, load_id, contact_type, contacted_at, note,
-  created_by, created_by_email
-)
-select organization_id, id, 'Phone', now() - interval '1 day',
-       'Broker accounting confirmed the invoice and requested a follow-up tomorrow.',
-       '10000000-0000-4000-8000-000000000001', 'andres.castillo@dispatchdesk.demo'
-from public.loads where id = '14000000-0000-4000-8000-000000000007';
 
 -- Seed closeout facts after payment facts so the lifecycle guard sees a valid
 -- sequence. Partially paid showcase loads intentionally remain open.

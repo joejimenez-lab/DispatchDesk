@@ -6,12 +6,11 @@ import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import { StatusBadge } from "@/components/status-badge";
 import { addNote, deleteDocument, deleteLoad, updateLoadCloseout, updatePaymentFlag, uploadDocument } from "@/lib/actions/loads";
 import { getAssignmentWindows, getLoad, getLoadRelated } from "@/lib/data/loads";
-import { clientCollected, financialCompleteness, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
+import { clientCollected, clientOutstanding, financialCompleteness, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
 import { currency, formatDate } from "@/lib/utils";
 import { documentCategories } from "@/types/database";
 import { findAssignmentConflicts, formatStopWindow, type DispatchStop } from "@/lib/dispatch";
 import { closeoutReason } from "@/lib/load-lifecycle";
-import { receivableBalance } from "@/lib/collections";
 
 function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -74,7 +73,7 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
   const completeness = financialCompleteness(load);
   const totalDeductions = totalDeductionsForLoad(load);
   const collected = clientCollected(load.load_rate, payment);
-  const outstanding = load.status === "Cancelled" || payment?.invoice_status === "Void" ? 0 : receivableBalance(load.load_rate, load.receivable_entries);
+  const outstanding = load.status === "Cancelled" ? 0 : clientOutstanding(load.load_rate, payment);
   const returnLocation = load.return_location || load.pickup_location;
   const laneSummary = load.is_round_trip
     ? `${load.pickup_location} to ${load.delivery_location} and returns to ${returnLocation}`
@@ -201,14 +200,16 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
 
         <div className="space-y-4">
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-950">Invoice</h2>
+            <h2 className="mb-4 text-lg font-semibold text-zinc-950">Documentation</h2>
             <dl className="space-y-3">
-              <Detail label="Status" value={payment?.invoice_status ?? (payment?.invoice_sent ? "Sent" : "Draft")} />
-              <Detail label="Invoice number" value={payment?.invoice_number ?? "Not set"} />
-              <Detail label="Invoice date" value={formatDate(payment?.invoice_date ?? payment?.invoice_sent_date)} />
-              <Detail label="Due date" value={formatDate(payment?.due_date)} />
+              <PaymentToggle
+                label="Invoice Sent"
+                loadId={id}
+                field="invoice_sent"
+                paid={Boolean(payment?.invoice_sent)}
+                detail={payment?.invoice_sent_date ? formatDate(payment.invoice_sent_date) : undefined}
+              />
             </dl>
-            <LinkButton href={`/collections/${id}`} variant="secondary" className="mt-4">Manage collections</LinkButton>
           </div>
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
@@ -241,7 +242,14 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
               <Detail label={completeness.complete ? "Estimated Profit" : "Provisional Margin"} value={<span className={profit >= 0 ? "text-green-700" : "text-red-700"}>{currency(profit)}{completeness.complete ? "" : " · incomplete"}</span>} />
               <Detail label="Client Collected" value={currency(collected)} />
               <Detail label="Client Outstanding" value={currency(outstanding)} />
-              <Detail label="Client reconciliation" value={<Link className="font-semibold text-[#6757e8] underline" href={`/collections/${id}`}>{currency(outstanding)} outstanding · view ledger</Link>} />
+              <PaymentToggle
+                label="Client Paid"
+                loadId={id}
+                field="client_paid"
+                paid={Boolean(payment?.client_paid)}
+                amount={`${currency(collected)} received`}
+                detail={`${currency(outstanding)} outstanding`}
+              />
               <PaymentToggle
                 label="Driver Paid"
                 loadId={id}
