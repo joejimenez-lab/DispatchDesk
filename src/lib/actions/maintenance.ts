@@ -9,6 +9,7 @@ import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import {
   maintenanceCompletionSchema,
   maintenanceReminderSchema,
+  maintenanceSetupSchema,
   maintenanceSnoozeSchema,
 } from "@/lib/validation/schemas";
 import type { Json } from "@/types/database";
@@ -22,6 +23,44 @@ function revalidateMaintenance(unitId: string) {
   revalidatePath("/maintenance");
   revalidatePath("/fleet");
   revalidatePath(`/fleet/${unitId}`);
+}
+
+export async function configureMaintenanceUnits(_state: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const unitIds = formData.getAll("unit_id").map((entry) => String(entry));
+    const updates = maintenanceSetupSchema.parse(unitIds.map((unitId) => ({
+      unit_id: unitId,
+      odometer: value(formData, `odometer_${unitId}`),
+    })));
+    const applyTemplates = formData.get("apply_default_templates") === "on";
+    if (!applyTemplates && updates.every((update) => update.odometer == null)) {
+      throw new Error("Enter an odometer or apply the default schedules.");
+    }
+
+    const { supabase, user } = await createAuthenticatedClient();
+    const { data, error } = await supabase.rpc("configure_maintenance_units", {
+      p_updates: updates as Json,
+      p_apply_templates: applyTemplates,
+    });
+    if (error) return errorState(error, "Could not configure the selected units.");
+
+    const result = data as { odometers_updated?: number; schedules_created?: number; units_selected?: number } | null;
+    logInfo("maintenance.setup.completed", {
+      userId: user.id,
+      unitsSelected: result?.units_selected ?? updates.length,
+      odometersUpdated: result?.odometers_updated ?? 0,
+      schedulesCreated: result?.schedules_created ?? 0,
+    });
+    revalidatePath("/dashboard");
+    revalidatePath("/maintenance");
+    revalidatePath("/fleet");
+    updates.forEach((update) => revalidatePath(`/fleet/${update.unit_id}`));
+    return successState(
+      `Updated ${result?.odometers_updated ?? 0} odometer${result?.odometers_updated === 1 ? "" : "s"} and created ${result?.schedules_created ?? 0} schedule${result?.schedules_created === 1 ? "" : "s"}.`,
+    );
+  } catch (error) {
+    return errorState(error, "Could not configure the selected units.");
+  }
 }
 
 async function reminderPayload(formData: FormData) {

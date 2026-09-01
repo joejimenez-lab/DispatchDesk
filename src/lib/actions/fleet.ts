@@ -48,7 +48,7 @@ export async function createUnit(_state: ActionState, formData: FormData): Promi
     return errorState(error, "Could not add unit.");
   }
 
-  revalidatePath("/fleet");
+  revalidateFleetMaintenance(unitId);
   redirect(`/fleet/${unitId}`);
 }
 
@@ -57,8 +57,7 @@ export async function updateUnit(unitId: string, _state: ActionState, formData: 
     const { supabase } = await createAuthenticatedClient();
     const { error } = await supabase.from("fleet_units").update(unitPayload(formData)).eq("id", unitId);
     if (error) return errorState(error, "Could not save unit.");
-    revalidatePath("/fleet");
-    revalidatePath(`/fleet/${unitId}`);
+    revalidateFleetMaintenance(unitId);
     return successState("Unit saved.");
   } catch (error) {
     return errorState(error, "Could not save unit.");

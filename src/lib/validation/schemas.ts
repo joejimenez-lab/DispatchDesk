@@ -188,6 +188,11 @@ export const maintenanceReminderSchema = z.object({
   notes: optionalText,
 });
 
+export const maintenanceSetupSchema = z.array(z.object({
+  unit_id: z.string().uuid(),
+  odometer: optionalOdometer,
+})).min(1, "Select at least one fleet unit");
+
 export const maintenanceCompletionSchema = z.object({
   completed_date: requiredDate,
   odometer: optionalOdometer,

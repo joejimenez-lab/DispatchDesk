@@ -482,6 +482,7 @@ export type Database = {
           id: string
           notes: string | null
           odometer: number | null
+          odometer_updated_at: string | null
           organization_id: string
           unit_number: string
           unit_type: Database["public"]["Enums"]["unit_type"]
@@ -493,6 +494,7 @@ export type Database = {
           id?: string
           notes?: string | null
           odometer?: number | null
+          odometer_updated_at?: string | null
           organization_id?: string
           unit_number: string
           unit_type: Database["public"]["Enums"]["unit_type"]
@@ -504,6 +506,7 @@ export type Database = {
           id?: string
           notes?: string | null
           odometer?: number | null
+          odometer_updated_at?: string | null
           organization_id?: string
           unit_number?: string
           unit_type?: Database["public"]["Enums"]["unit_type"]
@@ -1434,6 +1437,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      configure_maintenance_units: {
+        Args: { p_apply_templates?: boolean; p_updates: Json }
+        Returns: Json
+      }
       check_ai_assistant_rate_limit: {
         Args: never
         Returns: {

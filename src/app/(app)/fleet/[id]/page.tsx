@@ -5,6 +5,7 @@ import { CompanyFleetField } from "@/components/company-fleet-field";
 import { MaintenanceReminderCard } from "@/components/maintenance-reminder-card";
 import { MaintenanceReminderForm } from "@/components/maintenance-reminder-form";
 import { MaintenanceSpendingEditor } from "@/components/maintenance-spending-editor";
+import { MaintenanceSetupForm } from "@/components/maintenance-setup-form";
 import { Field, Input, Select, Textarea } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import {
@@ -15,9 +16,9 @@ import {
   deleteUnit,
   updateUnit,
 } from "@/lib/actions/fleet";
-import { addMaintenanceReminder } from "@/lib/actions/maintenance";
+import { addMaintenanceReminder, configureMaintenanceUnits } from "@/lib/actions/maintenance";
 import { getFleetCompanies, getUnit, getUnitRecords } from "@/lib/data/fleet";
-import { classifyMaintenanceReminder, type MaintenanceAlert } from "@/lib/maintenance";
+import { buildMaintenanceReadiness, classifyMaintenanceReminder, type MaintenanceAlert } from "@/lib/maintenance";
 import { currency, formatDate } from "@/lib/utils";
 import { repairLogTypes, unitTypes } from "@/types/database";
 
@@ -57,6 +58,7 @@ export default async function UnitDetailPage({
       ...classifyMaintenanceReminder(reminder, unit.odometer),
     } satisfies MaintenanceAlert));
   const completedReminders = records.reminders.filter((reminder) => reminder.completed_at);
+  const readiness = buildMaintenanceReadiness([unit], activeReminders)[0];
 
   return (
     <div className="space-y-6">
@@ -132,6 +134,7 @@ export default async function UnitDetailPage({
             <div>
               <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Odometer</div>
               <div className="mt-1 text-sm font-medium text-zinc-950">{odometer(unit.odometer) ?? "Not set"}</div>
+              <div className="mt-1 text-xs text-zinc-500">Last updated: {unit.odometer_updated_at ? new Date(unit.odometer_updated_at).toLocaleString() : unit.odometer == null ? "Never" : "Unknown"}</div>
             </div>
             <div>
               <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Notes</div>
@@ -139,6 +142,18 @@ export default async function UnitDetailPage({
             </div>
           </div>
         )}
+      </section>
+
+      <section className={readiness.configured ? "rounded-xl border border-green-200 bg-green-50 p-5" : "rounded-xl border border-amber-200 bg-amber-50 p-5"}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h2 className="text-lg font-semibold text-zinc-950">Setup checklist</h2><p className="text-sm text-zinc-600">Both steps are required before a zero-alert state means the unit is healthy.</p></div>
+          <span className={readiness.configured ? "rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800" : "rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800"}>{readiness.configured ? "Configured" : "Not configured"}</span>
+        </div>
+        <div className="mt-3 grid gap-2 text-sm text-zinc-800 sm:grid-cols-2">
+          <div>{readiness.missingOdometer ? "○ Record current odometer" : `✓ Odometer recorded (${unit.odometer?.toLocaleString()} mi)`}</div>
+          <div>{readiness.missingSchedule ? "○ Add an active maintenance schedule" : `✓ ${activeReminders.length} active schedule${activeReminders.length === 1 ? "" : "s"}`}</div>
+        </div>
+        {!readiness.configured ? <details className="mt-4 border-t border-amber-200 pt-3"><summary className="cursor-pointer text-sm font-semibold text-blue-700">Complete setup</summary><div className="mt-3"><MaintenanceSetupForm action={configureMaintenanceUnits} readiness={[readiness]} /></div></details> : null}
       </section>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">

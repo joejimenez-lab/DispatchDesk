@@ -167,7 +167,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <Link href={fleet ? `/maintenance?fleet=${encodeURIComponent(fleet)}` : "/maintenance"} className="panel-link">View maintenance</Link>
             </div>
             <div className="dispatch-panel-inner">
-              <div className="maintenance-tally">
+              <div className="maintenance-tally maintenance-tally-four">
+                <div data-tone="warning"><strong>{metrics.maintenanceCounts.unconfigured}</strong><span>Not configured</span></div>
                 <div data-tone="danger"><strong>{metrics.maintenanceCounts.overdue}</strong><span>Overdue</span></div>
                 <div data-tone="warning"><strong>{metrics.maintenanceCounts["due-soon"]}</strong><span>Due soon</span></div>
                 <div data-tone="info"><strong>{metrics.maintenanceCounts.upcoming}</strong><span>Upcoming</span></div>
@@ -205,7 +206,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   </Link>
                 );
               })}
-              {!metrics.maintenanceAlerts.length ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">No maintenance alerts right now.</p> : null}
+              {!metrics.maintenanceAlerts.length && metrics.maintenanceCounts.unconfigured ? <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">Maintenance tracking is not configured for {metrics.maintenanceCounts.unconfigured} unit{metrics.maintenanceCounts.unconfigured === 1 ? "" : "s"}. Add odometers and schedules before treating zero alerts as healthy.</p> : null}
+              {!metrics.maintenanceAlerts.length && !metrics.maintenanceCounts.unconfigured ? <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">Maintenance is configured and no service is currently due.</p> : null}
               </div>
             </div>
           </div>

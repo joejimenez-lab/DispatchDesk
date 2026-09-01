@@ -2,14 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   calculateInitialTargets,
   calculateNextTargets,
+  buildMaintenanceReadiness,
   classifyMaintenanceReminder,
   getDashboardMaintenanceSummary,
   localDateString,
   maintenanceRecurrenceLabel,
   sortMaintenanceAlerts,
   maintenanceTypesForUnit,
+  summarizeMaintenanceReadiness,
   type MaintenanceAlert,
 } from "./maintenance";
+import type { Database } from "@/types/database";
 
 const today = "2026-06-20";
 
@@ -183,5 +186,52 @@ describe("dashboard maintenance summary", () => {
     const alerts = Array.from({ length: 12 }, () => alert("due-soon"));
     expect(getDashboardMaintenanceSummary(alerts).visible).toHaveLength(8);
     expect(alerts).toHaveLength(12);
+  });
+});
+
+describe("maintenance readiness", () => {
+  type Unit = Database["public"]["Tables"]["fleet_units"]["Row"];
+  const unit = (overrides: Partial<Unit> = {}): Unit => ({
+    id: "10000000-0000-4000-8000-000000000001",
+    organization_id: "10000000-0000-4000-8000-000000000010",
+    unit_number: "T-101",
+    unit_type: "Truck",
+    company: "DCG",
+    odometer: null,
+    odometer_updated_at: null,
+    notes: null,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  });
+
+  it("keeps units without required inputs visible as not configured", () => {
+    const readiness = buildMaintenanceReadiness([unit()], [], today);
+    expect(readiness).toHaveLength(1);
+    expect(readiness[0]).toMatchObject({ configured: false, missingOdometer: true, missingSchedule: true });
+    expect(summarizeMaintenanceReadiness(readiness)).toEqual({
+      configured: 0,
+      unconfigured: 1,
+      missingOdometers: 1,
+      missingSchedules: 1,
+      staleOdometers: 0,
+    });
+  });
+
+  it("requires both an odometer and an active schedule before reporting configured", () => {
+    const withOdometer = unit({ odometer: 125_000, odometer_updated_at: "2026-06-19T15:00:00Z" });
+    expect(buildMaintenanceReadiness([withOdometer], [], today)[0].configured).toBe(false);
+    expect(buildMaintenanceReadiness([withOdometer], [{ unit_id: withOdometer.id }], today)[0].configured).toBe(true);
+  });
+
+  it("distinguishes fresh, stale, unknown, and missing odometer data", () => {
+    const units = [
+      unit({ id: "10000000-0000-4000-8000-000000000001", odometer: 100, odometer_updated_at: "2026-06-19T00:00:00Z" }),
+      unit({ id: "10000000-0000-4000-8000-000000000002", odometer: 200, odometer_updated_at: "2026-05-01T00:00:00Z" }),
+      unit({ id: "10000000-0000-4000-8000-000000000003", odometer: 300 }),
+      unit({ id: "10000000-0000-4000-8000-000000000004" }),
+    ];
+    expect(buildMaintenanceReadiness(units, [], today).map((item) => item.odometerFreshness))
+      .toEqual(["fresh", "stale", "unknown", "missing"]);
   });
 });
