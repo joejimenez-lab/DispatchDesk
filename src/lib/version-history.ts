@@ -9,6 +9,7 @@ export type ProductRelease = {
 };
 
 export const VERSION_HISTORY: readonly ProductRelease[] = [
+  { version: "2.10.4", date: "2026-09-01", title: "Bookkeeping page recovery", summary: "Resolved the fuel-purchase relationship ambiguity that prevented Bookkeeping from loading against the production schema.", kind: "patch" },
   { version: "2.10.3", date: "2026-09-01", title: "Classic dashboard restored", summary: "Restored the familiar compact dashboard layout while retaining corrected operational counts and data safeguards.", kind: "patch" },
   { version: "2.10.2", date: "2026-08-31", title: "Payment rollback safety", summary: "Preserved existing client payment amounts and paid flags while removing the additional invoice workflow.", kind: "patch" },
   { version: "2.10.1", date: "2026-08-31", title: "Simplified client payments", summary: "Removed invoice aging and follow-up workflows and restored direct load-level client payment tracking.", kind: "patch" },
