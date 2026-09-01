@@ -8,6 +8,7 @@ import {
   quarterLabel,
   quarterOfDate,
   statesWithMiles,
+  summarizeIftaDrafts,
   summarizeIftaByState,
   tripTotalMiles,
 } from "@/lib/ifta";
@@ -125,5 +126,17 @@ describe("iftaStateName", () => {
   it("resolves known codes and falls back to the code", () => {
     expect(iftaStateName("NV")).toBe("Nevada");
     expect(iftaStateName("ZZ")).toBe("ZZ");
+  });
+});
+
+describe("summarizeIftaDrafts", () => {
+  it("separates unresolved, missing, approved, rejected, and excluded records", () => {
+    expect(summarizeIftaDrafts([
+      { status: "pending", missing_fields: ["mileage"] },
+      { status: "pending", missing_fields: [] },
+      { status: "approved", missing_fields: [] },
+      { status: "rejected", missing_fields: ["truck"] },
+      { status: "excluded", missing_fields: ["gallons"] },
+    ])).toEqual({ unresolved: 2, missingData: 1, approved: 1, rejected: 1, excluded: 1 });
   });
 });

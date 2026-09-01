@@ -11,7 +11,13 @@ import {
 } from "@/lib/actions/bookkeeping-storage";
 import { logInfo } from "@/lib/logger";
 import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
-import { iftaFuelPurchaseSchema, iftaStateMilesSchema, iftaTripSchema } from "@/lib/validation/schemas";
+import {
+  iftaDraftFuelSchema,
+  iftaDraftTripSchema,
+  iftaFuelPurchaseSchema,
+  iftaStateMilesSchema,
+  iftaTripSchema,
+} from "@/lib/validation/schemas";
 
 function value(formData: FormData, key: string) {
   return formData.get(key) ?? "";
@@ -164,5 +170,119 @@ export async function deleteIftaFuelPurchase(purchaseId: string, _state: ActionS
     return successState("Fuel purchase and linked Bookkeeping transaction deleted.");
   } catch (error) {
     return errorState(error, "Could not delete fuel purchase.");
+  }
+}
+
+export async function deleteImportedIftaFuelPurchase(purchaseId: string, _state: ActionState): Promise<ActionState> {
+  void _state;
+  try {
+    const { supabase, user } = await createAuthenticatedClient();
+    const { data, error } = await supabase
+      .from("ifta_fuel_purchases")
+      .delete()
+      .eq("id", purchaseId)
+      .not("source_expense_group_id", "is", null)
+      .select("id")
+      .single();
+    if (error || !data) return errorState(error, "Imported fuel purchase not found.");
+    logInfo("ifta.fuel.import_removed", { purchaseId, userId: user.id });
+    revalidateFuel();
+    return successState("IFTA fuel purchase removed. The source Bookkeeping transaction was preserved for review.");
+  } catch (error) {
+    return errorState(error, "Could not remove imported fuel purchase.");
+  }
+}
+
+export async function refreshIftaDrafts(
+  start: string,
+  end: string,
+  _state: ActionState,
+): Promise<ActionState> {
+  void _state;
+  try {
+    const { supabase, user } = await createAuthenticatedClient();
+    const { data, error } = await supabase.rpc("refresh_ifta_drafts", { p_start: start, p_end: end });
+    if (error) return errorState(error, "Could not scan IFTA sources.");
+    const result = data as { trip_drafts_created?: number; fuel_drafts_created?: number } | null;
+    const trips = Number(result?.trip_drafts_created ?? 0);
+    const fuel = Number(result?.fuel_drafts_created ?? 0);
+    logInfo("ifta.drafts.refreshed", { start, end, trips, fuel, userId: user.id });
+    revalidatePath("/ifta");
+    return successState(
+      trips + fuel === 0
+        ? "No new eligible sources were found. Existing drafts were left unchanged."
+        : `Created ${trips} trip draft${trips === 1 ? "" : "s"} and ${fuel} fuel draft${fuel === 1 ? "" : "s"}.`,
+    );
+  } catch (error) {
+    return errorState(error, "Could not scan IFTA sources.");
+  }
+}
+
+function draftStateMiles(formData: FormData) {
+  const states = formData.getAll("draft_state_code").map(String);
+  const miles = formData.getAll("draft_state_miles").map(String);
+  return states
+    .map((state, index) => ({ state, miles: miles[index] ?? "" }))
+    .filter((row) => row.state.trim() !== "" || row.miles.trim() !== "");
+}
+
+export async function reviewIftaDraft(
+  draftId: string,
+  draftType: "trip" | "fuel",
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  void _state;
+  try {
+    const { supabase, user } = await createAuthenticatedClient();
+    const action = String(value(formData, "review_action"));
+    if (!["save", "approve", "reject", "exclude"].includes(action)) throw new Error("Choose a review action.");
+
+    if (action === "reject" || action === "exclude") {
+      const { error } = await supabase.rpc("review_ifta_draft", {
+        p_draft_id: draftId,
+        p_action: action,
+        p_payload: null,
+        p_note: String(value(formData, "review_note")),
+      });
+      if (error) return errorState(error, "Could not update IFTA draft.");
+      logInfo("ifta.draft.dispositioned", { draftId, action, userId: user.id });
+      revalidatePath("/ifta");
+      return successState(action === "exclude" ? "Source excluded from this IFTA review." : "Draft rejected.");
+    }
+
+    const payload = draftType === "trip"
+      ? iftaDraftTripSchema.parse({
+          unit_id: value(formData, "unit_id"),
+          start_date: value(formData, "start_date"),
+          end_date: value(formData, "end_date"),
+          pickup_city: value(formData, "pickup_city"),
+          dropoff_city: value(formData, "dropoff_city"),
+          notes: value(formData, "notes"),
+          state_miles: draftStateMiles(formData),
+        })
+      : iftaDraftFuelSchema.parse({
+          unit_id: value(formData, "unit_id"),
+          purchase_date: value(formData, "purchase_date"),
+          city: value(formData, "city"),
+          state: value(formData, "state"),
+          gallons: value(formData, "gallons"),
+          amount_paid: value(formData, "amount_paid"),
+          vendor: value(formData, "vendor"),
+          notes: value(formData, "notes"),
+        });
+
+    const { error } = await supabase.rpc("review_ifta_draft", {
+      p_draft_id: draftId,
+      p_action: action,
+      p_payload: payload,
+      p_note: String(value(formData, "review_note")),
+    });
+    if (error) return errorState(error, "Could not review IFTA draft.");
+    logInfo("ifta.draft.reviewed", { draftId, draftType, action, userId: user.id });
+    revalidatePath("/ifta");
+    return successState(action === "approve" ? "Draft approved and posted to IFTA." : "Draft saved for review.");
+  } catch (error) {
+    return errorState(error, "Could not review IFTA draft.");
   }
 }

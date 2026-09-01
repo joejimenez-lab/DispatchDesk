@@ -5,12 +5,13 @@ import { DetailsCloseButton } from "@/components/details-close-button";
 import { ExportMenu } from "@/components/export-menu";
 import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
 import { Field, Select } from "@/components/field";
-import { ConfirmSubmitButton } from "@/components/form-buttons";
+import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import { IftaFuelForm } from "@/components/ifta-fuel-form";
+import { IftaDraftReview } from "@/components/ifta-draft-review";
 import { IftaTripForm } from "@/components/ifta-trip-form";
-import { addIftaFuelPurchase, addIftaTrip, deleteIftaFuelPurchase, deleteIftaTrip, updateIftaFuelPurchase } from "@/lib/actions/ifta";
+import { addIftaFuelPurchase, addIftaTrip, deleteIftaFuelPurchase, deleteIftaTrip, deleteImportedIftaFuelPurchase, refreshIftaDrafts, updateIftaFuelPurchase } from "@/lib/actions/ifta";
 import { getFleetCompanies } from "@/lib/data/fleet";
-import { getIftaFuelPurchases, getIftaRouteTemplates, getIftaTrips, getIftaTruckNumbers, getIftaTruckOptions } from "@/lib/data/ifta";
+import { getIftaDrafts, getIftaFuelPurchases, getIftaRouteTemplates, getIftaTrips, getIftaTruckNumbers, getIftaTruckOptions } from "@/lib/data/ifta";
 import {
   currentIftaQuarter,
   formatQuantity,
@@ -19,6 +20,7 @@ import {
   quarterDateRange,
   quarterLabel,
   statesWithMiles,
+  summarizeIftaDrafts,
   summarizeIftaByState,
   tripTotalMiles,
   type IftaQuarter,
@@ -50,15 +52,17 @@ export default async function IftaPage({
   const fleet = fleetScopeParam(scope);
   const truck = params.truck || undefined;
 
-  const [trips, purchases, truckNumbers, routes, fuelTrucks] = await Promise.all([
+  const [trips, purchases, drafts, truckNumbers, routes, fuelTrucks] = await Promise.all([
     getIftaTrips({ ...range, truck, fleetScope: scope }),
     getIftaFuelPurchases({ ...range, truck, fleetScope: scope }),
+    getIftaDrafts({ ...range, truck, fleetScope: scope }),
     getIftaTruckNumbers(scope),
     getIftaRouteTemplates(),
     getIftaTruckOptions(scope),
   ]);
 
   const summary = summarizeIftaByState(trips, purchases);
+  const draftSummary = summarizeIftaDrafts(drafts);
   const totals = iftaTotals(summary);
   const tripStates = statesWithMiles(trips);
   const tripStateTotals = new Map(
@@ -155,6 +159,43 @@ export default async function IftaPage({
         <div className="rounded-lg border border-zinc-200 bg-white p-4"><div className="text-sm font-medium text-zinc-600">Fleet MPG</div><div className="mt-1 text-2xl font-semibold text-zinc-950">{totals.mpg == null ? "—" : totals.mpg.toFixed(2)}</div></div>
       </section>
 
+      <section className="space-y-4 rounded-xl border border-[#dfe1ed] bg-[#f7f6fc] p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-950">Source review &amp; reconciliation</h2>
+            <p className="max-w-3xl text-sm text-zinc-600">
+              Scan delivered loads and Fuel bookkeeping transactions for this quarter. Drafts do not affect totals until approved, and sources already reviewed are not duplicated.
+            </p>
+          </div>
+          <ActionForm action={refreshIftaDrafts.bind(null, range.start, range.end)}>
+            <SubmitButton pendingText="Scanning...">Scan eligible sources</SubmitButton>
+          </ActionForm>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {[
+            ["Unresolved", draftSummary.unresolved],
+            ["Missing data", draftSummary.missingData],
+            ["Approved", draftSummary.approved],
+            ["Rejected", draftSummary.rejected],
+            ["Excluded", draftSummary.excluded],
+          ].map(([label, count]) => (
+            <div key={String(label)} className="rounded-lg border border-zinc-200 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</div>
+              <div className="mt-1 text-2xl font-semibold text-zinc-950">{count}</div>
+            </div>
+          ))}
+        </div>
+        {drafts.length ? (
+          <div className="grid gap-3">
+            {drafts.map((draft) => <IftaDraftReview key={draft.id} draft={draft} trucks={fuelTrucks} />)}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 py-8 text-center text-sm text-zinc-600">
+            No source drafts for {quarterLabel(period)}. Run the scan to check eligible loads and Fuel bookkeeping transactions.
+          </div>
+        )}
+      </section>
+
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-zinc-950">Miles &amp; fuel by state</h2>
@@ -243,9 +284,12 @@ export default async function IftaPage({
                   })}
                   <td className="px-4 py-3 text-right font-semibold text-zinc-950">{formatQuantity(tripTotalMiles(trip.ifta_trip_miles))}</td>
                   <td className="px-4 py-3 text-right">
-                    <ActionForm action={deleteIftaTrip.bind(null, trip.id)} successMessage={false}>
-                      <ConfirmSubmitButton message="Delete this trip and its state miles?" variant="secondary">Delete</ConfirmSubmitButton>
-                    </ActionForm>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {trip.loads ? <Link href={`/loads/${trip.loads.id}`} className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">Load {trip.loads.load_number}</Link> : null}
+                      <ActionForm action={deleteIftaTrip.bind(null, trip.id)} successMessage={false}>
+                        <ConfirmSubmitButton message="Delete this trip and its state miles?" variant="secondary">Delete</ConfirmSubmitButton>
+                      </ActionForm>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -306,9 +350,15 @@ export default async function IftaPage({
                   <td className="px-4 py-3 text-right">{currency(purchase.amount_paid)}</td>
                   <td className="px-4 py-3 text-right">
                     {(() => {
-                      const group = purchase.bookkeeping_expense_groups?.[0];
+                      const group = purchase.posted_bookkeeping?.[0];
+                      const sourceGroup = purchase.source_bookkeeping;
                       return (
                         <div className="flex flex-wrap justify-end gap-2">
+                          {sourceGroup ? (
+                            <Link href={`/bookkeeping?unit=${purchase.unit_id ?? ""}&from=${purchase.purchase_date}&to=${purchase.purchase_date}`} className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
+                              Source · {sourceGroup.bookkeeping_receipts.length} receipt{sourceGroup.bookkeeping_receipts.length === 1 ? "" : "s"}
+                            </Link>
+                          ) : null}
                           {group ? (
                             <Link href={`/bookkeeping?unit=${purchase.unit_id ?? ""}&from=${purchase.purchase_date}&to=${purchase.purchase_date}`} className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
                               Bookkeeping · {group.bookkeeping_receipts.length} receipt{group.bookkeeping_receipts.length === 1 ? "" : "s"}
@@ -322,8 +372,8 @@ export default async function IftaPage({
                               </div>
                             </details>
                           ) : null}
-                          <ActionForm action={deleteIftaFuelPurchase.bind(null, purchase.id)} successMessage={false}>
-                            <ConfirmSubmitButton message="Delete this fuel purchase and its linked Bookkeeping transaction?" variant="secondary">Delete</ConfirmSubmitButton>
+                          <ActionForm action={(sourceGroup ? deleteImportedIftaFuelPurchase : deleteIftaFuelPurchase).bind(null, purchase.id)} successMessage={false}>
+                            <ConfirmSubmitButton message={sourceGroup ? "Remove this posted IFTA purchase? Its source Bookkeeping transaction will be preserved." : "Delete this fuel purchase and its linked Bookkeeping transaction?"} variant="secondary">Delete</ConfirmSubmitButton>
                           </ActionForm>
                         </div>
                       );

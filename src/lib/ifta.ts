@@ -90,6 +90,47 @@ export type IftaStateMilesEntry = { state: string; miles: number };
 export type IftaFuelEntry = { state: string; gallons: number; amount_paid: number };
 export type IftaStateSummary = { state: string; miles: number; gallons: number; paid: number };
 
+export type IftaTripDraftPayload = {
+  unit_id: string | null;
+  truck_number: string | null;
+  start_date: string;
+  end_date: string | null;
+  pickup_city: string;
+  dropoff_city: string;
+  state_miles: IftaStateMilesEntry[];
+  suggested_states?: string[];
+  notes: string | null;
+};
+
+export type IftaFuelDraftPayload = {
+  unit_id: string | null;
+  truck_number: string | null;
+  purchase_date: string;
+  city: string | null;
+  state: string | null;
+  gallons: number | null;
+  amount_paid: number;
+  vendor: string | null;
+  notes: string | null;
+  receipt_count?: number;
+};
+
+export type IftaDraftStatus = "pending" | "approved" | "rejected" | "excluded";
+
+export function summarizeIftaDrafts(drafts: { status: string; missing_fields: string[] }[]) {
+  return drafts.reduce(
+    (summary, draft) => {
+      if (draft.status === "pending") summary.unresolved += 1;
+      if (draft.status === "approved") summary.approved += 1;
+      if (draft.status === "rejected") summary.rejected += 1;
+      if (draft.status === "excluded") summary.excluded += 1;
+      if (draft.status === "pending" && draft.missing_fields.length) summary.missingData += 1;
+      return summary;
+    },
+    { unresolved: 0, approved: 0, rejected: 0, excluded: 0, missingData: 0 },
+  );
+}
+
 function stateOrder(a: string, b: string) {
   return a.localeCompare(b);
 }

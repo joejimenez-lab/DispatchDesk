@@ -532,6 +532,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           purchase_date: string
+          source_expense_group_id: string | null
           state: string
           truck_number: string
           unit_id: string | null
@@ -547,6 +548,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           purchase_date: string
+          source_expense_group_id?: string | null
           state: string
           truck_number: string
           unit_id?: string | null
@@ -562,6 +564,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           purchase_date?: string
+          source_expense_group_id?: string | null
           state?: string
           truck_number?: string
           unit_id?: string | null
@@ -574,6 +577,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ifta_fuel_purchases_source_expense_group_id_fkey"
+            columns: ["source_expense_group_id"]
+            isOneToOne: false
+            referencedRelation: "bookkeeping_expense_groups"
             referencedColumns: ["id"]
           },
           {
@@ -624,6 +634,99 @@ export type Database = {
           },
         ]
       }
+      ifta_drafts: {
+        Row: {
+          approved_fuel_purchase_id: string | null
+          approved_trip_id: string | null
+          created_at: string
+          draft_type: string
+          id: string
+          missing_fields: string[]
+          organization_id: string
+          payload: Json
+          report_date: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_expense_group_id: string | null
+          source_load_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_fuel_purchase_id?: string | null
+          approved_trip_id?: string | null
+          created_at?: string
+          draft_type: string
+          id?: string
+          missing_fields?: string[]
+          organization_id?: string
+          payload?: Json
+          report_date: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_expense_group_id?: string | null
+          source_load_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_fuel_purchase_id?: string | null
+          approved_trip_id?: string | null
+          created_at?: string
+          draft_type?: string
+          id?: string
+          missing_fields?: string[]
+          organization_id?: string
+          payload?: Json
+          report_date?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_expense_group_id?: string | null
+          source_load_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ifta_drafts_approved_fuel_purchase_id_fkey"
+            columns: ["approved_fuel_purchase_id"]
+            isOneToOne: false
+            referencedRelation: "ifta_fuel_purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ifta_drafts_approved_trip_id_fkey"
+            columns: ["approved_trip_id"]
+            isOneToOne: false
+            referencedRelation: "ifta_trips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ifta_drafts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ifta_drafts_source_expense_group_id_fkey"
+            columns: ["source_expense_group_id"]
+            isOneToOne: false
+            referencedRelation: "bookkeeping_expense_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ifta_drafts_source_load_id_fkey"
+            columns: ["source_load_id"]
+            isOneToOne: false
+            referencedRelation: "loads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ifta_trips: {
         Row: {
           created_at: string
@@ -633,6 +736,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           pickup_city: string
+          source_load_id: string | null
           start_date: string
           truck_number: string
           unit_id: string | null
@@ -646,6 +750,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           pickup_city: string
+          source_load_id?: string | null
           start_date: string
           truck_number: string
           unit_id?: string | null
@@ -659,6 +764,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           pickup_city?: string
+          source_load_id?: string | null
           start_date?: string
           truck_number?: string
           unit_id?: string | null
@@ -670,6 +776,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ifta_trips_source_load_id_fkey"
+            columns: ["source_load_id"]
+            isOneToOne: false
+            referencedRelation: "loads"
             referencedColumns: ["id"]
           },
           {
@@ -1488,6 +1601,20 @@ export type Database = {
         Returns: string
       }
       current_organization_id: { Args: never; Returns: string }
+      ifta_location_state: { Args: { p_location: string }; Returns: string }
+      refresh_ifta_drafts: {
+        Args: { p_end: string; p_start: string }
+        Returns: Json
+      }
+      review_ifta_draft: {
+        Args: {
+          p_action: string
+          p_draft_id: string
+          p_note?: string
+          p_payload?: Json
+        }
+        Returns: string
+      }
       delete_document_with_cleanup: {
         Args: { p_document_id: string }
         Returns: {
