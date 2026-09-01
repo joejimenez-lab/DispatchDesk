@@ -1,0 +1,118 @@
+name: Pull request verification
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-verification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: local-build-key
+
+jobs:
+  application:
+    name: Lint, types, tests, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Run unit and integration tests
+        run: npm test
+
+      - name: Build production application
+        run: npm run build
+
+  browser-smoke:
+    name: Disposable database and browser smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      E2E_EMAIL: dispatchdesk123@maildrop.cc
+      E2E_PASSWORD: local-browser-check-password
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start disposable Supabase services
+        run: supabase start --exclude studio,imgproxy,mailpit,edge-runtime,realtime,storage-api,logflare,vector,supavisor,postgres-meta
+
+      - name: Reset and verify the local database
+        run: |
+          supabase db reset --local
+          npm run db:test
+
+      - name: Prepare local browser fixture
+        run: |
+          status_json="$(supabase status -o json)"
+          local_api_url="$(jq -r '.API_URL' <<< "$status_json")"
+          local_anon_key="$(jq -r '.ANON_KEY' <<< "$status_json")"
+          local_service_key="$(jq -r '.SERVICE_ROLE_KEY' <<< "$status_json")"
+          test "$local_api_url" = "http://127.0.0.1:54321"
+          export NEXT_PUBLIC_SUPABASE_URL="$local_api_url"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$local_anon_key"
+          export SUPABASE_SERVICE_ROLE_KEY="$local_service_key"
+          npm run test:e2e:fixture
+          echo "NEXT_PUBLIC_SUPABASE_URL=$local_api_url" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$local_anon_key" >> "$GITHUB_ENV"
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Run browser smoke test
+        run: npm run test:e2e
+
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: browser-smoke-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Remove disposable Supabase data
+        if: always()
+        run: supabase stop --no-backup
