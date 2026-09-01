@@ -97,6 +97,17 @@ insert into public.loads (
   ('14000000-0000-4000-8000-000000000013', 'RD-260428-01', '12000000-0000-4000-8000-000000000001', 'RD', '11000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000004', 'Ontario, CA', current_date - 82, 'Denver, CO', current_date - 79, false, null, null, 4800, 2660, 480, 970, 'Prior-quarter paid load retained for trend reporting.', 'Delivered', now() - interval '84 days'),
   ('14000000-0000-4000-8000-000000000014', 'RC-260509-01', '12000000-0000-4000-8000-000000000002', 'RC', '11000000-0000-4000-8000-000000000004', '13000000-0000-4000-8000-000000000007', '13000000-0000-4000-8000-000000000010', 'San Diego, CA', current_date - 70, 'Flagstaff, AZ', current_date - 68, true, 'San Diego, CA', 'Return two empty display racks to San Diego.', 2950, 1680, 295, 540, 'Prior-quarter round trip; all payments complete.', 'Delivered', now() - interval '72 days');
 
+-- Seed rows are inserted after migrations, so explicitly mirror the production
+-- backfill: their non-zero showcase costs are confirmed, not unknown placeholders.
+alter table public.loads disable trigger loads_log_changes;
+alter table public.loads disable trigger loads_set_updated_at;
+update public.loads set
+  driver_pay_known = driver_pay <> 0,
+  dispatcher_fee_known = dispatcher_fee <> 0,
+  fuel_cost_known = fuel_cost <> 0;
+alter table public.loads enable trigger loads_log_changes;
+alter table public.loads enable trigger loads_set_updated_at;
+
 -- Migrations run before seed data, so populate conservative date-only stops for
 -- showcase loads here as well. Dispatchers can replace these with true windows.
 insert into public.load_stops (
