@@ -4,7 +4,7 @@ import { mapMaintenanceAlerts } from "@/lib/data/maintenance";
 import { buildMaintenanceReadiness, getDashboardMaintenanceSummary, summarizeMaintenanceReadiness } from "@/lib/maintenance";
 import type { LoadStatus } from "@/types/database";
 import { applyFleetScope, matchesFleetScope, type FleetScope } from "@/lib/fleet-scope";
-import { closeoutReason, isActiveTransportation, summarizeLifecycle, type LoadCloseoutStatus } from "@/lib/load-lifecycle";
+import { isActiveTransportation, summarizeLifecycle, type LoadCloseoutStatus } from "@/lib/load-lifecycle";
 
 type DashboardLoad = {
   id: string;
@@ -65,7 +65,7 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
   const maintenanceSummary = getDashboardMaintenanceSummary(allMaintenanceAlerts);
   const scopedUnits = (unitsResult.data ?? []).filter((unit) => matchesFleetScope(unit.company, scope));
   const maintenanceReadiness = summarizeMaintenanceReadiness(buildMaintenanceReadiness(scopedUnits, allMaintenanceAlerts));
-  const lifecycle = summarizeLifecycle(rows);
+  const { activeLoads, deliveredLoads } = summarizeLifecycle(rows);
 
   const metrics = rows.reduce(
     (metrics, load) => {
@@ -141,17 +141,11 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
     return counts;
   }, {});
 
-  const postDeliveryWork = rows
-    .filter((load) => load.status === "Delivered" && load.post_delivery_status !== "Closed")
-    .sort((a, b) => (a.delivery_date ?? "9999-12-31").localeCompare(b.delivery_date ?? "9999-12-31"))
-    .slice(0, 8)
-    .map((load) => ({ ...load, closeoutReason: closeoutReason(load.post_delivery_status) }));
-
   return {
     ...metrics,
-    ...lifecycle,
+    activeLoads,
+    deliveredLoads,
     currentLoads,
-    postDeliveryWork,
     unpaidAlerts,
     upcomingDeliveries,
     maintenanceAlerts: maintenanceSummary.visible,
