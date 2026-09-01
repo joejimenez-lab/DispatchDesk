@@ -30,6 +30,9 @@ export type YearlyFinancialRow = {
   otherDeductions: number;
   totalDeductions: number;
   profit: number;
+  incompleteLoadCount: number;
+  incompleteRevenue: number;
+  provisionalMargin: number;
 };
 
 export type MaintenanceExportRow = {
@@ -81,6 +84,10 @@ export function weeklyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
       otherDeductionTotal: 0,
       totalDeductionsTotal: 0,
       estimatedProfitTotal: 0,
+      completeLoadCount: 0,
+      incompleteLoadCount: 0,
+      incompleteRevenueTotal: 0,
+      incompleteProvisionalMarginTotal: 0,
     };
     week.loadCount += summary.loadCount;
     week.loadRateTotal = roundCents(week.loadRateTotal + summary.loadRateTotal);
@@ -91,11 +98,15 @@ export function weeklyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
     week.otherDeductionTotal = roundCents(week.otherDeductionTotal + summary.otherDeductionTotal);
     week.totalDeductionsTotal = roundCents(week.totalDeductionsTotal + summary.totalDeductionsTotal);
     week.estimatedProfitTotal = roundCents(week.estimatedProfitTotal + summary.estimatedProfitTotal);
+    week.completeLoadCount += summary.completeLoadCount;
+    week.incompleteLoadCount += summary.incompleteLoadCount;
+    week.incompleteRevenueTotal = roundCents(week.incompleteRevenueTotal + summary.incompleteRevenueTotal);
+    week.incompleteProvisionalMarginTotal = roundCents(week.incompleteProvisionalMarginTotal + summary.incompleteProvisionalMarginTotal);
     weeks.set(mapKey, week);
   }
 
   return csv(
-    ["Fleet", "Week Start", "Week End", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit"],
+    ["Fleet", "Week Start", "Week End", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Complete-load Profit", "Incomplete Loads", "Incomplete Revenue", "Provisional Margin"],
     [...weeks.values()].map((week) => [
       week.fleetCompany ?? "Unassigned", week.weekStart,
       week.weekEnd,
@@ -108,19 +119,22 @@ export function weeklyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
       week.otherDeductionTotal,
       week.totalDeductionsTotal,
       week.estimatedProfitTotal,
+      week.incompleteLoadCount,
+      week.incompleteRevenueTotal,
+      week.incompleteProvisionalMarginTotal,
     ]),
   );
 }
 
 export function yearlyFinancialRows(summaries: WeeklyDriverFinancialSummary[]): YearlyFinancialRow[] {
-  const years = new Map<string, { year: string; fleet: string; loadCount: number; revenue: number; driverPay: number; dispatcherFees: number; fuelCost: number; factoring: number; otherDeductions: number; totalDeductions: number; profit: number }>();
+  const years = new Map<string, YearlyFinancialRow>();
 
   for (const summary of summaries) {
     for (const load of summary.loads) {
       const year = load.date.slice(0, 4);
       const fleet = load.fleetCompany ?? "Unassigned";
       const mapKey = `${year}:${fleet}`;
-      const total = years.get(mapKey) ?? { year, fleet, loadCount: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuelCost: 0, factoring: 0, otherDeductions: 0, totalDeductions: 0, profit: 0 };
+      const total = years.get(mapKey) ?? { year, fleet, loadCount: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuelCost: 0, factoring: 0, otherDeductions: 0, totalDeductions: 0, profit: 0, incompleteLoadCount: 0, incompleteRevenue: 0, provisionalMargin: 0 };
       total.loadCount += 1;
       total.revenue = roundCents(total.revenue + load.loadRate);
       total.driverPay = roundCents(total.driverPay + load.driverPay);
@@ -129,7 +143,12 @@ export function yearlyFinancialRows(summaries: WeeklyDriverFinancialSummary[]): 
       total.factoring = roundCents(total.factoring + load.factoringAmount);
       total.otherDeductions = roundCents(total.otherDeductions + load.otherDeductionTotal);
       total.totalDeductions = roundCents(total.totalDeductions + load.totalDeductions);
-      total.profit = roundCents(total.profit + load.estimatedProfit);
+      if (load.financialComplete) total.profit = roundCents(total.profit + load.estimatedProfit);
+      else {
+        total.incompleteLoadCount += 1;
+        total.incompleteRevenue = roundCents(total.incompleteRevenue + load.loadRate);
+        total.provisionalMargin = roundCents(total.provisionalMargin + load.estimatedProfit);
+      }
       years.set(mapKey, total);
     }
   }
@@ -139,8 +158,8 @@ export function yearlyFinancialRows(summaries: WeeklyDriverFinancialSummary[]): 
 
 export function yearlyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
   return csv(
-    ["Fleet", "Year", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit"],
-    yearlyFinancialRows(summaries).map((row) => [row.fleet, row.year, row.loadCount, row.revenue, row.driverPay, row.dispatcherFees, row.fuelCost, row.factoring, row.otherDeductions, row.totalDeductions, row.profit]),
+    ["Fleet", "Year", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Complete-load Profit", "Incomplete Loads", "Incomplete Revenue", "Provisional Margin"],
+    yearlyFinancialRows(summaries).map((row) => [row.fleet, row.year, row.loadCount, row.revenue, row.driverPay, row.dispatcherFees, row.fuelCost, row.factoring, row.otherDeductions, row.totalDeductions, row.profit, row.incompleteLoadCount, row.incompleteRevenue, row.provisionalMargin]),
   );
 }
 

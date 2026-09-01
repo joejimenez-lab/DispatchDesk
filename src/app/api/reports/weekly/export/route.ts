@@ -3,11 +3,15 @@ import { csvRow } from "@/lib/csv";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 import { fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
+import type { FinancialCompletenessFilter } from "@/lib/financials";
 
 const PERIODS: WeeklyFinancialPeriod[] = ["this", "last", "all", "custom"];
 
 function normalizePeriod(value: string | null): WeeklyFinancialPeriod {
   return PERIODS.includes(value as WeeklyFinancialPeriod) ? (value as WeeklyFinancialPeriod) : "all";
+}
+function normalizeFinancial(value: string | null): FinancialCompletenessFilter {
+  return value === "complete" || value === "incomplete" ? value : "all";
 }
 
 function filenameDate(value: string | null) {
@@ -38,6 +42,7 @@ export async function GET(request: Request) {
     to: searchParams.get("to") ?? undefined,
     driver: searchParams.get("driver") ?? undefined,
     fleetScope: scope,
+    financial: normalizeFinancial(searchParams.get("financial")),
   });
 
   const headers = [
@@ -64,6 +69,8 @@ export async function GET(request: Request) {
     "Deduction Details",
     "Total Deductions",
     "Estimated Profit",
+    "Financial Completeness",
+    "Missing Financial Fields",
     "Weekly Load Rate Total",
     "Weekly Driver Pay Total",
     "Weekly Dispatcher Fee Total",
@@ -100,6 +107,8 @@ export async function GET(request: Request) {
         load.otherDeductions.map((deduction) => `${deduction.label}: ${deduction.amount.toFixed(2)}`).join("; "),
         load.totalDeductions,
         load.estimatedProfit,
+        load.financialComplete ? "Complete" : "Incomplete",
+        load.missingFinancialFields.join("; "),
         summary.loadRateTotal,
         summary.driverPayTotal,
         summary.dispatcherFeeTotal,

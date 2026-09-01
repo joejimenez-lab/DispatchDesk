@@ -18,7 +18,8 @@ const summaries: WeeklyDriverFinancialSummary[] = [
     otherDeductionTotal: 20,
     totalDeductionsTotal: 50,
     estimatedProfitTotal: 200,
-    loads: [{ id: "1", loadNumber: "L1", status: "Delivered", postDeliveryStatus: "Closed", date: "2026-01-06", isRoundTrip: false, returnLocation: null, roundTripDetails: null, loadRate: 1000, driverPay: 500, dispatcherFee: 100, fuelCost: 150, factoringMode: "percentage", factoringPercent: 3, factoringFixedAmount: 0, factoringAmount: 30, otherDeductions: [{ label: "Lumper", amount: 20 }], otherDeductionTotal: 20, totalDeductions: 50, estimatedProfit: 200 }],
+    completeLoadCount: 1, incompleteLoadCount: 0, incompleteRevenueTotal: 0, incompleteProvisionalMarginTotal: 0,
+    loads: [{ id: "1", loadNumber: "L1", status: "Delivered", postDeliveryStatus: "Closed", date: "2026-01-06", isRoundTrip: false, returnLocation: null, roundTripDetails: null, loadRate: 1000, driverPay: 500, dispatcherFee: 100, fuelCost: 150, factoringMode: "percentage", factoringPercent: 3, factoringFixedAmount: 0, factoringAmount: 30, otherDeductions: [{ label: "Lumper", amount: 20 }], otherDeductionTotal: 20, totalDeductions: 50, estimatedProfit: 200, financialComplete: true, missingFinancialFields: [] }],
   },
   {
     key: "2026-01-05:b",
@@ -35,7 +36,8 @@ const summaries: WeeklyDriverFinancialSummary[] = [
     otherDeductionTotal: 10,
     totalDeductionsTotal: 34,
     estimatedProfitTotal: 166,
-    loads: [{ id: "2", loadNumber: "L2", status: "Delivered", postDeliveryStatus: "Invoiced", date: "2026-01-07", isRoundTrip: false, returnLocation: null, roundTripDetails: null, loadRate: 800, driverPay: 400, dispatcherFee: 80, fuelCost: 120, factoringMode: "amount", factoringPercent: 0, factoringFixedAmount: 24, factoringAmount: 24, otherDeductions: [{ label: "Scale", amount: 10 }], otherDeductionTotal: 10, totalDeductions: 34, estimatedProfit: 166 }],
+    completeLoadCount: 1, incompleteLoadCount: 0, incompleteRevenueTotal: 0, incompleteProvisionalMarginTotal: 0,
+    loads: [{ id: "2", loadNumber: "L2", status: "Delivered", postDeliveryStatus: "Invoiced", date: "2026-01-07", isRoundTrip: false, returnLocation: null, roundTripDetails: null, loadRate: 800, driverPay: 400, dispatcherFee: 80, fuelCost: 120, factoringMode: "amount", factoringPercent: 0, factoringFixedAmount: 24, factoringAmount: 24, otherDeductions: [{ label: "Scale", amount: 10 }], otherDeductionTotal: 10, totalDeductions: 34, estimatedProfit: 166, financialComplete: true, missingFinancialFields: [] }],
   },
 ];
 
@@ -47,10 +49,17 @@ describe("report exports", () => {
 
   it("combines drivers into one weekly financial row", () => {
     expect(weeklyFinancialCsv(summaries).split("\n")).toHaveLength(2);
-    expect(weeklyFinancialCsv(summaries)).toContain("2026-01-05,2026-01-11,2,1800,900,180,270,54,30,84,366");
+    expect(weeklyFinancialCsv(summaries)).toContain("2026-01-05,2026-01-11,2,1800,900,180,270,54,30,84,366,0,0,0");
   });
 
   it("creates annual totals from individual loads", () => {
-    expect(yearlyFinancialCsv(summaries)).toContain("2026,2,1800,900,180,270,54,30,84,366");
+    expect(yearlyFinancialCsv(summaries)).toContain("2026,2,1800,900,180,270,54,30,84,366,0,0,0");
+  });
+
+  it("excludes incomplete provisional margins from annual profit", () => {
+    const incomplete = structuredClone(summaries);
+    incomplete[0].loads[0].financialComplete = false;
+    incomplete[0].loads[0].missingFinancialFields = ["Fuel cost"];
+    expect(yearlyFinancialCsv(incomplete)).toContain("2026,2,1800,900,180,270,54,30,84,166,1,1000,200");
   });
 });

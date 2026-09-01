@@ -24,9 +24,12 @@ function numberValue(value: string) {
 
 export function LoadFinancialFields({
   loadRate = 0,
-  driverPay = 0,
-  dispatcherFee = 0,
-  fuelCost = 0,
+  driverPay,
+  dispatcherFee,
+  fuelCost,
+  driverPayKnown,
+  dispatcherFeeKnown,
+  fuelCostKnown,
   factoringMode = "percentage",
   factoringPercent = 0,
   factoringFixedAmount = 0,
@@ -36,6 +39,9 @@ export function LoadFinancialFields({
   driverPay?: number;
   dispatcherFee?: number;
   fuelCost?: number;
+  driverPayKnown?: boolean;
+  dispatcherFeeKnown?: boolean;
+  fuelCostKnown?: boolean;
   factoringMode?: FactoringMode;
   factoringPercent?: number;
   factoringFixedAmount?: number;
@@ -43,9 +49,9 @@ export function LoadFinancialFields({
 }) {
   const nextKey = useRef(deductions.length);
   const [rate, setRate] = useState(String(loadRate));
-  const [driver, setDriver] = useState(String(driverPay));
-  const [dispatcher, setDispatcher] = useState(String(dispatcherFee));
-  const [fuel, setFuel] = useState(String(fuelCost));
+  const [driver, setDriver] = useState((driverPayKnown ?? driverPay !== undefined) ? String(driverPay ?? 0) : "");
+  const [dispatcher, setDispatcher] = useState((dispatcherFeeKnown ?? dispatcherFee !== undefined) ? String(dispatcherFee ?? 0) : "");
+  const [fuel, setFuel] = useState((fuelCostKnown ?? fuelCost !== undefined) ? String(fuelCost ?? 0) : "");
   const [factoringType, setFactoringType] = useState<FactoringMode>(factoringMode);
   const [factoringPercentage, setFactoringPercentage] = useState(String(factoringPercent));
   const [factoringFixed, setFactoringFixed] = useState(String(factoringFixedAmount));
@@ -77,6 +83,11 @@ export function LoadFinancialFields({
     factoring_amount: factoringDeduction,
     load_deductions: customDeductions,
   });
+  const missingCosts = [
+    !driver.trim() ? "Driver pay" : null,
+    !dispatcher.trim() ? "Dispatcher fee" : null,
+    !fuel.trim() ? "Fuel cost" : null,
+  ].filter((label): label is string => Boolean(label));
 
   function updateRow(key: number, patch: Partial<Omit<DeductionRow, "key">>) {
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
@@ -94,13 +105,15 @@ export function LoadFinancialFields({
         <Input type="number" step="0.01" min="0" name="load_rate" value={rate} onChange={(event) => setRate(event.target.value)} />
       </Field>
       <Field label="Driver Pay">
-        <Input type="number" step="0.01" min="0" name="driver_pay" value={driver} onChange={(event) => setDriver(event.target.value)} />
+        <Input type="number" step="0.01" min="0" name="driver_pay" value={driver} onChange={(event) => setDriver(event.target.value)} placeholder="Unknown" />
+        <span className="mt-1 block text-xs font-normal text-zinc-500">Leave blank if unknown. Enter 0 to confirm there is no driver cost.</span>
       </Field>
       <Field label="Dispatcher Fee">
-        <Input type="number" step="0.01" min="0" name="dispatcher_fee" value={dispatcher} onChange={(event) => setDispatcher(event.target.value)} />
+        <Input type="number" step="0.01" min="0" name="dispatcher_fee" value={dispatcher} onChange={(event) => setDispatcher(event.target.value)} placeholder="Unknown" />
+        <span className="mt-1 block text-xs font-normal text-zinc-500">Leave blank if unknown. Enter 0 to confirm no fee applies.</span>
       </Field>
       <Field label="Load fuel estimate / allocation">
-        <Input type="number" step="0.01" min="0" name="fuel_cost" value={fuel} onChange={(event) => setFuel(event.target.value)} />
+        <Input type="number" step="0.01" min="0" name="fuel_cost" value={fuel} onChange={(event) => setFuel(event.target.value)} placeholder="Unknown" />
         <span className="mt-1 block text-xs font-normal text-zinc-500">Used only for estimated load profitability. Actual fuel spending is recorded through IFTA and Bookkeeping.</span>
       </Field>
       <fieldset className="w-full max-w-lg md:col-span-2">
@@ -214,8 +227,9 @@ export function LoadFinancialFields({
           <div className="mt-1 font-semibold text-blue-950">{currency(totalDeductions)}</div>
         </div>
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">Estimated profit</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">{missingCosts.length ? "Provisional margin" : "Estimated profit"}</div>
           <div className={`mt-1 font-semibold ${estimatedProfit >= 0 ? "text-green-800" : "text-red-700"}`}>{currency(estimatedProfit)}</div>
+          {missingCosts.length ? <div className="mt-1 text-xs text-amber-800">Not final · missing {missingCosts.join(", ")}</div> : null}
         </div>
       </div>
     </>

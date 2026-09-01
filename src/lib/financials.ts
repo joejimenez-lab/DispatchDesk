@@ -5,6 +5,62 @@ type ClientPayment = {
 
 type DeductionAmount = { amount: number };
 
+export const financialCostFields = ["driver_pay", "dispatcher_fee", "fuel_cost"] as const;
+export type FinancialCostField = (typeof financialCostFields)[number];
+export type FinancialCompletenessFilter = "all" | "complete" | "incomplete";
+
+export const financialCostLabels: Record<FinancialCostField, string> = {
+  driver_pay: "Driver pay",
+  dispatcher_fee: "Dispatcher fee",
+  fuel_cost: "Fuel cost",
+};
+
+export type FinancialCompletenessInput = {
+  driver_pay_known: boolean;
+  dispatcher_fee_known: boolean;
+  fuel_cost_known: boolean;
+};
+
+export function financialCompleteness(load: FinancialCompletenessInput) {
+  const missingFields = financialCostFields.filter((field) => !load[`${field}_known`]);
+  return {
+    complete: missingFields.length === 0,
+    missingFields,
+    missingLabels: missingFields.map((field) => financialCostLabels[field]),
+  };
+}
+
+export function matchesFinancialCompleteness(
+  load: FinancialCompletenessInput,
+  filter: FinancialCompletenessFilter = "all",
+) {
+  if (filter === "all") return true;
+  return financialCompleteness(load).complete === (filter === "complete");
+}
+
+export type FinancialCompletenessTotals = {
+  completeLoadCount: number;
+  incompleteLoadCount: number;
+  incompleteRevenueTotal: number;
+  incompleteProvisionalMarginTotal: number;
+};
+
+export function addFinancialCompletenessTotals(
+  totals: FinancialCompletenessTotals,
+  load: FinancialCompletenessInput & { load_rate: number },
+  provisionalMargin: number,
+) {
+  if (financialCompleteness(load).complete) {
+    return { ...totals, completeLoadCount: totals.completeLoadCount + 1 };
+  }
+  return {
+    ...totals,
+    incompleteLoadCount: totals.incompleteLoadCount + 1,
+    incompleteRevenueTotal: roundCents(totals.incompleteRevenueTotal + Number(load.load_rate)),
+    incompleteProvisionalMarginTotal: roundCents(totals.incompleteProvisionalMarginTotal + provisionalMargin),
+  };
+}
+
 export const factoringModes = ["percentage", "amount"] as const;
 export type FactoringMode = (typeof factoringModes)[number];
 

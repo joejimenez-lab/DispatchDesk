@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { deductionsTotal, profitForLoad, roundCents, totalDeductionsForLoad } from "@/lib/financials";
+import { addFinancialCompletenessTotals, deductionsTotal, financialCompleteness, matchesFinancialCompleteness, profitForLoad, roundCents, totalDeductionsForLoad, type FinancialCompletenessFilter } from "@/lib/financials";
 import type { LoadCloseoutStatus, LoadStatus } from "@/types/database";
 import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
 
@@ -17,6 +17,9 @@ type WeeklyFinancialLoad = {
   driver_pay: number;
   dispatcher_fee: number;
   fuel_cost: number;
+  driver_pay_known: boolean;
+  dispatcher_fee_known: boolean;
+  fuel_cost_known: boolean;
   factoring_mode: "percentage" | "amount";
   factoring_percent: number;
   factoring_fixed_amount: number;
@@ -44,6 +47,10 @@ export type WeeklyDriverFinancialSummary = {
   otherDeductionTotal: number;
   totalDeductionsTotal: number;
   estimatedProfitTotal: number;
+  completeLoadCount: number;
+  incompleteLoadCount: number;
+  incompleteRevenueTotal: number;
+  incompleteProvisionalMarginTotal: number;
   loads: {
     id: string;
     loadNumber: string;
@@ -65,6 +72,8 @@ export type WeeklyDriverFinancialSummary = {
     otherDeductionTotal: number;
     totalDeductions: number;
     estimatedProfit: number;
+    financialComplete: boolean;
+    missingFinancialFields: string[];
     fleetCompany?: string | null;
   }[];
 };
@@ -77,6 +86,7 @@ export type WeeklyFinancialFilters = {
   to?: string;
   driver?: string;
   fleetScope?: FleetScope;
+  financial?: FinancialCompletenessFilter;
 };
 
 // Date bounds (inclusive, YYYY-MM-DD) that the report was actually filtered to,
@@ -174,7 +184,7 @@ export async function getWeeklyDriverFinancialSummary(
 
   let query = supabase
     .from("loads")
-    .select("id, load_number, status, post_delivery_status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, fleet_company, drivers(name)")
+    .select("id, load_number, status, post_delivery_status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, driver_pay_known, dispatcher_fee_known, fuel_cost_known, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, fleet_company, drivers(name)")
     .neq("status", "Cancelled")
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("pickup_date", { ascending: false, nullsFirst: false })
@@ -191,6 +201,7 @@ export async function getWeeklyDriverFinancialSummary(
   const loads = (data ?? []) as unknown as WeeklyFinancialLoad[];
 
   for (const load of loads) {
+    if (!matchesFinancialCompleteness(load, filters.financial)) continue;
     const date = dateForLoad(load);
     if (range.from && date < range.from) continue;
     if (range.to && date > range.to) continue;
@@ -205,6 +216,7 @@ export async function getWeeklyDriverFinancialSummary(
     const otherDeductionTotal = deductionsTotal(otherDeductions);
     const totalDeductions = totalDeductionsForLoad(load);
     const estimatedProfit = profitForLoad(load);
+    const completeness = financialCompleteness(load);
     const summary =
       summaries.get(key) ??
       {
@@ -223,6 +235,10 @@ export async function getWeeklyDriverFinancialSummary(
         otherDeductionTotal: 0,
         totalDeductionsTotal: 0,
         estimatedProfitTotal: 0,
+        completeLoadCount: 0,
+        incompleteLoadCount: 0,
+        incompleteRevenueTotal: 0,
+        incompleteProvisionalMarginTotal: 0,
         loads: [],
       };
 
@@ -234,7 +250,10 @@ export async function getWeeklyDriverFinancialSummary(
     summary.factoringTotal = roundCents(summary.factoringTotal + Number(load.factoring_amount));
     summary.otherDeductionTotal = roundCents(summary.otherDeductionTotal + otherDeductionTotal);
     summary.totalDeductionsTotal = roundCents(summary.totalDeductionsTotal + totalDeductions);
-    summary.estimatedProfitTotal = roundCents(summary.estimatedProfitTotal + estimatedProfit);
+    if (completeness.complete) {
+      summary.estimatedProfitTotal = roundCents(summary.estimatedProfitTotal + estimatedProfit);
+    }
+    Object.assign(summary, addFinancialCompletenessTotals(summary, load, estimatedProfit));
     summary.loads.push({
       id: load.id,
       loadNumber: load.load_number,
@@ -256,6 +275,8 @@ export async function getWeeklyDriverFinancialSummary(
       otherDeductionTotal,
       totalDeductions,
       estimatedProfit,
+      financialComplete: completeness.complete,
+      missingFinancialFields: completeness.missingLabels,
       fleetCompany: load.fleet_company,
     });
 

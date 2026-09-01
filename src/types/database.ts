@@ -977,14 +977,17 @@ export type Database = {
           delivery_date: string | null
           delivery_location: string
           dispatcher_fee: number
+          dispatcher_fee_known: boolean
           driver_id: string | null
           driver_pay: number
+          driver_pay_known: boolean
           factoring_amount: number
           factoring_fixed_amount: number
           factoring_mode: string
           factoring_percent: number
           fleet_company: string | null
           fuel_cost: number
+          fuel_cost_known: boolean
           id: string
           is_round_trip: boolean
           load_number: string
@@ -1016,14 +1019,17 @@ export type Database = {
           delivery_date?: string | null
           delivery_location: string
           dispatcher_fee?: number
+          dispatcher_fee_known?: boolean
           driver_id?: string | null
           driver_pay?: number
+          driver_pay_known?: boolean
           factoring_amount?: number
           factoring_fixed_amount?: number
           factoring_mode?: string
           factoring_percent?: number
           fleet_company?: string | null
           fuel_cost?: number
+          fuel_cost_known?: boolean
           id?: string
           is_round_trip?: boolean
           load_number: string
@@ -1055,14 +1061,17 @@ export type Database = {
           delivery_date?: string | null
           delivery_location?: string
           dispatcher_fee?: number
+          dispatcher_fee_known?: boolean
           driver_id?: string | null
           driver_pay?: number
+          driver_pay_known?: boolean
           factoring_amount?: number
           factoring_fixed_amount?: number
           factoring_mode?: string
           factoring_percent?: number
           fleet_company?: string | null
           fuel_cost?: number
+          fuel_cost_known?: boolean
           id?: string
           is_round_trip?: boolean
           load_number?: string
@@ -1607,6 +1616,10 @@ export type Database = {
             Args: { p_deductions: Json; p_load: Json; p_stops: Json }
             Returns: string
           }
+        | {
+            Args: { p_deductions: Json; p_financial_completeness: Json; p_load: Json; p_stops: Json }
+            Returns: string
+          }
       create_manual_bookkeeping_expense: {
         Args: { p_expense: Json; p_group_id: string; p_receipt?: Json }
         Returns: string
@@ -1715,6 +1728,17 @@ export type Database = {
               p_load: Json
               p_load_id: string
               p_payment: Json
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_deductions: Json
+              p_financial_completeness: Json
+              p_load: Json
+              p_load_id: string
+              p_payment: Json
+              p_stops: Json
             }
             Returns: undefined
           }

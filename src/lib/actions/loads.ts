@@ -167,6 +167,18 @@ function loadPayload(formData: FormData, stops: ReturnType<typeof stopEntries>) 
   };
 }
 
+function financialCompletenessPayload(formData: FormData) {
+  const isKnown = (key: string) => {
+    const entry = formData.get(key);
+    return typeof entry === "string" && entry.trim() !== "";
+  };
+  return {
+    driver_pay_known: isKnown("driver_pay"),
+    dispatcher_fee_known: isKnown("dispatcher_fee"),
+    fuel_cost_known: isKnown("fuel_cost"),
+  };
+}
+
 function deductionEntries(formData: FormData) {
   const labels = formData.getAll("deduction_label");
   const amounts = formData.getAll("deduction_amount");
@@ -209,6 +221,7 @@ export async function createLoad(_state: ActionState, formData: FormData): Promi
       p_load: payload,
       p_deductions: deductions,
       p_stops: stops,
+      p_financial_completeness: financialCompletenessPayload(formData),
     });
     if (error) return loadWriteError(error, "Could not create load.");
     if (!data) return errorState(new Error("Load creation did not return an id."));
@@ -237,6 +250,7 @@ export async function updateLoad(loadId: string, _state: ActionState, formData: 
       p_payment: payment,
       p_deductions: deductions,
       p_stops: stops,
+      p_financial_completeness: financialCompletenessPayload(formData),
     });
     if (error) {
       logError("load.update_failed", error, { loadId });

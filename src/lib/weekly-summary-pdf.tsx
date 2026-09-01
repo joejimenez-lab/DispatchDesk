@@ -50,6 +50,7 @@ const styles = StyleSheet.create({
   right: { textAlign: "right" },
   empty: { color: colors.muted, fontSize: 9, padding: 16, textAlign: "center" },
   note: { color: colors.muted, fontSize: 7.5, lineHeight: 1.45, marginTop: 9 },
+  warning: { marginBottom: 14, borderWidth: 1, borderColor: "#f59e0b", borderRadius: 5, backgroundColor: "#fffbeb", color: "#78350f", padding: 9, fontSize: 8.5 },
   footer: { position: "absolute", left: 40, right: 40, bottom: 22, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 7 },
   footerText: { color: colors.muted, fontSize: 7 },
 });
@@ -114,8 +115,11 @@ export function WeeklySummaryPdf({
       factoring: result.factoring + summary.factoringTotal,
       otherDeductions: result.otherDeductions + summary.otherDeductionTotal,
       profit: result.profit + summary.estimatedProfitTotal,
+      incompleteLoads: result.incompleteLoads + (summary.incompleteLoadCount ?? 0),
+      incompleteRevenue: result.incompleteRevenue + (summary.incompleteRevenueTotal ?? 0),
+      provisionalMargin: result.provisionalMargin + (summary.incompleteProvisionalMarginTotal ?? 0),
     }),
-    { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, factoring: 0, otherDeductions: 0, profit: 0 },
+    { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, factoring: 0, otherDeductions: 0, profit: 0, incompleteLoads: 0, incompleteRevenue: 0, provisionalMargin: 0 },
   );
 
   const weeks = new Map<string, typeof totals & { weekEnd: string; fleet: string }>();
@@ -123,7 +127,7 @@ export function WeeklySummaryPdf({
   for (const summary of summaries) {
     const fleet = summary.fleetCompany ?? "Unassigned";
     const weekKey = `${summary.weekStart}:${fleet}`;
-    const week = weeks.get(weekKey) ?? { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, factoring: 0, otherDeductions: 0, profit: 0, weekEnd: summary.weekEnd, fleet };
+    const week = weeks.get(weekKey) ?? { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, factoring: 0, otherDeductions: 0, profit: 0, incompleteLoads: 0, incompleteRevenue: 0, provisionalMargin: 0, weekEnd: summary.weekEnd, fleet };
     week.loads += summary.loadCount;
     week.revenue += summary.loadRateTotal;
     week.driverPay += summary.driverPayTotal;
@@ -132,6 +136,9 @@ export function WeeklySummaryPdf({
     week.factoring += summary.factoringTotal;
     week.otherDeductions += summary.otherDeductionTotal;
     week.profit += summary.estimatedProfitTotal;
+    week.incompleteLoads += summary.incompleteLoadCount ?? 0;
+    week.incompleteRevenue += summary.incompleteRevenueTotal ?? 0;
+    week.provisionalMargin += summary.incompleteProvisionalMarginTotal ?? 0;
     weeks.set(weekKey, week);
 
     const driverKey = `${summary.driverId ?? "unassigned"}:${fleet}`;
@@ -154,7 +161,7 @@ export function WeeklySummaryPdf({
     { label: "OTHER COSTS", width: "12%", right: true },
     { label: "FACTORING", width: "10%", right: true },
     { label: "OTHER DED.", width: "11%", right: true },
-    { label: "PROFIT", width: "14%", right: true },
+    { label: "COMPLETE PROFIT", width: "14%", right: true },
   ];
   const driverColumns: Column[] = [
     { label: "DRIVER", width: "42%" },
@@ -179,8 +186,10 @@ export function WeeklySummaryPdf({
           <Metric label="Loads" value={String(totals.loads)} />
           <Metric label="Revenue" value={money(totals.revenue)} />
           <Metric label="Total costs" value={money(totals.driverPay + totals.dispatcherFees + totals.fuel + totals.factoring + totals.otherDeductions)} />
-          <Metric label="Est. profit" value={money(totals.profit)} accent />
+          <Metric label="Complete-load profit" value={money(totals.profit)} accent />
         </View>
+
+        {totals.incompleteLoads ? <Text style={styles.warning}>{totals.incompleteLoads} incomplete load(s) affect {money(totals.incompleteRevenue)} in revenue. Their {money(totals.provisionalMargin)} provisional margin is excluded from complete-load profit.</Text> : null}
 
         <View style={styles.section}>
           <View style={styles.sectionHeading} wrap={false} minPresenceAhead={60}>
@@ -220,7 +229,7 @@ export function WeeklySummaryPdf({
               </View>
             )) : <Text style={styles.empty}>No driver payroll in this period.</Text>}
           </View>
-          <Text style={styles.note}>Estimated profit is revenue less driver pay, dispatcher fees, load-level fuel estimates, factoring, and other labeled deductions. Actual fuel purchases live in IFTA and Bookkeeping and are not added again here. Profit margin for this period: {margin.toFixed(1)}%.</Text>
+          <Text style={styles.note}>Complete-load profit is revenue less driver pay, dispatcher fees, load-level fuel estimates, factoring, and other labeled deductions for loads with every required cost confirmed. Actual fuel purchases live in IFTA and Bookkeeping and are not added again here. Complete-load profit ratio against displayed revenue: {margin.toFixed(1)}%.</Text>
         </View>
 
         <View style={styles.footer} fixed>

@@ -107,6 +107,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         to: searchParams.get("to") ?? undefined,
         driver: searchParams.get("driver") ?? undefined,
         fleetScope: scope,
+        financial: searchParams.get("financial") === "complete" || searchParams.get("financial") === "incomplete" ? searchParams.get("financial") as "complete" | "incomplete" : "all",
       });
       if (format === "csv") {
         return csvDownload(report === "weekly-payroll" ? weeklyPayrollCsv(summaries) : weeklyFinancialCsv(summaries), report, scope);
@@ -119,7 +120,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         factoring: total.factoring + summary.factoringTotal,
         otherDeductions: total.otherDeductions + summary.otherDeductionTotal,
         profit: total.profit + summary.estimatedProfitTotal,
-      }), { loads: 0, revenue: 0, pay: 0, factoring: 0, otherDeductions: 0, profit: 0 });
+        incompleteLoads: total.incompleteLoads + (summary.incompleteLoadCount ?? 0),
+        incompleteRevenue: total.incompleteRevenue + (summary.incompleteRevenueTotal ?? 0),
+      }), { loads: 0, revenue: 0, pay: 0, factoring: 0, otherDeductions: 0, profit: 0, incompleteLoads: 0, incompleteRevenue: 0 });
       const subtitle = filterLabel({ ...effectiveRange, fleet });
 
       return pdfDownload(report === "weekly-payroll" ? {
@@ -153,7 +156,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Revenue", value: money(totals.revenue) },
           { label: "Driver pay", value: money(totals.pay) },
           { label: "Deductions", value: money(totals.factoring + totals.otherDeductions) },
-          { label: "Estimated profit", value: money(totals.profit) },
+          { label: "Complete-load profit", value: money(totals.profit) },
+          { label: "Incomplete loads", value: String(totals.incompleteLoads) },
+          { label: "Affected revenue", value: money(totals.incompleteRevenue) },
         ],
         columns: [
           { label: "Fleet", width: "9%" },
@@ -164,7 +169,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Driver pay", width: "12%", align: "right" },
           { label: "Factoring", width: "9%", align: "right" },
           { label: "Other ded.", width: "9%", align: "right" },
-          { label: "Est. profit", width: "12%", align: "right" },
+          { label: "Complete profit", width: "12%", align: "right" },
         ],
         rows: summaries.map((summary) => [
           summary.fleetCompany ?? "Unassigned",
@@ -189,6 +194,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         to: searchParams.get("to") ?? undefined,
         driver: searchParams.get("driver") ?? undefined,
         fleetScope: scope,
+        financial: searchParams.get("financial") === "complete" || searchParams.get("financial") === "incomplete" ? searchParams.get("financial") as "complete" | "incomplete" : "all",
       });
       if (format === "csv") return csvDownload(yearlyFinancialCsv(summaries), report, scope);
 
@@ -198,7 +204,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         revenue: total.revenue + row.revenue,
         deductions: total.deductions + row.totalDeductions,
         profit: total.profit + row.profit,
-      }), { loads: 0, revenue: 0, deductions: 0, profit: 0 });
+        incompleteLoads: total.incompleteLoads + row.incompleteLoadCount,
+        incompleteRevenue: total.incompleteRevenue + row.incompleteRevenue,
+        provisionalMargin: total.provisionalMargin + row.provisionalMargin,
+      }), { loads: 0, revenue: 0, deductions: 0, profit: 0, incompleteLoads: 0, incompleteRevenue: 0, provisionalMargin: 0 });
       return pdfDownload({
         title: "Yearly Financial Summary",
         subtitle: filterLabel({ ...effectiveRange, fleet }),
@@ -207,7 +216,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Loads", value: String(totals.loads) },
           { label: "Revenue", value: money(totals.revenue) },
           { label: "Deductions", value: money(totals.deductions) },
-          { label: "Estimated profit", value: money(totals.profit) },
+          { label: "Complete-load profit", value: money(totals.profit) },
+          { label: "Incomplete loads", value: String(totals.incompleteLoads) },
+          { label: "Affected revenue", value: money(totals.incompleteRevenue) },
         ],
         columns: [
           { label: "Fleet", width: "10%" },
@@ -218,7 +229,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Factoring", width: "11%", align: "right" },
           { label: "Other ded.", width: "11%", align: "right" },
           { label: "Other costs", width: "13%", align: "right" },
-          { label: "Est. profit", width: "12%", align: "right" },
+          { label: "Complete profit", width: "12%", align: "right" },
         ],
         rows: rows.map((row) => [
           row.fleet,

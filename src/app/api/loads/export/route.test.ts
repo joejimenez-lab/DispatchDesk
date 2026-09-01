@@ -58,6 +58,9 @@ describe("/api/loads/export", () => {
           driver_pay: 500,
           dispatcher_fee: 100,
           fuel_cost: 50,
+          driver_pay_known: true,
+          dispatcher_fee_known: true,
+          fuel_cost_known: true,
           factoring_mode: "percentage",
           factoring_percent: 3,
           factoring_fixed_amount: 0,
@@ -97,7 +100,7 @@ describe("/api/loads/export", () => {
     expect(csv).toContain("'=Notes");
     expect(csv).toContain("'=Lumper: 20.00");
     expect(csv).toContain(",1000,500,100,50,Percentage,3%,30,20,");
-    expect(csv).toContain(",50,300,true,0,1000,false,false,false,");
+    expect(csv).toContain(",50,300,Complete,,true,0,1000,false,false,false,");
   });
 
   it("returns 400 for a fleet outside the authenticated tenant catalogue", async () => {

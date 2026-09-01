@@ -122,6 +122,9 @@ export function LoadForm({ action, drivers, brokers, equipment, load, payment, d
           driverPay={load?.driver_pay}
           dispatcherFee={load?.dispatcher_fee}
           fuelCost={load?.fuel_cost}
+          driverPayKnown={load?.driver_pay_known}
+          dispatcherFeeKnown={load?.dispatcher_fee_known}
+          fuelCostKnown={load?.fuel_cost_known}
           factoringMode={load?.factoring_mode === "amount" ? "amount" : "percentage"}
           factoringPercent={load?.factoring_percent}
           factoringFixedAmount={load?.factoring_fixed_amount}
