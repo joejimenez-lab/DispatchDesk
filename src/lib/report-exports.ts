@@ -12,13 +12,6 @@ export type BillingRow = {
   loadRate: number;
   invoiceSent: boolean;
   invoiceSentDate: string | null;
-  invoiceNumber: string | null;
-  invoiceStatus: string;
-  invoiceDate: string | null;
-  dueDate: string | null;
-  agingBucket: string;
-  collectionOwner: string | null;
-  nextFollowUpDate: string | null;
   clientPaid: boolean;
   amountReceived: number;
   dateReceived: string | null;
@@ -172,21 +165,16 @@ export function yearlyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
 
 export function clientBillingCsv(rows: BillingRow[]) {
   return csv(
-    ["Fleet", "Load Number", "Load Date", "Client", "Operational Status", "Post-delivery Stage", "Invoice Number", "Invoice Status", "Invoice Date", "Due Date", "Aging Bucket", "Collection Owner", "Next Follow-up", "Invoice Amount", "Client Paid", "Amount Received", "Date Received", "Outstanding"],
+    ["Fleet", "Load Number", "Load Date", "Client", "Operational Status", "Post-delivery Stage", "Invoice Amount", "Invoice Sent", "Invoice Sent Date", "Client Paid", "Amount Received", "Date Received", "Outstanding"],
     rows.map((row) => [
       row.fleet, row.loadNumber,
       row.loadDate,
       row.broker,
       row.status,
       row.postDeliveryStatus,
-      row.invoiceNumber,
-      row.invoiceStatus,
-      row.invoiceDate,
-      row.dueDate,
-      row.agingBucket,
-      row.collectionOwner,
-      row.nextFollowUpDate,
       row.loadRate,
+      row.invoiceSent,
+      row.invoiceSentDate,
       row.clientPaid,
       row.amountReceived,
       row.dateReceived,

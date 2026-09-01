@@ -92,9 +92,9 @@ export default async function ReportsPage({
     },
     {
       title: "Client billing",
-      description: "Invoice status, collections, and outstanding balances.",
+      description: "Invoice-sent status, client payments, and outstanding balances.",
       formats: [
-        { label: "Billing CSV", description: "Invoice, collection, and outstanding balance fields by load.", href: reportExportHref("client-billing", "csv"), type: "csv" },
+        { label: "Billing CSV", description: "Invoice, payment, and outstanding balance fields by load.", href: reportExportHref("client-billing", "csv"), type: "csv" },
         { label: "Billing PDF", description: "Client-facing billing overview with invoiced and outstanding totals.", href: reportExportHref("client-billing", "pdf"), type: "pdf" },
       ],
     },

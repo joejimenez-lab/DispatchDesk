@@ -2,8 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 import { mapMaintenanceAlerts } from "@/lib/data/maintenance";
-import { daysPastDue, receivableBalance, type ReceivableEntry } from "@/lib/collections";
-import { addDays, localDateString } from "@/lib/maintenance";
+import { clientOutstanding } from "@/lib/financials";
+import { addDays, daysBetween, localDateString } from "@/lib/maintenance";
 import type { AssistantLink } from "@/lib/ai-assistant/schemas";
 import type { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 import { documentCategories } from "@/types/database";
@@ -144,7 +144,7 @@ export const trustedTools = {
   },
 
   get_unpaid_load_summary: {
-    description: "Get open client receivables and their ledger balance. Optionally restrict to invoices at least a given number of days past due.",
+    description: "Get unpaid client loads and their trusted outstanding balance. Optionally restrict to loads at least a given number of days old.",
     parameters: {
       type: "object",
       properties: {
@@ -164,23 +164,21 @@ export const trustedTools = {
         created_at: string;
         status: string;
         brokers: { company_name: string } | { company_name: string }[] | null;
-        payments: { due_date: string | null; invoice_status: "Draft" | "Sent" | "Void" } | { due_date: string | null; invoice_status: "Draft" | "Sent" | "Void" }[] | null;
-        receivable_entries: ReceivableEntry[];
+        payments: { client_paid: boolean; client_amount_received: number } | { client_paid: boolean; client_amount_received: number }[] | null;
       };
       const { rows, sourceResultsLimited } = await fetchAllPages<UnpaidLoadRow>((from, to) => supabase
         .from("loads")
-        .select("id, load_number, load_rate, pickup_date, delivery_date, created_at, status, brokers(company_name), payments(due_date, invoice_status), receivable_entries(entry_type, amount)")
+        .select("id, load_number, load_rate, pickup_date, delivery_date, created_at, status, brokers(company_name), payments(client_paid, client_amount_received)")
         .neq("status", "Cancelled")
         .order("id")
         .range(from, to) as unknown as PromiseLike<{ data: UnpaidLoadRow[] | null; error: unknown }>);
 
       const unpaid = rows.flatMap((load) => {
         const payment = relation(load.payments);
-        if (payment?.invoice_status === "Void") return [];
-        const outstanding = receivableBalance(load.load_rate, load.receivable_entries);
+        const outstanding = clientOutstanding(load.load_rate, payment);
         if (outstanding <= 0) return [];
-        const basisDate = payment?.due_date ?? load.delivery_date ?? load.pickup_date ?? load.created_at.slice(0, 10);
-        const ageDays = daysPastDue(payment?.due_date ?? null, today);
+        const basisDate = load.delivery_date ?? load.pickup_date ?? load.created_at.slice(0, 10);
+        const ageDays = Math.max(daysBetween(basisDate, today), 0);
         if (ageDays < minimumAgeDays) return [];
         return [{
           load_number: load.load_number,
@@ -201,7 +199,7 @@ export const trustedTools = {
           results_limited: unpaid.length > 25,
           source_results_limited: sourceResultsLimited,
         },
-        links: [{ label: "View collections", href: "/collections" }],
+        links: [{ label: "View unpaid loads", href: "/loads?payment=unpaid" }],
       };
     },
   },

@@ -37,30 +37,22 @@ insert into public.loads (
   '37000000-0000-4000-8000-000000000010', '37000000-0000-4000-8000-000000000011',
   'Los Angeles, CA', 'Phoenix, AZ', '2026-09-01', 'Delivered', 1000, true, true, true
 );
-select public.record_receivable_entry(
-  '37000000-0000-4000-8000-000000000020',
-  'Write-off',
-  1000,
-  '2026-09-01',
-  'Ledger-based pagination test'
-);
--- Deliberately stale the cached summary to verify the index uses the immutable ledger.
 update public.payments
-set client_paid = false, client_amount_received = 0
+set client_paid = true, client_amount_received = 1000
 where load_id = '37000000-0000-4000-8000-000000000020';
 insert into public.load_stops (load_id, position, stop_type, location, reference_number)
 values ('37000000-0000-4000-8000-000000000020', 2, 'Intermediate', 'Needles, CA', 'STOP-REF-370');
 
-select is((select client_paid from public.load_list_index where id = '37000000-0000-4000-8000-000000000020'), true, 'receivable ledger reconciliation marks the indexed load paid');
+select is((select client_paid from public.load_list_index where id = '37000000-0000-4000-8000-000000000020'), true, 'payment summary marks the indexed load paid');
 select ok((select search_text ilike '%Blue Horizon%' from public.load_list_index where id = '37000000-0000-4000-8000-000000000020'), 'broker text is searchable');
 select ok((select search_text ilike '%Riley North%' from public.load_list_index where id = '37000000-0000-4000-8000-000000000020'), 'driver text is searchable');
 select ok((select search_text ilike '%TRK-370%' from public.load_list_index where id = '37000000-0000-4000-8000-000000000020'), 'equipment text is searchable');
 select ok((select search_text ilike '%STOP-REF-370%' from public.load_list_index where id = '37000000-0000-4000-8000-000000000020'), 'structured stop text is searchable');
 
 update public.payments
-set invoice_status = 'Void'
+set client_paid = false, client_amount_received = 0
 where load_id = '37000000-0000-4000-8000-000000000020';
-select is((select client_paid from public.load_list_index where id = '37000000-0000-4000-8000-000000000020'), null::boolean, 'void invoices are excluded from paid and unpaid filters');
+select is((select client_paid from public.load_list_index where id = '37000000-0000-4000-8000-000000000020'), false, 'unpaid payment summary stays available to unpaid filters');
 
 reset role;
 select set_config('request.jwt.claims', '{"sub":"37000000-0000-4000-8000-000000000002","role":"authenticated","email":"index-two@example.com"}', true);
