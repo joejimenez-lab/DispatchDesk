@@ -1,28 +1,7 @@
--- Remove the collections workflow while preserving its reconciled balances in
--- the original payment summary fields used by DispatchDesk.
+-- Remove the collections workflow while preserving the original payment
+-- summary fields used by DispatchDesk.
 
 drop view if exists public.load_list_index;
-
-with reconciled as (
-  select
-    entry.load_id,
-    greatest(sum(
-      case when entry.entry_type = 'Adjustment' then -entry.amount else entry.amount end
-    ), 0) as amount_received,
-    max(entry.entry_date) filter (where entry.entry_type = 'Payment') as payment_date
-  from public.receivable_entries entry
-  group by entry.load_id
-)
-update public.payments payment
-set client_amount_received = reconciled.amount_received,
-    client_paid = reconciled.amount_received >= greatest(load.load_rate - 0.01, 0),
-    client_date_received = case
-      when reconciled.amount_received > 0 then coalesce(reconciled.payment_date, payment.client_date_received)
-      else null
-    end
-from reconciled
-join public.loads load on load.id = reconciled.load_id
-where payment.load_id = reconciled.load_id;
 
 drop trigger if exists payments_validate_collection_owner on public.payments;
 drop trigger if exists payments_validate_invoice_state on public.payments;
