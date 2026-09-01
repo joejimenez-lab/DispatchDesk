@@ -1,25 +1,17 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
 import { Field, Input, Select } from "@/components/field";
 import { ExportMenu, type ExportMenuItem } from "@/components/export-menu";
 import { SummaryTotals, WeeklySummaryList } from "@/components/weekly-report";
 import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import { getFormOptions } from "@/lib/data/options";
-import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
+import { getWeeklyDriverFinancialSummary } from "@/lib/data/weekly-financials";
 import { fleetScopeLabel, fleetScopeParam, parseFleetScope, UNASSIGNED_FLEET } from "@/lib/fleet-scope";
 import type { FinancialCompletenessFilter } from "@/lib/financials";
-
-const PERIODS: { value: WeeklyFinancialPeriod; label: string }[] = [
-  { value: "this", label: "This week" },
-  { value: "last", label: "Last week" },
-  { value: "all", label: "All weeks" },
-  { value: "custom", label: "Custom range" },
-];
-
-function normalizePeriod(value: string | undefined): WeeklyFinancialPeriod {
-  return PERIODS.some((period) => period.value === value) ? (value as WeeklyFinancialPeriod) : "all";
-}
+import { PaginationControls } from "@/components/pagination-controls";
+import { pageHref, parsePagination, totalPages } from "@/lib/pagination";
+import { normalizeReportPeriod, REPORT_PERIODS } from "@/lib/report-period";
 
 function normalizeFinancial(value: string | undefined): FinancialCompletenessFilter {
   return value === "complete" || value === "incomplete" ? value : "all";
@@ -28,20 +20,42 @@ function normalizeFinancial(value: string | undefined): FinancialCompletenessFil
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string; fleet?: string; financial?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string; fleet?: string; financial?: string; page?: string; pageSize?: string }>;
 }) {
   const params = await searchParams;
-  const period = normalizePeriod(params.period);
+  const period = normalizeReportPeriod(params.period);
   const financial = normalizeFinancial(params.financial);
+  const pagination = parsePagination(params);
   const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
   const scope = parseFleetScope(params.fleet, fleetCompanies);
   if (!scope) notFound();
   const fleet = fleetScopeParam(scope);
+  const report = await getWeeklyDriverFinancialSummary({
+    period,
+    from: params.from,
+    to: params.to,
+    driver: params.driver || undefined,
+    fleetScope: scope,
+    financial,
+    pagination,
+  });
+  const { summaries, detailSummaries, total } = report;
+  const lastPage = totalPages(total, pagination.pageSize);
+  if (pagination.page > lastPage) {
+    redirect(pageHref("/reports", {
+      period,
+      from: params.from,
+      to: params.to,
+      driver: params.driver,
+      financial,
+      fleet,
+    }, lastPage, pagination.pageSize));
+  }
   const exportParams = new URLSearchParams();
   exportParams.set("period", period);
   if (fleet) exportParams.set("fleet", fleet);
-  if (params.from) exportParams.set("from", params.from);
-  if (params.to) exportParams.set("to", params.to);
+  if (report.range.from) exportParams.set("from", report.range.from);
+  if (report.range.to) exportParams.set("to", report.range.to);
   if (params.driver) exportParams.set("driver", params.driver);
   exportParams.set("financial", financial);
   const exportHref = `/api/reports/weekly/export?${exportParams.toString()}`;
@@ -53,14 +67,6 @@ export default async function ReportsPage({
     params.set("format", format);
     return `/api/reports/exports/${report}?${params.toString()}`;
   };
-  const { summaries } = await getWeeklyDriverFinancialSummary({
-    period,
-    from: params.from,
-    to: params.to,
-    driver: params.driver || undefined,
-    fleetScope: scope,
-    financial,
-  });
   const exports: ExportMenuItem[] = [
     {
       title: "Loads",
@@ -148,9 +154,10 @@ export default async function ReportsPage({
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-6">
         {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
+        <input type="hidden" name="pageSize" value={pagination.pageSize} />
         <Field label="Period">
           <Select name="period" defaultValue={period}>
-            {PERIODS.map((option) => (
+            {REPORT_PERIODS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -193,16 +200,23 @@ export default async function ReportsPage({
         basePath="/reports"
         companies={fleetCompanies}
         scope={scope}
-        params={{ period, from: params.from, to: params.to, driver: params.driver }}
+        params={{ period, from: params.from, to: params.to, driver: params.driver, financial, pageSize: String(pagination.pageSize) }}
       />
 
       <SummaryTotals summaries={summaries} />
 
       <WeeklySummaryList
-        summaries={summaries}
+        summaries={detailSummaries}
         linkDrivers
         emptyTitle="No reportable loads"
         emptyMessage="No non-cancelled loads match the selected filters."
+      />
+
+      <PaginationControls
+        basePath="/reports"
+        params={{ period, from: params.from, to: params.to, driver: params.driver, financial, fleet }}
+        pagination={pagination}
+        total={total}
       />
     </div>
   );

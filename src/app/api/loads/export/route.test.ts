@@ -5,12 +5,25 @@ const createAuthenticatedRouteClient = vi.fn();
 vi.mock("@/lib/supabase/route-auth", () => ({ createAuthenticatedRouteClient }));
 
 function loadsClient(data: unknown[]) {
+  const rows = data.map((row, index) => ({ id: `load-${index}`, ...(row as object) }));
+  const indexQuery = {
+    select: vi.fn(), order: vi.fn(), in: vi.fn(), gte: vi.fn(), eq: vi.fn(), neq: vi.fn(),
+    is: vi.fn(), or: vi.fn(), ilike: vi.fn(), range: vi.fn(),
+  };
+  indexQuery.select.mockReturnValue(indexQuery);
+  indexQuery.order.mockReturnValue(indexQuery);
+  indexQuery.in.mockReturnValue(indexQuery);
+  indexQuery.gte.mockReturnValue(indexQuery);
+  indexQuery.eq.mockReturnValue(indexQuery);
+  indexQuery.neq.mockReturnValue(indexQuery);
+  indexQuery.is.mockReturnValue(indexQuery);
+  indexQuery.or.mockReturnValue(indexQuery);
+  indexQuery.ilike.mockReturnValue(indexQuery);
+  indexQuery.range.mockResolvedValue({ data: rows.map(({ id }) => ({ id })), error: null });
   return {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        order: vi.fn(() => ({ data, error: null })),
-      })),
-    })),
+    from: vi.fn((table: string) => table === "load_list_index"
+      ? indexQuery
+      : { select: vi.fn(() => ({ in: vi.fn(async () => ({ data: rows, error: null })) })) }),
   };
 }
 
@@ -26,6 +39,34 @@ function catalogueClient(companies: string[]) {
         })),
       })),
     })),
+  };
+}
+
+function exportLoad(loadNumber: string) {
+  return {
+    load_number: loadNumber,
+    status: "Delivered",
+    pickup_location: "Dallas, TX",
+    pickup_date: "2026-08-01",
+    delivery_location: "Memphis, TN",
+    delivery_date: "2026-08-02",
+    is_round_trip: false,
+    return_location: null,
+    round_trip_details: null,
+    load_rate: 1000,
+    driver_pay: 500,
+    dispatcher_fee: 100,
+    fuel_cost: 50,
+    factoring_mode: "percentage",
+    factoring_percent: 0,
+    factoring_fixed_amount: 0,
+    factoring_amount: 0,
+    load_deductions: [],
+    load_stops: [],
+    brokers: null,
+    drivers: null,
+    payments: null,
+    receivable_entries: [],
   };
 }
 
@@ -113,5 +154,19 @@ describe("/api/loads/export", () => {
     if (!response) throw new Error("Expected an export response");
 
     expect(response.status).toBe(400);
+  });
+
+  it("exports every filtered match regardless of visible page parameters", async () => {
+    createAuthenticatedRouteClient.mockResolvedValue({
+      supabase: loadsClient([exportLoad("PAGE-ONE"), exportLoad("PAGE-TWO")]),
+    });
+    const { GET } = await import("./route");
+
+    const response = await GET(new Request("http://localhost/api/loads/export?page=2&pageSize=1"));
+    if (!response) throw new Error("Expected an export response");
+    const csv = await response.text();
+
+    expect(csv).toContain("PAGE-ONE");
+    expect(csv).toContain("PAGE-TWO");
   });
 });

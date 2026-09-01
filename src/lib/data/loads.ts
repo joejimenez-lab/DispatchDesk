@@ -1,32 +1,21 @@
 import { notFound } from "next/navigation";
 import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { createClient } from "@/lib/supabase/server";
-import { ilikeOr, searchTokens } from "@/lib/search";
-import { isClientPaymentPaid, type FinancialCompletenessFilter } from "@/lib/financials";
-import type { Database, LoadCloseoutStatus, LoadStatus } from "@/types/database";
-import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
+import { isClientPaymentPaid } from "@/lib/financials";
+import type { Database } from "@/types/database";
+import type { FleetScope } from "@/lib/fleet-scope";
 import { scheduleWindow, type AssignmentWindow, type DispatchStop } from "@/lib/dispatch";
+import type { Pagination } from "@/lib/pagination";
+import { getLoadIndexPage, normalizeLoadView } from "@/lib/data/load-index";
 
-const LOAD_SEARCH_COLUMNS = [
-  "load_number",
-  "pickup_location",
-  "delivery_location",
-  "return_location",
-  "carrier_company",
-  "fleet_company",
-  "truck_number",
-  "trailer_number",
-  "commodity",
-  "special_instructions",
-];
-const STOP_SEARCH_COLUMNS = ["location", "appointment_number", "reference_number", "instructions"];
+export { normalizeLoadView } from "@/lib/data/load-index";
 
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Pick<
   Database["public"]["Tables"]["payments"]["Row"],
-  "client_paid" | "client_amount_received" | "driver_paid" | "dispatcher_paid"
+  "invoice_status" | "client_paid" | "client_amount_received" | "driver_paid" | "dispatcher_paid"
 >;
-type LoadListItem = LoadRow & {
+export type LoadListItem = LoadRow & {
   brokers: { company_name: string } | null;
   drivers: { name: string } | null;
   payments: PaymentRow | PaymentRow[] | null;
@@ -53,55 +42,21 @@ export async function getLoads(params: {
   closeout?: string;
   financial?: string;
   fleetScope?: FleetScope;
+  pagination?: Pagination;
 }) {
   const supabase = await createClient();
-  let query = supabase
+  const pagination = params.pagination ?? { page: 1, pageSize: 25 };
+  const view = normalizeLoadView(params.status);
+  const index = await getLoadIndexPage(supabase, { ...params, status: view }, pagination);
+  if (!index.ids.length) return { items: [] as LoadListItem[], total: index.total, ...pagination };
+
+  const { data, error } = await supabase
     .from("loads")
-    .select("*, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, dispatcher_paid), load_stops(*)")
-    .order("delivery_date", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
-
-  // A closeout filter defines Delivered work and takes precedence over an old
-  // operational-status query parameter retained in a bookmarked URL.
-  if (params.status && !params.closeout) query = query.eq("status", params.status as LoadStatus);
-  if (params.broker) query = query.eq("broker_id", params.broker);
-  if (params.driver) query = query.eq("driver_id", params.driver);
-  if (params.closeout === "all-open") {
-    query = query.eq("status", "Delivered").or("post_delivery_status.is.null,post_delivery_status.neq.Closed");
-  } else if (params.closeout) {
-    query = query.eq("post_delivery_status", params.closeout as LoadCloseoutStatus);
-  }
-  if (params.fleetScope) query = applyFleetScope(query, params.fleetScope);
-  const financial = (["all", "complete", "incomplete"] as const).includes(params.financial as FinancialCompletenessFilter)
-    ? params.financial as FinancialCompletenessFilter
-    : "all";
-  if (financial === "complete") {
-    query = query.eq("driver_pay_known", true).eq("dispatcher_fee_known", true).eq("fuel_cost_known", true);
-  } else if (financial === "incomplete") {
-    query = query.or("driver_pay_known.eq.false,dispatcher_fee_known.eq.false,fuel_cost_known.eq.false");
-  }
-  // Each token must match at least one column; chained `.or()` calls are ANDed
-  // together, so "Dallas Memphis" matches a load whose lane spans both cities.
-  for (const token of searchTokens(params.q)) {
-    const stopMatches = await supabase.from("load_stops").select("load_id").or(ilikeOr(STOP_SEARCH_COLUMNS, token));
-    if (stopMatches.error) throw stopMatches.error;
-    const stopLoadIds = [...new Set((stopMatches.data ?? []).map((stop) => stop.load_id))];
-    query = query.or([ilikeOr(LOAD_SEARCH_COLUMNS, token), stopLoadIds.length ? `id.in.(${stopLoadIds.join(",")})` : null].filter(Boolean).join(","));
-  }
-
-  const { data, error } = await query;
+    .select("*, brokers(company_name), drivers(name), payments(invoice_status, client_paid, client_amount_received, driver_paid, dispatcher_paid), load_stops(*)")
+    .in("id", index.ids);
   if (error) throw error;
-  const loads = (data ?? []) as unknown as LoadListItem[];
-
-  if (params.payment === "paid") {
-    return loads.filter((load) => isLoadClientPaymentPaid(load));
-  }
-
-  if (params.payment === "unpaid") {
-    return loads.filter((load) => !isLoadClientPaymentPaid(load) && load.status !== "Cancelled");
-  }
-
-  return loads;
+  const byId = new Map(((data ?? []) as unknown as LoadListItem[]).map((load) => [load.id, load]));
+  return { items: index.ids.flatMap((id) => byId.get(id) ? [byId.get(id)!] : []), total: index.total, ...pagination };
 }
 
 export function loadPayment(load: Pick<LoadListItem, "payments">) {
@@ -109,7 +64,8 @@ export function loadPayment(load: Pick<LoadListItem, "payments">) {
 }
 
 export function isLoadClientPaymentPaid(load: Pick<LoadListItem, "load_rate" | "payments">) {
-  return isClientPaymentPaid(load.load_rate, loadPayment(load));
+  const payment = loadPayment(load);
+  return payment?.invoice_status !== "Void" && isClientPaymentPaid(load.load_rate, payment);
 }
 
 export async function getLoad(loadId: string) {

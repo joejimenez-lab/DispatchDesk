@@ -96,6 +96,7 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
           <p className="text-sm text-zinc-500">
             {formatDate(summary.weekStart)} to {formatDate(summary.weekEnd)} · {summary.loadCount} load
             {summary.loadCount === 1 ? "" : "s"}
+            {summary.loads.length < summary.loadCount ? ` · ${summary.loads.length} shown on this page` : ""}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
