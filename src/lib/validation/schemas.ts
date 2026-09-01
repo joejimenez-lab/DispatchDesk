@@ -246,6 +246,36 @@ export const iftaFuelPurchaseSchema = z.object({
   notes: optionalText,
 });
 
+export const iftaDraftTripSchema = z.object({
+  unit_id: optionalUuid,
+  start_date: requiredDate,
+  end_date: optionalDate,
+  pickup_city: z.string().trim().min(1, "Pickup is required"),
+  dropoff_city: z.string().trim().min(1, "Delivery is required"),
+  notes: optionalText,
+  state_miles: z.array(z.object({
+    state: iftaState,
+    miles: z.coerce.number().positive("Miles must be greater than zero"),
+  })).refine(
+    (entries) => new Set(entries.map((entry) => entry.state)).size === entries.length,
+    "Each state can only be listed once per trip",
+  ),
+});
+
+export const iftaDraftFuelSchema = z.object({
+  unit_id: optionalUuid,
+  purchase_date: requiredDate,
+  city: optionalText,
+  state: z.preprocess((value) => value === "" ? null : value, iftaState.nullable()),
+  gallons: z.string().trim().transform((value) => value === "" ? null : Number(value)).refine(
+    (value) => value === null || (Number.isFinite(value) && value > 0),
+    "Gallons must be greater than zero",
+  ),
+  amount_paid: positiveMoney,
+  vendor: optionalText,
+  notes: optionalText,
+});
+
 export const bookkeepingExpenseSchema = z.object({
   expense_date: requiredDate,
   category: z.enum(expenseCategories),
