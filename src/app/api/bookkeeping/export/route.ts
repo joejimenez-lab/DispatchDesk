@@ -6,6 +6,7 @@ import {
 } from "@/lib/bookkeeping";
 import { renderBusinessReportPdf } from "@/lib/business-report-pdf";
 import {
+  BOOKKEEPING_EXPENSE_SELECT,
   bookkeepingExpenseMatchesFleet,
   bookkeepingExpenseToExportRows,
   normalizeExpenseCategory,
@@ -76,18 +77,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("bookkeeping_expense_groups")
-    .select(`
-      *,
-      bookkeeping_expenses(*),
-      bookkeeping_receipts(*),
-      fleet_units(id, unit_number, unit_type, company),
-      loads(id, load_number, pickup_location, delivery_location, fleet_company),
-      drivers(id, name, truck_number),
-      service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
-      inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),
-      repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company)),
-      ifta_fuel_purchases(id, purchase_date, state, city, gallons, truck_number, fleet_units(id, unit_number, unit_type, company))
-    `)
+    .select(BOOKKEEPING_EXPENSE_SELECT)
     .order("expense_date", { ascending: false })
     .order("created_at", { ascending: false });
 

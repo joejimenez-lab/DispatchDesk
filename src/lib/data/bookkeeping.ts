@@ -9,6 +9,7 @@ import { expenseCategories, type Database, type ExpenseCategory, type UnitType }
 import { matchesFleetScope, type FleetScope } from "@/lib/fleet-scope";
 
 type ExpenseGroupRow = Database["public"]["Tables"]["bookkeeping_expense_groups"]["Row"];
+type ExpenseGroupRelationship = Database["public"]["Tables"]["bookkeeping_expense_groups"]["Relationships"][number]["foreignKeyName"];
 export type BookkeepingExpenseLine = Database["public"]["Tables"]["bookkeeping_expenses"]["Row"];
 type ReceiptRow = Database["public"]["Tables"]["bookkeeping_receipts"]["Row"];
 
@@ -65,6 +66,22 @@ export type BookkeepingOptions = {
   drivers: DriverLink[];
   maintenanceRecords: MaintenanceRecordOption[];
 };
+
+const BOOKKEEPING_IFTA_FUEL_PURCHASE_RELATIONSHIP =
+  "bookkeeping_expense_groups_ifta_fuel_purchase_id_fkey" satisfies ExpenseGroupRelationship;
+
+export const BOOKKEEPING_EXPENSE_SELECT = `
+  *,
+  bookkeeping_expenses(*),
+  bookkeeping_receipts(*),
+  fleet_units(id, unit_number, unit_type, company),
+  loads(id, load_number, pickup_location, delivery_location, fleet_company),
+  drivers(id, name, truck_number),
+  service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
+  inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),
+  repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company)),
+  ifta_fuel_purchases!${BOOKKEEPING_IFTA_FUEL_PURCHASE_RELATIONSHIP}(id, purchase_date, state, city, gallons, truck_number, fleet_units(id, unit_number, unit_type, company))
+`;
 
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -202,18 +219,7 @@ export async function getBookkeepingExpenses(filters: BookkeepingFilters = {}) {
 
   let query = supabase
     .from("bookkeeping_expense_groups")
-    .select(`
-      *,
-      bookkeeping_expenses(*),
-      bookkeeping_receipts(*),
-      fleet_units(id, unit_number, unit_type, company),
-      loads(id, load_number, pickup_location, delivery_location, fleet_company),
-      drivers(id, name, truck_number),
-      service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
-      inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),
-      repair_logs(id, repair_date, description, log_type, fleet_units(id, unit_number, unit_type, company)),
-      ifta_fuel_purchases(id, purchase_date, state, city, gallons, truck_number, fleet_units(id, unit_number, unit_type, company))
-    `)
+    .select(BOOKKEEPING_EXPENSE_SELECT)
     .order("expense_date", { ascending: false })
     .order("created_at", { ascending: false });
 

@@ -8,6 +8,6 @@ describe("VersionsPage", () => {
 
     expect(html.indexOf("Version 2.x")).toBeLessThan(html.indexOf("Version 1.x"));
     expect(html.indexOf("Version 1.x")).toBeLessThan(html.indexOf("Version 0.x"));
-    expect(html.indexOf("v2.10.3")).toBeLessThan(html.indexOf("v2.10.2"));
+    expect(html.indexOf("v2.10.4")).toBeLessThan(html.indexOf("v2.10.3"));
   });
 });

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bookkeepingExpenseMatchesFleet, resolveBookkeepingFleet, type BookkeepingExpense } from "./bookkeeping";
+import {
+  BOOKKEEPING_EXPENSE_SELECT,
+  bookkeepingExpenseMatchesFleet,
+  resolveBookkeepingFleet,
+  type BookkeepingExpense,
+} from "./bookkeeping";
 
 function expense(patch: Partial<BookkeepingExpense>): BookkeepingExpense {
   return {
@@ -17,6 +22,13 @@ function expense(patch: Partial<BookkeepingExpense>): BookkeepingExpense {
 }
 
 describe("bookkeeping fleet classification", () => {
+  it("pins fuel purchase embedding to the bookkeeping-owned relationship", () => {
+    expect(BOOKKEEPING_EXPENSE_SELECT).toContain(
+      "ifta_fuel_purchases!bookkeeping_expense_groups_ifta_fuel_purchase_id_fkey(",
+    );
+    expect(BOOKKEEPING_EXPENSE_SELECT).not.toMatch(/\n\s*ifta_fuel_purchases\(/);
+  });
+
   it("uses a load snapshot instead of the driver's current truck", () => {
     const row = expense({ loads: { id: "load", load_number: "L1", pickup_location: "A", delivery_location: "B", fleet_company: "RD" } });
     const classification = resolveBookkeepingFleet(row);
