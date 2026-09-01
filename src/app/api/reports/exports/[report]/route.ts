@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { renderBusinessReportPdf, type BusinessReportPdfData } from "@/lib/business-report-pdf";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
-import { clientOutstanding } from "@/lib/financials";
+import { agingBucket, receivableBalance, type ReceivableEntry } from "@/lib/collections";
 import {
   clientBillingCsv,
   maintenanceCsv,
@@ -249,13 +249,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
     if (report === "client-billing") {
       let query = supabase
         .from("loads")
-        .select("load_number, status, post_delivery_status, pickup_date, delivery_date, created_at, load_rate, driver_id, fleet_company, brokers(company_name), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
+        .select("load_number, status, post_delivery_status, pickup_date, delivery_date, created_at, load_rate, driver_id, fleet_company, brokers(company_name), payments(invoice_sent, invoice_sent_date, invoice_number, invoice_status, invoice_date, due_date, collection_owner_id, next_follow_up_date, client_paid, client_amount_received, client_date_received), receivable_entries(entry_type, amount)")
         .neq("status", "Cancelled")
         .order("delivery_date", { ascending: false, nullsFirst: false })
         .order("pickup_date", { ascending: false, nullsFirst: false });
       query = applyFleetScope(query, scope);
       const { data, error } = await query;
       if (error) throw error;
+      const { data: profiles, error: profilesError } = await supabase.rpc("collection_owner_options");
+      if (profilesError) throw profilesError;
+      const owners = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name || profile.email]));
+      const asOf = new Date().toISOString().slice(0, 10);
 
       const rows: BillingRow[] = ((data ?? []) as unknown as {
         load_number: string;
@@ -268,7 +272,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         driver_id: string | null;
         fleet_company: string | null;
         brokers: { company_name: string | null } | null;
-        payments: { invoice_sent: boolean; invoice_sent_date: string | null; client_paid: boolean; client_amount_received: number; client_date_received: string | null } | null;
+        payments: { invoice_sent: boolean; invoice_sent_date: string | null; invoice_number: string | null; invoice_status: string; invoice_date: string | null; due_date: string | null; collection_owner_id: string | null; next_follow_up_date: string | null; client_paid: boolean; client_amount_received: number; client_date_received: string | null } | null;
+        receivable_entries: ReceivableEntry[];
       }[]).filter((load) => {
         const loadDate = load.delivery_date ?? load.pickup_date ?? load.created_at.slice(0, 10);
         if (range.from && loadDate < range.from) return false;
@@ -285,10 +290,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         loadRate: Number(load.load_rate),
         invoiceSent: Boolean(load.payments?.invoice_sent),
         invoiceSentDate: load.payments?.invoice_sent_date ?? null,
+        invoiceNumber: load.payments?.invoice_number ?? null,
+        invoiceStatus: load.payments?.invoice_status ?? (load.payments?.invoice_sent ? "Sent" : "Draft"),
+        invoiceDate: load.payments?.invoice_date ?? load.payments?.invoice_sent_date ?? null,
+        dueDate: load.payments?.due_date ?? null,
+        agingBucket: load.payments?.invoice_status === "Void" ? "—" : agingBucket(load.payments?.due_date ?? null, asOf),
+        collectionOwner: load.payments?.collection_owner_id ? owners.get(load.payments.collection_owner_id) ?? "Unknown member" : null,
+        nextFollowUpDate: load.payments?.next_follow_up_date ?? null,
         clientPaid: Boolean(load.payments?.client_paid),
         amountReceived: Number(load.payments?.client_amount_received ?? 0),
         dateReceived: load.payments?.client_date_received ?? null,
-        outstanding: clientOutstanding(load.load_rate, load.payments),
+        outstanding: load.payments?.invoice_status === "Void" ? 0 : receivableBalance(load.load_rate, load.receivable_entries),
       }));
       if (format === "csv") return csvDownload(clientBillingCsv(rows), report, scope);
 
@@ -309,14 +321,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         columns: [
           { label: "Fleet", width: "10%" },
           { label: "Load", width: "11%" },
-          { label: "Date", width: "10%" },
           { label: "Client", width: "19%" },
-          { label: "Status", width: "12%" },
-          { label: "Invoice", width: "12%", align: "right" },
-          { label: "Received", width: "12%", align: "right" },
+          { label: "Invoice", width: "13%" },
+          { label: "Due", width: "11%" },
+          { label: "Aging", width: "9%" },
+          { label: "Amount", width: "12%", align: "right" },
           { label: "Outstanding", width: "14%", align: "right" },
         ],
-        rows: rows.map((row) => [row.fleet, row.loadNumber, row.loadDate, row.broker ?? "", [row.status, row.postDeliveryStatus].filter(Boolean).join(" · "), money(row.loadRate), money(row.amountReceived), money(row.outstanding)]),
+        rows: rows.map((row) => [row.fleet, row.loadNumber, row.broker ?? "", row.invoiceNumber ?? row.invoiceStatus, row.dueDate ?? "", row.agingBucket, money(row.loadRate), money(row.outstanding)]),
         emptyMessage: "No client billing records match the selected filters.",
       }, report, scope);
     }

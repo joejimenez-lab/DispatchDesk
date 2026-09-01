@@ -61,10 +61,10 @@ select throws_ok(
         "invoice_sent": true,
         "invoice_sent_date": null,
         "client_paid": true,
-        "client_amount_received": -1,
+        "client_amount_received": 0,
         "client_date_received": null,
         "driver_paid": false,
-        "driver_amount_paid": 0,
+        "driver_amount_paid": -1,
         "driver_date_paid": null,
         "dispatcher_fee_amount": 100,
         "dispatcher_paid": false,
@@ -114,7 +114,7 @@ select lives_ok(
         "client_amount_received": 1000,
         "client_date_received": null,
         "driver_paid": false,
-        "driver_amount_paid": 0,
+        "driver_amount_paid": 500,
         "driver_date_paid": null,
         "dispatcher_fee_amount": 100,
         "dispatcher_paid": false,
@@ -133,9 +133,9 @@ select is(
 );
 
 select is(
-  (select client_amount_received from public.payments p join public.loads l on l.id = p.load_id where l.load_number = 'ISSUE22-UPDATED'),
-  1000::numeric,
-  'successful RPC updates the payment'
+  (select driver_amount_paid from public.payments p join public.loads l on l.id = p.load_id where l.load_number = 'ISSUE22-UPDATED'),
+  500::numeric,
+  'successful RPC updates operational payment details'
 );
 
 select is(

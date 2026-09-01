@@ -38,6 +38,7 @@ type LoadDetail = LoadRow & {
   payments: Database["public"]["Tables"]["payments"]["Row"] | Database["public"]["Tables"]["payments"]["Row"][] | null;
   load_deductions: Database["public"]["Tables"]["load_deductions"]["Row"][];
   load_stops: Database["public"]["Tables"]["load_stops"]["Row"][];
+  receivable_entries: Database["public"]["Tables"]["receivable_entries"]["Row"][];
 };
 type DocumentRow = Database["public"]["Tables"]["documents"]["Row"];
 type NoteRow = Database["public"]["Tables"]["notes"]["Row"];
@@ -115,7 +116,7 @@ export async function getLoad(loadId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("loads")
-    .select("*, brokers(*), drivers(*), payments(*), load_deductions(*), load_stops(*)")
+    .select("*, brokers(*), drivers(*), payments(*), load_deductions(*), load_stops(*), receivable_entries(*)")
     .eq("id", loadId)
     .single();
 

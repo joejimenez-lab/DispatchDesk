@@ -68,6 +68,7 @@ describe("/api/loads/export", () => {
           load_deductions: [{ label: "=Lumper", amount: 20, position: 0 }],
           notes: "=Notes",
           payments: {
+            invoice_status: "Sent",
             invoice_sent: true,
             client_paid: false,
             client_amount_received: 0,
@@ -76,6 +77,7 @@ describe("/api/loads/export", () => {
             dispatcher_paid: false,
             dispatcher_fee_amount: 0,
           },
+          receivable_entries: [],
         },
       ]),
     });

@@ -193,12 +193,14 @@ function deductionEntries(formData: FormData) {
 }
 
 function paymentPayload(formData: FormData) {
-  return paymentSchema.parse({
-    invoice_sent: formData.get("invoice_sent") === "on",
-    invoice_sent_date: value(formData, "invoice_sent_date"),
-    client_paid: formData.get("client_paid") === "on",
-    client_amount_received: value(formData, "client_amount_received"),
-    client_date_received: value(formData, "client_date_received"),
+  return paymentSchema.pick({
+    driver_paid: true,
+    driver_amount_paid: true,
+    driver_date_paid: true,
+    dispatcher_fee_amount: true,
+    dispatcher_paid: true,
+    dispatcher_date_paid: true,
+  }).parse({
     driver_paid: formData.get("driver_paid") === "on",
     driver_amount_paid: value(formData, "driver_amount_paid"),
     driver_date_paid: value(formData, "driver_date_paid"),
@@ -268,6 +270,9 @@ export async function updateLoad(loadId: string, _state: ActionState, formData: 
 }
 
 export async function updatePaymentFlag(loadId: string, flag: PaymentFlag, paid: boolean) {
+  if (flag === "invoice_sent" || flag === "client_paid") {
+    return errorState(new Error("Use Collections to update invoice and client payment records."));
+  }
   const { supabase } = await createAuthenticatedClient();
   const { data: load, error: loadError } = await supabase
     .from("loads")
@@ -280,15 +285,6 @@ export async function updatePaymentFlag(loadId: string, flag: PaymentFlag, paid:
   const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
   const today = new Date().toISOString().slice(0, 10);
   const updates: PaymentUpdate = { [flag]: paid };
-
-  if (flag === "invoice_sent") {
-    updates.invoice_sent_date = paid ? today : null;
-  }
-
-  if (flag === "client_paid") {
-    updates.client_date_received = paid ? today : null;
-    if (paid && !payment?.client_amount_received) updates.client_amount_received = Number(load.load_rate);
-  }
 
   if (flag === "driver_paid") {
     updates.driver_date_paid = paid ? today : null;
