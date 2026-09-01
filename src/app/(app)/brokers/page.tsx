@@ -1,9 +1,8 @@
 import { ActionForm } from "@/components/action-form";
 import { ContactImportPanel } from "@/components/contact-import-panel";
 import { ContactMergeForm } from "@/components/contact-merge-form";
-import { ContactQualityBadge } from "@/components/contact-quality-badge";
 import { DetailsCloseButton } from "@/components/details-close-button";
-import { Field, Input, Select, Textarea } from "@/components/field";
+import { Field, Input, Textarea } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import { createBroker, deleteBroker, importBrokers, mergeBrokers, updateBroker } from "@/lib/actions/brokers";
 import { getBrokers } from "@/lib/data/contacts";
@@ -21,19 +20,12 @@ function DetailItem({ label, value }: { label: string; value: string | null }) {
 export default async function BrokersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; quality?: string }>;
+  searchParams: Promise<{ q?: string }>;
 }) {
   const params = await searchParams;
   const allBrokers = await getBrokers();
   const duplicateSuggestions = findBrokerDuplicates(allBrokers);
-  const duplicateIds = new Set(duplicateSuggestions.flatMap((suggestion) => [suggestion.first.id, suggestion.second.id]));
-  const quality = ["all", "incomplete", "duplicates"].includes(params.quality ?? "") ? params.quality : "all";
-  const brokers = allBrokers.filter((broker) => {
-    if (!recordMatchesQuery(broker, params.q)) return false;
-    if (quality === "incomplete") return !brokerCompleteness(broker).complete;
-    if (quality === "duplicates") return duplicateIds.has(broker.id);
-    return true;
-  });
+  const brokers = allBrokers.filter((broker) => recordMatchesQuery(broker, params.q));
   const incompleteCount = allBrokers.filter((broker) => !brokerCompleteness(broker).complete).length;
 
   return (
@@ -62,48 +54,43 @@ export default async function BrokersPage({
         </details>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-zinc-200 bg-white p-4"><div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Total brokers</div><div className="mt-1 text-2xl font-semibold">{allBrokers.length}</div></div>
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Incomplete</div><div className="mt-1 text-2xl font-semibold text-amber-950">{incompleteCount}</div></div>
-        <div className="rounded-lg border border-violet-200 bg-violet-50 p-4"><div className="text-xs font-semibold uppercase tracking-wide text-violet-700">Duplicate suggestions</div><div className="mt-1 text-2xl font-semibold text-violet-950">{duplicateSuggestions.length}</div></div>
-      </div>
+      <details className="rounded-lg border border-zinc-200 bg-white">
+        <summary className="cursor-pointer list-none p-4 text-sm font-semibold text-zinc-800">Contact cleanup and CSV import</summary>
+        <div className="space-y-4 border-t border-zinc-200 p-4">
+          <p className="text-sm text-zinc-600">{incompleteCount} incomplete record{incompleteCount === 1 ? "" : "s"} · {duplicateSuggestions.length} possible duplicate pair{duplicateSuggestions.length === 1 ? "" : "s"}</p>
+          <ContactImportPanel kind="broker" existing={allBrokers} action={importBrokers} templateHref="/templates/brokers-import.csv" />
+          {duplicateSuggestions.length ? (
+            <div className="space-y-3">
+              <p className="text-sm text-zinc-600">Review suggestions carefully. Nothing is merged until you confirm it.</p>
+              {duplicateSuggestions.map((suggestion) => (
+                <ContactMergeForm
+                  key={`${suggestion.first.id}-${suggestion.second.id}`}
+                  first={suggestion.first}
+                  second={suggestion.second}
+                  firstLabel={suggestion.first.company_name}
+                  secondLabel={suggestion.second.company_name}
+                  signals={suggestion.signals}
+                  confidence={suggestion.confidence}
+                  fields={[
+                    { key: "company_name", label: "company name" },
+                    { key: "contact_name", label: "contact name" },
+                    { key: "phone", label: "phone" },
+                    { key: "email", label: "email" },
+                    { key: "notes", label: "notes", combine: true },
+                  ]}
+                  action={mergeBrokers.bind(null, suggestion.first.id, suggestion.second.id)}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </details>
 
-      <ContactImportPanel kind="broker" existing={allBrokers} action={importBrokers} templateHref="/templates/brokers-import.csv" />
-
-      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:items-end">
-        <Field label="Search brokers">
+      <form className="rounded-lg border border-zinc-200 bg-white p-4">
+        <Field label="Search Brokers">
           <Input name="q" defaultValue={params.q ?? ""} placeholder="Company, contact, phone, email" />
         </Field>
-        <Field label="Data quality">
-          <Select name="quality" defaultValue={quality}><option value="all">All records</option><option value="incomplete">Incomplete</option><option value="duplicates">Possible duplicates</option></Select>
-        </Field>
-        <SubmitButton variant="secondary">Filter</SubmitButton>
       </form>
-
-      {duplicateSuggestions.length ? (
-        <section className="space-y-3">
-          <div><h2 className="text-lg font-semibold text-zinc-950">Duplicate review</h2><p className="text-sm text-zinc-600">Suggestions only. Nothing is merged until you choose every conflicting value and confirm.</p></div>
-          {duplicateSuggestions.map((suggestion) => (
-            <ContactMergeForm
-              key={`${suggestion.first.id}-${suggestion.second.id}`}
-              first={suggestion.first}
-              second={suggestion.second}
-              firstLabel={suggestion.first.company_name}
-              secondLabel={suggestion.second.company_name}
-              signals={suggestion.signals}
-              confidence={suggestion.confidence}
-              fields={[
-                { key: "company_name", label: "company name" },
-                { key: "contact_name", label: "contact name" },
-                { key: "phone", label: "phone" },
-                { key: "email", label: "email" },
-                { key: "notes", label: "notes", combine: true },
-              ]}
-              action={mergeBrokers.bind(null, suggestion.first.id, suggestion.second.id)}
-            />
-          ))}
-        </section>
-      ) : null}
 
       <section className="space-y-3">
         {brokers.map((broker) => (
@@ -112,7 +99,6 @@ export default async function BrokersPage({
               <div>
                 <h2 className="text-base font-semibold text-zinc-950">{broker.company_name}</h2>
                 <p className="mt-0.5 text-sm text-zinc-600">{broker.contact_name?.trim() || "No contact name"}</p>
-                <div className="mt-2"><ContactQualityBadge completeness={brokerCompleteness(broker)} duplicate={duplicateIds.has(broker.id)} /></div>
               </div>
               <details className="group shrink-0 open:w-full">
                 <summary className="ml-auto w-fit cursor-pointer list-none rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50">

@@ -46,17 +46,11 @@ export function SummaryTotals({ summaries }: { summaries: WeeklyDriverFinancialS
     ["Factoring", currency(totals.factoringTotal)],
     ["Other Deductions", currency(totals.otherDeductionTotal)],
     ["Total Deductions", currency(totals.totalDeductionsTotal)],
-    ["Complete-load profit", currency(totals.estimatedProfitTotal)],
+    ["Estimated Profit", currency(totals.estimatedProfitTotal)],
   ];
 
   return (
     <>
-    {totals.incompleteLoadCount ? (
-      <section role="alert" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950">
-        <div className="font-semibold">{totals.incompleteLoadCount} load{totals.incompleteLoadCount === 1 ? " has" : "s have"} incomplete financial inputs</div>
-        <p className="mt-1 text-sm">{currency(totals.incompleteRevenueTotal)} in revenue is affected. Its {currency(totals.incompleteProvisionalMarginTotal)} provisional margin is excluded from complete-load profit.</p>
-      </section>
-    ) : null}
     <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-9">
       {cards.map(([label, value]) => (
         <div key={label} className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -65,6 +59,11 @@ export function SummaryTotals({ summaries }: { summaries: WeeklyDriverFinancialS
         </div>
       ))}
     </section>
+    {totals.incompleteLoadCount ? (
+      <p className="mt-3 text-sm text-amber-800">
+        Estimated profit excludes {totals.incompleteLoadCount} load{totals.incompleteLoadCount === 1 ? "" : "s"} with incomplete cost inputs ({currency(totals.incompleteRevenueTotal)} revenue).
+      </p>
+    ) : null}
     </>
   );
 }
@@ -107,7 +106,7 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
           <Metric label="Factoring" value={currency(summary.factoringTotal)} />
           <Metric label="Other deductions" value={currency(summary.otherDeductionTotal)} />
           <Metric label="Total deductions" value={currency(summary.totalDeductionsTotal)} />
-          <Metric label="Complete-load profit" value={currency(summary.estimatedProfitTotal)} />
+          <Metric label="Profit" value={currency(summary.estimatedProfitTotal)} />
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -139,18 +138,11 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
                       Round trip{load.returnLocation ? ` · returns to ${load.returnLocation}` : ""}
                     </span>
                   ) : null}
-                  {load.financialComplete ? (
-                    <span className="ml-2 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Complete</span>
-                  ) : (
-                    <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Incomplete</span>
-                  )}
-                  {!load.financialComplete ? <div className="mt-1 text-xs font-normal text-amber-800">Missing {load.missingFinancialFields.join(", ")}</div> : null}
                 </td>
                 <td className="px-4 py-3 text-zinc-700">{load.fleetCompany ?? "Unassigned"}</td>
                 <td className="px-4 py-3 text-zinc-700">{formatDate(load.date)}</td>
                 <td className="px-4 py-3 text-zinc-700">
                   <div>{load.status}</div>
-                  {load.postDeliveryStatus ? <div className="mt-1 text-xs font-medium text-amber-700">{load.postDeliveryStatus}</div> : null}
                 </td>
                 <td className="px-4 py-3 text-right text-zinc-700">{currency(load.loadRate)}</td>
                 <td className="px-4 py-3 text-right text-zinc-700">{load.missingFinancialFields.includes("Driver pay") ? "Unknown" : currency(load.driverPay)}</td>

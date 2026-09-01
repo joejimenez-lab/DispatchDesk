@@ -106,7 +106,7 @@ export function weeklyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
   }
 
   return csv(
-    ["Fleet", "Week Start", "Week End", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Complete-load Profit", "Incomplete Loads", "Incomplete Revenue", "Provisional Margin"],
+    ["Fleet", "Week Start", "Week End", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit", "Incomplete Loads", "Incomplete Revenue", "Provisional Margin"],
     [...weeks.values()].map((week) => [
       week.fleetCompany ?? "Unassigned", week.weekStart,
       week.weekEnd,
@@ -158,7 +158,7 @@ export function yearlyFinancialRows(summaries: WeeklyDriverFinancialSummary[]): 
 
 export function yearlyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
   return csv(
-    ["Fleet", "Year", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Complete-load Profit", "Incomplete Loads", "Incomplete Revenue", "Provisional Margin"],
+    ["Fleet", "Year", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit", "Incomplete Loads", "Incomplete Revenue", "Provisional Margin"],
     yearlyFinancialRows(summaries).map((row) => [row.fleet, row.year, row.loadCount, row.revenue, row.driverPay, row.dispatcherFees, row.fuelCost, row.factoring, row.otherDeductions, row.totalDeductions, row.profit, row.incompleteLoadCount, row.incompleteRevenue, row.provisionalMargin]),
   );
 }

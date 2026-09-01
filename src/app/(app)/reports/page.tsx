@@ -8,23 +8,17 @@ import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import { getFormOptions } from "@/lib/data/options";
 import { getWeeklyDriverFinancialSummary } from "@/lib/data/weekly-financials";
 import { fleetScopeLabel, fleetScopeParam, parseFleetScope, UNASSIGNED_FLEET } from "@/lib/fleet-scope";
-import type { FinancialCompletenessFilter } from "@/lib/financials";
 import { PaginationControls } from "@/components/pagination-controls";
 import { pageHref, parsePagination, totalPages } from "@/lib/pagination";
 import { normalizeReportPeriod, REPORT_PERIODS } from "@/lib/report-period";
 
-function normalizeFinancial(value: string | undefined): FinancialCompletenessFilter {
-  return value === "complete" || value === "incomplete" ? value : "all";
-}
-
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string; fleet?: string; financial?: string; page?: string; pageSize?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string; fleet?: string; page?: string; pageSize?: string }>;
 }) {
   const params = await searchParams;
-  const period = normalizeReportPeriod(params.period);
-  const financial = normalizeFinancial(params.financial);
+  const period = normalizeReportPeriod(params.period ?? "all");
   const pagination = parsePagination(params);
   const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
   const scope = parseFleetScope(params.fleet, fleetCompanies);
@@ -36,7 +30,7 @@ export default async function ReportsPage({
     to: params.to,
     driver: params.driver || undefined,
     fleetScope: scope,
-    financial,
+    financial: "all",
     pagination,
   });
   const { summaries, detailSummaries, total } = report;
@@ -47,7 +41,6 @@ export default async function ReportsPage({
       from: params.from,
       to: params.to,
       driver: params.driver,
-      financial,
       fleet,
     }, lastPage, pagination.pageSize));
   }
@@ -57,7 +50,6 @@ export default async function ReportsPage({
   if (report.range.from) exportParams.set("from", report.range.from);
   if (report.range.to) exportParams.set("to", report.range.to);
   if (params.driver) exportParams.set("driver", params.driver);
-  exportParams.set("financial", financial);
   const exportHref = `/api/reports/weekly/export?${exportParams.toString()}`;
   const pdfExportHref = `/api/reports/weekly/pdf?${exportParams.toString()}`;
   const filteredExportHref = (report: "weekly-payroll" | "weekly-financial") =>
@@ -152,7 +144,7 @@ export default async function ReportsPage({
         />
       </div>
 
-      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-6">
+      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-5">
         {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <input type="hidden" name="pageSize" value={pagination.pageSize} />
         <Field label="Period">
@@ -180,13 +172,6 @@ export default async function ReportsPage({
             ))}
           </Select>
         </Field>
-        <Field label="Financial data">
-          <Select name="financial" defaultValue={financial}>
-            <option value="all">All records</option>
-            <option value="complete">Complete only</option>
-            <option value="incomplete">Incomplete only</option>
-          </Select>
-        </Field>
         <div className="flex items-end gap-2">
           <button className="h-10 rounded-[10px] bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Filter</button>
           <Link href="/reports" className="flex h-10 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium">Reset</Link>
@@ -200,7 +185,7 @@ export default async function ReportsPage({
         basePath="/reports"
         companies={fleetCompanies}
         scope={scope}
-        params={{ period, from: params.from, to: params.to, driver: params.driver, financial, pageSize: String(pagination.pageSize) }}
+        params={{ period, from: params.from, to: params.to, driver: params.driver, pageSize: String(pagination.pageSize) }}
       />
 
       <SummaryTotals summaries={summaries} />
@@ -214,7 +199,7 @@ export default async function ReportsPage({
 
       <PaginationControls
         basePath="/reports"
-        params={{ period, from: params.from, to: params.to, driver: params.driver, financial, fleet }}
+        params={{ period, from: params.from, to: params.to, driver: params.driver, fleet }}
         pagination={pagination}
         total={total}
       />
