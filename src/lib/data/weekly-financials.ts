@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { addFinancialCompletenessTotals, deductionsTotal, financialCompleteness, matchesFinancialCompleteness, profitForLoad, roundCents, totalDeductionsForLoad, type FinancialCompletenessFilter } from "@/lib/financials";
 import type { LoadCloseoutStatus, LoadStatus } from "@/types/database";
 import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
+import { pageRange, type Pagination } from "@/lib/pagination";
 
 type WeeklyFinancialLoad = {
   id: string;
@@ -87,6 +88,7 @@ export type WeeklyFinancialFilters = {
   driver?: string;
   fleetScope?: FleetScope;
   financial?: FinancialCompletenessFilter;
+  pagination?: Pagination;
 };
 
 // Date bounds (inclusive, YYYY-MM-DD) that the report was actually filtered to,
@@ -177,7 +179,12 @@ function resolveRange(filters: WeeklyFinancialFilters): WeeklyFinancialRange {
 
 export async function getWeeklyDriverFinancialSummary(
   filters: WeeklyFinancialFilters = {},
-): Promise<{ summaries: WeeklyDriverFinancialSummary[]; range: WeeklyFinancialRange }> {
+): Promise<{
+  summaries: WeeklyDriverFinancialSummary[];
+  detailSummaries: WeeklyDriverFinancialSummary[];
+  range: WeeklyFinancialRange;
+  total: number;
+}> {
   const supabase = await createClient();
   const range = resolveRange(filters);
   const driverId = normalizeDriverId(filters.driver);
@@ -190,15 +197,84 @@ export async function getWeeklyDriverFinancialSummary(
     .order("pickup_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
-  if (filters.driver && !driverId) return { summaries: [], range };
+  if (filters.driver && !driverId) return { summaries: [], detailSummaries: [], range, total: 0 };
   if (driverId) query = query.eq("driver_id", driverId);
   if (filters.fleetScope) query = applyFleetScope(query, filters.fleetScope);
+  if (filters.financial === "complete") {
+    query = query.eq("driver_pay_known", true).eq("dispatcher_fee_known", true).eq("fuel_cost_known", true);
+  } else if (filters.financial === "incomplete") {
+    query = query.or("driver_pay_known.eq.false,dispatcher_fee_known.eq.false,fuel_cost_known.eq.false");
+  }
 
-  const { data, error } = await query;
-  if (error) throw error;
+  // Report dates prefer delivery, then pickup, then creation. Apply the same
+  // fallback order in PostgREST so pagination happens after date filtering.
+  if (range.from) {
+    query = query.or([
+      `delivery_date.gte.${range.from}`,
+      `and(delivery_date.is.null,pickup_date.gte.${range.from})`,
+      `and(delivery_date.is.null,pickup_date.is.null,created_at.gte.${range.from}T00:00:00Z)`,
+    ].join(","));
+  }
+  if (range.to) {
+    query = query.or([
+      `delivery_date.lte.${range.to}`,
+      `and(delivery_date.is.null,pickup_date.lte.${range.to})`,
+      `and(delivery_date.is.null,pickup_date.is.null,created_at.lt.${toDateKey(addUTCDays(new Date(`${range.to}T00:00:00Z`), 1))}T00:00:00Z)`,
+    ].join(","));
+  }
+
+  // Keep complete weekly aggregates while fetching the visible load IDs through
+  // a separate bounded database query. This prevents a driver's week from
+  // being split into incorrect financial subtotals at a page boundary.
+  let pageQuery = supabase
+    .from("loads")
+    .select("id", { count: "exact" })
+    .neq("status", "Cancelled")
+    .order("delivery_date", { ascending: false, nullsFirst: false })
+    .order("pickup_date", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+  if (driverId) pageQuery = pageQuery.eq("driver_id", driverId);
+  if (filters.fleetScope) pageQuery = applyFleetScope(pageQuery, filters.fleetScope);
+  if (filters.financial === "complete") {
+    pageQuery = pageQuery.eq("driver_pay_known", true).eq("dispatcher_fee_known", true).eq("fuel_cost_known", true);
+  } else if (filters.financial === "incomplete") {
+    pageQuery = pageQuery.or("driver_pay_known.eq.false,dispatcher_fee_known.eq.false,fuel_cost_known.eq.false");
+  }
+  if (range.from) {
+    pageQuery = pageQuery.or([
+      `delivery_date.gte.${range.from}`,
+      `and(delivery_date.is.null,pickup_date.gte.${range.from})`,
+      `and(delivery_date.is.null,pickup_date.is.null,created_at.gte.${range.from}T00:00:00Z)`,
+    ].join(","));
+  }
+  if (range.to) {
+    pageQuery = pageQuery.or([
+      `delivery_date.lte.${range.to}`,
+      `and(delivery_date.is.null,pickup_date.lte.${range.to})`,
+      `and(delivery_date.is.null,pickup_date.is.null,created_at.lt.${toDateKey(addUTCDays(new Date(`${range.to}T00:00:00Z`), 1))}T00:00:00Z)`,
+    ].join(","));
+  }
+
+  const pageResponse = filters.pagination
+    ? await pageQuery.range(pageRange(filters.pagination).from, pageRange(filters.pagination).to)
+    : await pageQuery;
+  if (pageResponse.error) throw pageResponse.error;
+
+  // PostgREST installations commonly cap a response at 1,000 rows. Fetch the
+  // aggregate source in explicit chunks so historical/custom totals cannot be
+  // silently truncated while the visible detail page stays independently bounded.
+  const aggregateRows: WeeklyFinancialLoad[] = [];
+  const aggregateChunkSize = 1_000;
+  for (let offset = 0; ; offset += aggregateChunkSize) {
+    const chunk = await query.range(offset, offset + aggregateChunkSize - 1);
+    if (chunk.error) throw chunk.error;
+    const rows = (chunk.data ?? []) as unknown as WeeklyFinancialLoad[];
+    aggregateRows.push(...rows);
+    if (rows.length < aggregateChunkSize) break;
+  }
 
   const summaries = new Map<string, WeeklyDriverFinancialSummary>();
-  const loads = (data ?? []) as unknown as WeeklyFinancialLoad[];
+  const loads = aggregateRows;
 
   for (const load of loads) {
     if (!matchesFinancialCompleteness(load, filters.financial)) continue;
@@ -290,5 +366,17 @@ export async function getWeeklyDriverFinancialSummary(
     }))
     .sort((a, b) => b.weekStart.localeCompare(a.weekStart) || a.driverName.localeCompare(b.driverName));
 
-  return { summaries: result, range };
+  const pageIds = new Set((pageResponse.data ?? []).map((row) => row.id));
+  const detailSummaries = filters.pagination
+    ? result
+      .map((summary) => ({ ...summary, loads: summary.loads.filter((load) => pageIds.has(load.id)) }))
+      .filter((summary) => summary.loads.length > 0)
+    : result;
+
+  return {
+    summaries: result,
+    detailSummaries,
+    range,
+    total: pageResponse.count ?? loads.length,
+  };
 }

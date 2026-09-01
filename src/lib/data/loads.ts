@@ -3,30 +3,27 @@ import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { createClient } from "@/lib/supabase/server";
 import { ilikeOr, searchTokens } from "@/lib/search";
 import { isClientPaymentPaid, type FinancialCompletenessFilter } from "@/lib/financials";
-import type { Database, LoadCloseoutStatus, LoadStatus } from "@/types/database";
+import { loadStatuses, type Database, type LoadCloseoutStatus, type LoadStatus } from "@/types/database";
 import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
 import { scheduleWindow, type AssignmentWindow, type DispatchStop } from "@/lib/dispatch";
+import { pageRange, type Pagination } from "@/lib/pagination";
+import { BROKER_SEARCH_COLUMNS, DRIVER_SEARCH_COLUMNS, loadSearchExpression, STOP_SEARCH_COLUMNS } from "@/lib/load-search";
+const ACTIVE_LOAD_STATUSES: LoadStatus[] = ["Booked", "Dispatched", "Picked Up", "In Transit"];
 
-const LOAD_SEARCH_COLUMNS = [
-  "load_number",
-  "pickup_location",
-  "delivery_location",
-  "return_location",
-  "carrier_company",
-  "fleet_company",
-  "truck_number",
-  "trailer_number",
-  "commodity",
-  "special_instructions",
-];
-const STOP_SEARCH_COLUMNS = ["location", "appointment_number", "reference_number", "instructions"];
+export type LoadView = "active" | "recent" | "all" | LoadStatus;
+
+export function normalizeLoadView(value: string | undefined): LoadView {
+  if (!value) return "active";
+  if (value === "active" || value === "recent" || value === "all") return value;
+  return loadStatuses.includes(value as LoadStatus) ? value as LoadStatus : "active";
+}
 
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Pick<
   Database["public"]["Tables"]["payments"]["Row"],
   "client_paid" | "client_amount_received" | "driver_paid" | "dispatcher_paid"
 >;
-type LoadListItem = LoadRow & {
+export type LoadListItem = LoadRow & {
   brokers: { company_name: string } | null;
   drivers: { name: string } | null;
   payments: PaymentRow | PaymentRow[] | null;
@@ -53,17 +50,28 @@ export async function getLoads(params: {
   closeout?: string;
   financial?: string;
   fleetScope?: FleetScope;
+  pagination?: Pagination;
 }) {
   const supabase = await createClient();
+  const pagination = params.pagination ?? { page: 1, pageSize: 25 };
+  const view = normalizeLoadView(params.status);
   let query = supabase
     .from("loads")
-    .select("*, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, dispatcher_paid), load_stops(*)")
+    .select("*, brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, dispatcher_paid), load_stops(*)", { count: "exact" })
     .order("delivery_date", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
 
   // A closeout filter defines Delivered work and takes precedence over an old
   // operational-status query parameter retained in a bookmarked URL.
-  if (params.status && !params.closeout) query = query.eq("status", params.status as LoadStatus);
+  if (!params.closeout) {
+    if (view === "active") query = query.in("status", ACTIVE_LOAD_STATUSES);
+    else if (view === "recent") {
+      const cutoff = new Date();
+      cutoff.setUTCDate(cutoff.getUTCDate() - 30);
+      query = query.gte("created_at", cutoff.toISOString());
+    } else if (view !== "all") query = query.eq("status", view);
+  }
   if (params.broker) query = query.eq("broker_id", params.broker);
   if (params.driver) query = query.eq("driver_id", params.driver);
   if (params.closeout === "all-open") {
@@ -80,28 +88,42 @@ export async function getLoads(params: {
   } else if (financial === "incomplete") {
     query = query.or("driver_pay_known.eq.false,dispatcher_fee_known.eq.false,fuel_cost_known.eq.false");
   }
+
+  if (params.payment === "paid" || params.payment === "unpaid") {
+    const paymentCandidates = await supabase
+      .from("loads")
+      .select("id, load_rate, status, payments(client_paid, client_amount_received)");
+    if (paymentCandidates.error) throw paymentCandidates.error;
+    const ids = ((paymentCandidates.data ?? []) as unknown as Pick<LoadListItem, "id" | "load_rate" | "status" | "payments">[])
+      .filter((load) => {
+        const paid = isLoadClientPaymentPaid(load);
+        return params.payment === "paid" ? paid : !paid && load.status !== "Cancelled";
+      })
+      .map((load) => load.id);
+    if (!ids.length) return { items: [] as LoadListItem[], total: 0, ...pagination };
+    query = query.in("id", ids);
+  }
   // Each token must match at least one column; chained `.or()` calls are ANDed
   // together, so "Dallas Memphis" matches a load whose lane spans both cities.
   for (const token of searchTokens(params.q)) {
-    const stopMatches = await supabase.from("load_stops").select("load_id").or(ilikeOr(STOP_SEARCH_COLUMNS, token));
+    const [stopMatches, brokerMatches, driverMatches] = await Promise.all([
+      supabase.from("load_stops").select("load_id").or(ilikeOr(STOP_SEARCH_COLUMNS, token)),
+      supabase.from("brokers").select("id").or(ilikeOr(BROKER_SEARCH_COLUMNS, token)),
+      supabase.from("drivers").select("id").or(ilikeOr(DRIVER_SEARCH_COLUMNS, token)),
+    ]);
     if (stopMatches.error) throw stopMatches.error;
+    if (brokerMatches.error) throw brokerMatches.error;
+    if (driverMatches.error) throw driverMatches.error;
     const stopLoadIds = [...new Set((stopMatches.data ?? []).map((stop) => stop.load_id))];
-    query = query.or([ilikeOr(LOAD_SEARCH_COLUMNS, token), stopLoadIds.length ? `id.in.(${stopLoadIds.join(",")})` : null].filter(Boolean).join(","));
+    const brokerIds = (brokerMatches.data ?? []).map((broker) => broker.id);
+    const driverIds = (driverMatches.data ?? []).map((driver) => driver.id);
+    query = query.or(loadSearchExpression(token, { stopLoadIds, brokerIds, driverIds }));
   }
 
-  const { data, error } = await query;
+  const { from, to } = pageRange(pagination);
+  const { data, error, count } = await query.range(from, to);
   if (error) throw error;
-  const loads = (data ?? []) as unknown as LoadListItem[];
-
-  if (params.payment === "paid") {
-    return loads.filter((load) => isLoadClientPaymentPaid(load));
-  }
-
-  if (params.payment === "unpaid") {
-    return loads.filter((load) => !isLoadClientPaymentPaid(load) && load.status !== "Cancelled");
-  }
-
-  return loads;
+  return { items: (data ?? []) as unknown as LoadListItem[], total: count ?? 0, ...pagination };
 }
 
 export function loadPayment(load: Pick<LoadListItem, "payments">) {

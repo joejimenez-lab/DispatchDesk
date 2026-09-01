@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { LinkButton } from "@/components/button";
 import { Field, Input, Select } from "@/components/field";
 import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
@@ -14,21 +14,40 @@ import { closeoutReason } from "@/lib/load-lifecycle";
 import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
 import { formatStopWindow, type DispatchStop } from "@/lib/dispatch";
 import { financialCompleteness } from "@/lib/financials";
+import { PaginationControls } from "@/components/pagination-controls";
+import { normalizeLoadView } from "@/lib/data/loads";
+import { pageHref, parsePagination, totalPages } from "@/lib/pagination";
 
 export default async function LoadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; closeout?: string; broker?: string; driver?: string; payment?: string; financial?: string; fleet?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; closeout?: string; broker?: string; driver?: string; payment?: string; financial?: string; fleet?: string; page?: string; pageSize?: string }>;
 }) {
   const params = await searchParams;
+  const pagination = parsePagination(params);
+  const status = normalizeLoadView(params.status);
   const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
   const scope = parseFleetScope(params.fleet, fleetCompanies);
   if (!scope) notFound();
   const fleet = fleetScopeParam(scope);
-  const loads = await getLoads({ ...params, fleetScope: scope });
+  const result = await getLoads({ ...params, status, fleetScope: scope, pagination });
+  const loads = result.items;
+  const lastPage = totalPages(result.total, pagination.pageSize);
+  if (pagination.page > lastPage) {
+    redirect(pageHref("/loads", {
+      q: params.q,
+      status,
+      closeout: params.closeout,
+      broker: params.broker,
+      driver: params.driver,
+      payment: params.payment,
+      financial: params.financial,
+      fleet,
+    }, lastPage, pagination.pageSize));
+  }
   const exportParams = new URLSearchParams();
   if (params.q) exportParams.set("q", params.q);
-  if (params.status) exportParams.set("status", params.status);
+  exportParams.set("status", status);
   if (params.closeout) exportParams.set("closeout", params.closeout);
   if (params.broker) exportParams.set("broker", params.broker);
   if (params.driver) exportParams.set("driver", params.driver);
@@ -67,23 +86,27 @@ export default async function LoadsPage({
         scope={scope}
         params={{
           q: params.q,
-          status: params.status,
+          status,
           closeout: params.closeout,
           broker: params.broker,
           driver: params.driver,
           payment: params.payment,
           financial: params.financial,
+          pageSize: String(pagination.pageSize),
         }}
       />
 
-      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-7">
+      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-4 xl:grid-cols-8">
         {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
+        <input type="hidden" name="pageSize" value={pagination.pageSize} />
         <Field label="Search">
-          <Input name="q" defaultValue={params.q ?? ""} placeholder="Load, city, carrier" />
+          <Input name="q" defaultValue={params.q ?? ""} placeholder="Load, contact, equipment, or stop" />
         </Field>
         <Field label="Status">
-          <Select name="status" defaultValue={params.status ?? ""}>
-            <option value="">All statuses</option>
+          <Select name="status" defaultValue={status}>
+            <option value="active">Operationally active</option>
+            <option value="recent">Created in the last 30 days</option>
+            <option value="all">All statuses</option>
             {loadStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
           </Select>
         </Field>
@@ -235,6 +258,22 @@ export default async function LoadsPage({
           </tbody>
         </table>
       </div>
+
+      <PaginationControls
+        basePath="/loads"
+        params={{
+          q: params.q,
+          status,
+          closeout: params.closeout,
+          broker: params.broker,
+          driver: params.driver,
+          payment: params.payment,
+          financial: params.financial,
+          fleet,
+        }}
+        pagination={pagination}
+        total={result.total}
+      />
     </div>
   );
 }

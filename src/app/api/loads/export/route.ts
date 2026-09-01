@@ -8,9 +8,10 @@ import { applyFleetScope, fleetScopeSlug, resolveExportFleetScope } from "@/lib/
 import { formatStopWindow, type DispatchStop } from "@/lib/dispatch";
 import { closeoutReason } from "@/lib/load-lifecycle";
 import { receivableBalance, type ReceivableEntry } from "@/lib/collections";
+import { BROKER_SEARCH_COLUMNS, DRIVER_SEARCH_COLUMNS, loadSearchExpression, STOP_SEARCH_COLUMNS } from "@/lib/load-search";
 
-const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "return_location", "carrier_company", "fleet_company", "truck_number", "trailer_number", "commodity", "special_instructions"];
-const STOP_SEARCH_COLUMNS = ["location", "appointment_number", "reference_number", "instructions"];
+const ACTIVE_LOAD_STATUSES: LoadStatus[] = ["Booked", "Dispatched", "Picked Up", "In Transit"];
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 type ExportLoad = {
   load_number: string;
@@ -91,6 +92,8 @@ export async function GET(request: Request) {
   const driver = searchParams.get("driver");
   const paymentFilter = searchParams.get("payment");
   const financialFilter = searchParams.get("financial");
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
   let scope;
   try {
     scope = await resolveExportFleetScope(supabase, searchParams.get("fleet"));
@@ -105,7 +108,14 @@ export async function GET(request: Request) {
     .select("load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, commodity, weight_lbs, pallet_count, special_instructions, load_stops(*), load_rate, driver_pay, dispatcher_fee, fuel_cost, driver_pay_known, dispatcher_fee_known, fuel_cost_known, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_status, invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount), receivable_entries(entry_type, amount)")
     .order("created_at", { ascending: false });
 
-  if (status && !closeout) query = query.eq("status", status as LoadStatus);
+  if (!closeout) {
+    if (status === "active") query = query.in("status", ACTIVE_LOAD_STATUSES);
+    else if (status === "recent") {
+      const cutoff = new Date();
+      cutoff.setUTCDate(cutoff.getUTCDate() - 30);
+      query = query.gte("created_at", cutoff.toISOString());
+    } else if (status && status !== "all") query = query.eq("status", status as LoadStatus);
+  }
   if (broker) query = query.eq("broker_id", broker);
   if (driver) query = query.eq("driver_id", driver);
   if (closeout === "all-open") {
@@ -114,11 +124,34 @@ export async function GET(request: Request) {
     query = query.eq("post_delivery_status", closeout as LoadCloseoutStatus);
   }
   query = applyFleetScope(query, scope);
+  if (from && ISO_DATE.test(from)) {
+    query = query.or([
+      `delivery_date.gte.${from}`,
+      `and(delivery_date.is.null,pickup_date.gte.${from})`,
+      `and(delivery_date.is.null,pickup_date.is.null,created_at.gte.${from}T00:00:00Z)`,
+    ].join(","));
+  }
+  if (to && ISO_DATE.test(to)) {
+    const exclusiveEnd = new Date(`${to}T00:00:00Z`);
+    exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
+    query = query.or([
+      `delivery_date.lte.${to}`,
+      `and(delivery_date.is.null,pickup_date.lte.${to})`,
+      `and(delivery_date.is.null,pickup_date.is.null,created_at.lt.${exclusiveEnd.toISOString()})`,
+    ].join(","));
+  }
   for (const token of searchTokens(q)) {
-    const stopMatches = await supabase.from("load_stops").select("load_id").or(ilikeOr(STOP_SEARCH_COLUMNS, token));
+    const [stopMatches, brokerMatches, driverMatches] = await Promise.all([
+      supabase.from("load_stops").select("load_id").or(ilikeOr(STOP_SEARCH_COLUMNS, token)),
+      supabase.from("brokers").select("id").or(ilikeOr(BROKER_SEARCH_COLUMNS, token)),
+      supabase.from("drivers").select("id").or(ilikeOr(DRIVER_SEARCH_COLUMNS, token)),
+    ]);
     if (stopMatches.error) return NextResponse.json({ error: "Could not search structured stops." }, { status: 500 });
+    if (brokerMatches.error || driverMatches.error) return NextResponse.json({ error: "Could not search contacts." }, { status: 500 });
     const ids = [...new Set((stopMatches.data ?? []).map((stop) => stop.load_id))];
-    query = query.or([ilikeOr(LOAD_SEARCH_COLUMNS, token), ids.length ? `id.in.(${ids.join(",")})` : null].filter(Boolean).join(","));
+    const brokerIds = (brokerMatches.data ?? []).map((row) => row.id);
+    const driverIds = (driverMatches.data ?? []).map((row) => row.id);
+    query = query.or(loadSearchExpression(token, { stopLoadIds: ids, brokerIds, driverIds }));
   }
 
   const { data, error } = await query;
