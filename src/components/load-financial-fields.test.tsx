@@ -7,6 +7,15 @@ import { LoadFinancialFields } from "./load-financial-fields";
 afterEach(cleanup);
 
 describe("LoadFinancialFields", () => {
+  it("labels a margin as provisional until every cost is confirmed", () => {
+    render(<LoadFinancialFields loadRate={1000} driverPay={0} driverPayKnown dispatcherFeeKnown={false} fuelCostKnown={false} />);
+
+    expect(screen.getByText("Provisional margin")).toBeTruthy();
+    expect(screen.getByText(/Not final · missing Dispatcher fee, Fuel cost/)).toBeTruthy();
+    expect(screen.getByRole("spinbutton", { name: /Driver Pay/ })).toHaveProperty("value", "0");
+    expect(screen.getByRole("spinbutton", { name: /Dispatcher Fee/ })).toHaveProperty("value", "");
+  });
+
   it("previews factoring and estimated profit with cent rounding", () => {
     render(
       <LoadFinancialFields

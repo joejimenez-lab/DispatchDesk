@@ -66,6 +66,8 @@ describe("/api/reports/weekly/export", () => {
               otherDeductionTotal: 20,
               totalDeductions: 50,
               estimatedProfit: 300,
+              financialComplete: true,
+              missingFinancialFields: [],
             },
           ],
         },
@@ -84,7 +86,7 @@ describe("/api/reports/weekly/export", () => {
     expect(csv).toContain("'\t-Details");
     expect(csv).toContain("'=Lumper: 20.00");
     expect(csv).toContain(",1000,500,100,50,Fixed amount,30,30,20,");
-    expect(csv).toContain(",50,300,1000,500,100,50,30,20,50,300");
+    expect(csv).toContain(",50,300,Complete,,1000,500,100,50,30,20,50,300");
     expect(getWeeklyDriverFinancialSummary).toHaveBeenCalledWith(expect.objectContaining({
       fleetScope: { kind: "fleet", company: "West" },
     }));

@@ -68,6 +68,7 @@ describe("/api/reports/exports/[report]", () => {
       to: "2026-01-11",
       driver: "123e4567-e89b-42d3-a456-426614174000",
       fleetScope: { kind: "fleet", company: "West" },
+      financial: "all",
     });
   });
 

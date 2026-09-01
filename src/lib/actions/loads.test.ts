@@ -162,6 +162,7 @@ describe("load and document actions", () => {
         expect.objectContaining({ stop_type: "Pickup", location: "Los Angeles, CA", time_zone: "America/Los_Angeles" }),
         expect.objectContaining({ stop_type: "Delivery", location: "Phoenix, AZ", time_zone: "America/Phoenix" }),
       ]),
+      p_financial_completeness: { driver_pay_known: true, dispatcher_fee_known: true, fuel_cost_known: true },
     });
     expect(redirect).toHaveBeenCalledWith("/loads/load-1");
   });
@@ -188,8 +189,26 @@ describe("load and document actions", () => {
       }),
       p_deductions: [{ label: "Scale fee", amount: 24.5 }],
       p_stops: expect.any(Array),
+      p_financial_completeness: { driver_pay_known: true, dispatcher_fee_known: true, fuel_cost_known: true },
     });
     expect(redirect).toHaveBeenCalledWith("/loads/load-1");
+  });
+
+  it("preserves blank costs as unknown while accepting an intentional zero", async () => {
+    rpc.mockResolvedValue({ data: "load-1", error: null });
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.set("driver_pay", "0");
+    formData.set("dispatcher_fee", "");
+    formData.set("fuel_cost", "");
+
+    await createLoad(initialActionState, formData);
+
+    expect(rpc).toHaveBeenCalledWith("create_load_with_deductions", expect.objectContaining({
+      p_load: expect.objectContaining({ driver_pay: 0, dispatcher_fee: 0, fuel_cost: 0 }),
+      p_financial_completeness: { driver_pay_known: true, dispatcher_fee_known: false, fuel_cost_known: false },
+    }));
   });
 
   it.each(["-1", "101"])("rejects an out-of-range factoring percentage of %s", async (factoringPercent) => {

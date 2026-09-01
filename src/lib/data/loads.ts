@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { createClient } from "@/lib/supabase/server";
 import { ilikeOr, searchTokens } from "@/lib/search";
-import { isClientPaymentPaid } from "@/lib/financials";
+import { isClientPaymentPaid, type FinancialCompletenessFilter } from "@/lib/financials";
 import type { Database, LoadCloseoutStatus, LoadStatus } from "@/types/database";
 import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
 import { scheduleWindow, type AssignmentWindow, type DispatchStop } from "@/lib/dispatch";
@@ -50,6 +50,7 @@ export async function getLoads(params: {
   driver?: string;
   payment?: string;
   closeout?: string;
+  financial?: string;
   fleetScope?: FleetScope;
 }) {
   const supabase = await createClient();
@@ -70,6 +71,14 @@ export async function getLoads(params: {
     query = query.eq("post_delivery_status", params.closeout as LoadCloseoutStatus);
   }
   if (params.fleetScope) query = applyFleetScope(query, params.fleetScope);
+  const financial = (["all", "complete", "incomplete"] as const).includes(params.financial as FinancialCompletenessFilter)
+    ? params.financial as FinancialCompletenessFilter
+    : "all";
+  if (financial === "complete") {
+    query = query.eq("driver_pay_known", true).eq("dispatcher_fee_known", true).eq("fuel_cost_known", true);
+  } else if (financial === "incomplete") {
+    query = query.or("driver_pay_known.eq.false,dispatcher_fee_known.eq.false,fuel_cost_known.eq.false");
+  }
   // Each token must match at least one column; chained `.or()` calls are ANDed
   // together, so "Dallas Memphis" matches a load whose lane spans both cities.
   for (const token of searchTokens(params.q)) {

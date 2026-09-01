@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { csvRow } from "@/lib/csv";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
-import { clientCollected, clientOutstanding, deductionsTotal, isClientPaymentPaid, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
+import { clientCollected, clientOutstanding, deductionsTotal, financialCompleteness, isClientPaymentPaid, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
 import { ilikeOr, searchTokens } from "@/lib/search";
 import type { LoadCloseoutStatus, LoadStatus } from "@/types/database";
 import { applyFleetScope, fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
@@ -28,6 +28,9 @@ type ExportLoad = {
   driver_pay: number;
   dispatcher_fee: number;
   fuel_cost: number;
+  driver_pay_known: boolean;
+  dispatcher_fee_known: boolean;
+  fuel_cost_known: boolean;
   factoring_mode: "percentage" | "amount";
   factoring_percent: number;
   factoring_fixed_amount: number;
@@ -83,6 +86,7 @@ export async function GET(request: Request) {
   const broker = searchParams.get("broker");
   const driver = searchParams.get("driver");
   const paymentFilter = searchParams.get("payment");
+  const financialFilter = searchParams.get("financial");
   let scope;
   try {
     scope = await resolveExportFleetScope(supabase, searchParams.get("fleet"));
@@ -94,7 +98,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("loads")
-    .select("load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, commodity, weight_lbs, pallet_count, special_instructions, load_stops(*), load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
+    .select("load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, commodity, weight_lbs, pallet_count, special_instructions, load_stops(*), load_rate, driver_pay, dispatcher_fee, fuel_cost, driver_pay_known, dispatcher_fee_known, fuel_cost_known, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
     .order("created_at", { ascending: false });
 
   if (status && !closeout) query = query.eq("status", status as LoadStatus);
@@ -122,9 +126,10 @@ export async function GET(request: Request) {
   const filteredRows = rows.filter((load) => {
     const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
     const paid = isClientPaymentPaid(load.load_rate, payment);
-    if (paymentFilter === "paid") return paid;
-    if (paymentFilter === "unpaid") return !paid && load.status !== "Cancelled";
-    return true;
+    const paymentMatches = paymentFilter === "paid" ? paid : paymentFilter === "unpaid" ? !paid && load.status !== "Cancelled" : true;
+    const complete = financialCompleteness(load).complete;
+    const financialMatches = financialFilter === "complete" ? complete : financialFilter === "incomplete" ? !complete : true;
+    return paymentMatches && financialMatches;
   });
   const headers = [
     "Load Number",
@@ -163,6 +168,8 @@ export async function GET(request: Request) {
     "Deduction Details",
     "Total Deductions",
     "Profit",
+    "Financial Completeness",
+    "Missing Financial Fields",
     "Invoice Sent",
     "Client Collected",
     "Client Outstanding",
@@ -220,9 +227,9 @@ export async function GET(request: Request) {
         load.special_instructions,
         stopDetails,
         load.load_rate,
-        load.driver_pay,
-        load.dispatcher_fee,
-        load.fuel_cost,
+        load.driver_pay_known ? load.driver_pay : "Unknown",
+        load.dispatcher_fee_known ? load.dispatcher_fee : "Unknown",
+        load.fuel_cost_known ? load.fuel_cost : "Unknown",
         load.factoring_mode === "amount" ? "Fixed amount" : "Percentage",
         load.factoring_mode === "amount" ? load.factoring_fixed_amount : `${load.factoring_percent}%`,
         load.factoring_amount,
@@ -230,6 +237,8 @@ export async function GET(request: Request) {
         deductionDetails,
         totalDeductionsForLoad(load),
         profitForLoad(load),
+        financialCompleteness(load).complete ? "Complete" : "Incomplete",
+        financialCompleteness(load).missingLabels.join("; "),
         Boolean(payment?.invoice_sent),
         clientCollected(load.load_rate, payment),
         outstanding,

@@ -8,6 +8,7 @@ import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import { getFormOptions } from "@/lib/data/options";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
 import { fleetScopeLabel, fleetScopeParam, parseFleetScope, UNASSIGNED_FLEET } from "@/lib/fleet-scope";
+import type { FinancialCompletenessFilter } from "@/lib/financials";
 
 const PERIODS: { value: WeeklyFinancialPeriod; label: string }[] = [
   { value: "this", label: "This week" },
@@ -20,13 +21,18 @@ function normalizePeriod(value: string | undefined): WeeklyFinancialPeriod {
   return PERIODS.some((period) => period.value === value) ? (value as WeeklyFinancialPeriod) : "all";
 }
 
+function normalizeFinancial(value: string | undefined): FinancialCompletenessFilter {
+  return value === "complete" || value === "incomplete" ? value : "all";
+}
+
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string; fleet?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string; fleet?: string; financial?: string }>;
 }) {
   const params = await searchParams;
   const period = normalizePeriod(params.period);
+  const financial = normalizeFinancial(params.financial);
   const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
   const scope = parseFleetScope(params.fleet, fleetCompanies);
   if (!scope) notFound();
@@ -37,6 +43,7 @@ export default async function ReportsPage({
   if (params.from) exportParams.set("from", params.from);
   if (params.to) exportParams.set("to", params.to);
   if (params.driver) exportParams.set("driver", params.driver);
+  exportParams.set("financial", financial);
   const exportHref = `/api/reports/weekly/export?${exportParams.toString()}`;
   const pdfExportHref = `/api/reports/weekly/pdf?${exportParams.toString()}`;
   const filteredExportHref = (report: "weekly-payroll" | "weekly-financial") =>
@@ -52,6 +59,7 @@ export default async function ReportsPage({
     to: params.to,
     driver: params.driver || undefined,
     fleetScope: scope,
+    financial,
   });
   const exports: ExportMenuItem[] = [
     {
@@ -138,7 +146,7 @@ export default async function ReportsPage({
         />
       </div>
 
-      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-5">
+      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-6">
         {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <Field label="Period">
           <Select name="period" defaultValue={period}>
@@ -163,6 +171,13 @@ export default async function ReportsPage({
                 {driver.name}
               </option>
             ))}
+          </Select>
+        </Field>
+        <Field label="Financial data">
+          <Select name="financial" defaultValue={financial}>
+            <option value="all">All records</option>
+            <option value="complete">Complete only</option>
+            <option value="incomplete">Incomplete only</option>
           </Select>
         </Field>
         <div className="flex items-end gap-2">

@@ -5,13 +5,35 @@ import {
   deductionsTotal,
   factoringAmount,
   factoringDeductionAmount,
+  addFinancialCompletenessTotals,
+  financialCompleteness,
   isClientPaymentPaid,
+  matchesFinancialCompleteness,
   profitForLoad,
   roundCents,
   totalDeductionsForLoad,
 } from "./financials";
 
 describe("load financials", () => {
+  it("distinguishes unknown costs from confirmed zero-dollar costs", () => {
+    expect(financialCompleteness({
+      driver_pay_known: true,
+      dispatcher_fee_known: true,
+      fuel_cost_known: false,
+    })).toEqual({ complete: false, missingFields: ["fuel_cost"], missingLabels: ["Fuel cost"] });
+    expect(matchesFinancialCompleteness({ driver_pay_known: true, dispatcher_fee_known: true, fuel_cost_known: true }, "complete")).toBe(true);
+    expect(matchesFinancialCompleteness({ driver_pay_known: true, dispatcher_fee_known: true, fuel_cost_known: false }, "incomplete")).toBe(true);
+  });
+
+  it("totals revenue and provisional margin affected by incomplete inputs", () => {
+    const totals = addFinancialCompletenessTotals(
+      { completeLoadCount: 0, incompleteLoadCount: 1, incompleteRevenueTotal: 1000, incompleteProvisionalMarginTotal: 350 },
+      { load_rate: 800, driver_pay_known: true, dispatcher_fee_known: false, fuel_cost_known: true },
+      280,
+    );
+    expect(totals).toEqual({ completeLoadCount: 0, incompleteLoadCount: 2, incompleteRevenueTotal: 1800, incompleteProvisionalMarginTotal: 630 });
+  });
+
   it("preserves the existing profit result when a load has no deductions", () => {
     expect(profitForLoad({
       load_rate: 1_000,

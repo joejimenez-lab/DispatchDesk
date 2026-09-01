@@ -3,6 +3,7 @@ import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/l
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 import { renderWeeklySummaryPdf } from "@/lib/weekly-summary-pdf";
 import { fleetScopeLabel, fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
+import type { FinancialCompletenessFilter } from "@/lib/financials";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,9 @@ const PERIODS: WeeklyFinancialPeriod[] = ["this", "last", "all", "custom"];
 
 function normalizePeriod(value: string | null): WeeklyFinancialPeriod {
   return PERIODS.includes(value as WeeklyFinancialPeriod) ? (value as WeeklyFinancialPeriod) : "all";
+}
+function normalizeFinancial(value: string | null): FinancialCompletenessFilter {
+  return value === "complete" || value === "incomplete" ? value : "all";
 }
 
 export async function GET(request: Request) {
@@ -32,6 +36,7 @@ export async function GET(request: Request) {
       to: searchParams.get("to") ?? undefined,
       driver: searchParams.get("driver") ?? undefined,
       fleetScope: scope,
+      financial: normalizeFinancial(searchParams.get("financial")),
     });
     const pdf = await renderWeeklySummaryPdf(summaries, range, undefined, fleetScopeLabel(scope));
     const stamp = new Date().toISOString().slice(0, 10);

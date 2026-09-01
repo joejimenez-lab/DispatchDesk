@@ -6,7 +6,7 @@ import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import { StatusBadge } from "@/components/status-badge";
 import { addNote, deleteDocument, deleteLoad, updateLoadCloseout, updatePaymentFlag, uploadDocument } from "@/lib/actions/loads";
 import { getAssignmentWindows, getLoad, getLoadRelated } from "@/lib/data/loads";
-import { clientCollected, clientOutstanding, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
+import { clientCollected, clientOutstanding, financialCompleteness, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
 import { currency, formatDate } from "@/lib/utils";
 import { documentCategories } from "@/types/database";
 import { findAssignmentConflicts, formatStopWindow, type DispatchStop } from "@/lib/dispatch";
@@ -70,6 +70,7 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
   const [load, related, assignmentWindows] = await Promise.all([getLoad(id), getLoadRelated(id), getAssignmentWindows()]);
   const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
   const profit = profitForLoad(load);
+  const completeness = financialCompleteness(load);
   const totalDeductions = totalDeductionsForLoad(load);
   const collected = clientCollected(load.load_rate, payment);
   const outstanding = load.status === "Cancelled" ? 0 : clientOutstanding(load.load_rate, payment);
@@ -213,11 +214,19 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="mb-4 text-lg font-semibold text-zinc-950">Financial Summary</h2>
+            {completeness.complete ? (
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-900">Financial inputs complete</div>
+            ) : (
+              <div role="alert" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                <div className="font-semibold">Financial inputs incomplete</div>
+                <div className="mt-1">Missing {completeness.missingLabels.join(", ")}. The margin below is provisional and must not be treated as final profit.</div>
+              </div>
+            )}
             <dl className="space-y-3">
               <Detail label="Load Rate" value={currency(load.load_rate)} />
-              <Detail label="Driver Pay" value={currency(load.driver_pay)} />
-              <Detail label="Dispatcher Fee" value={currency(load.dispatcher_fee)} />
-              <Detail label="Load fuel estimate" value={currency(load.fuel_cost)} />
+              <Detail label="Driver Pay" value={load.driver_pay_known ? currency(load.driver_pay) : "Unknown"} />
+              <Detail label="Dispatcher Fee" value={load.dispatcher_fee_known ? currency(load.dispatcher_fee) : "Unknown"} />
+              <Detail label="Load fuel estimate" value={load.fuel_cost_known ? currency(load.fuel_cost) : "Unknown"} />
               <Detail
                 label={
                   load.factoring_mode === "amount"
@@ -230,7 +239,7 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
                 <Detail key={deduction.id} label={`Other: ${deduction.label}`} value={currency(deduction.amount)} />
               ))}
               <Detail label="Total Deductions" value={currency(totalDeductions)} />
-              <Detail label="Estimated Profit" value={<span className={profit >= 0 ? "text-green-700" : "text-red-700"}>{currency(profit)}</span>} />
+              <Detail label={completeness.complete ? "Estimated Profit" : "Provisional Margin"} value={<span className={profit >= 0 ? "text-green-700" : "text-red-700"}>{currency(profit)}{completeness.complete ? "" : " · incomplete"}</span>} />
               <Detail label="Client Collected" value={currency(collected)} />
               <Detail label="Client Outstanding" value={currency(outstanding)} />
               <PaymentToggle

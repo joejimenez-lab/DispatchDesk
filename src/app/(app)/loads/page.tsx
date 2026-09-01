@@ -13,11 +13,12 @@ import { loadCloseoutStatuses, loadStatuses } from "@/types/database";
 import { closeoutReason } from "@/lib/load-lifecycle";
 import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
 import { formatStopWindow, type DispatchStop } from "@/lib/dispatch";
+import { financialCompleteness } from "@/lib/financials";
 
 export default async function LoadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; closeout?: string; broker?: string; driver?: string; payment?: string; fleet?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; closeout?: string; broker?: string; driver?: string; payment?: string; financial?: string; fleet?: string }>;
 }) {
   const params = await searchParams;
   const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
@@ -32,6 +33,7 @@ export default async function LoadsPage({
   if (params.broker) exportParams.set("broker", params.broker);
   if (params.driver) exportParams.set("driver", params.driver);
   if (params.payment) exportParams.set("payment", params.payment);
+  if (params.financial) exportParams.set("financial", params.financial);
   if (fleet) exportParams.set("fleet", fleet);
   const exportHref = `/api/loads/export${exportParams.size ? `?${exportParams.toString()}` : ""}`;
   const roundTripSummary = (load: (typeof loads)[number]) =>
@@ -70,6 +72,7 @@ export default async function LoadsPage({
           broker: params.broker,
           driver: params.driver,
           payment: params.payment,
+          financial: params.financial,
         }}
       />
 
@@ -108,6 +111,13 @@ export default async function LoadsPage({
             <option value="">All payments</option>
             <option value="paid">Paid</option>
             <option value="unpaid">Not paid</option>
+          </Select>
+        </Field>
+        <Field label="Financial data">
+          <Select name="financial" defaultValue={params.financial ?? "all"}>
+            <option value="all">All records</option>
+            <option value="complete">Complete only</option>
+            <option value="incomplete">Incomplete only</option>
           </Select>
         </Field>
         <div className="flex items-end gap-2">
@@ -186,7 +196,17 @@ export default async function LoadsPage({
                     ) : null}
                   </div>,
                 )}
-                {linkedCell(load.id, currency(load.load_rate))}
+                {linkedCell(load.id, <div>
+                  <div>{currency(load.load_rate)}</div>
+                  {financialCompleteness(load).complete ? (
+                    <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Financials complete</span>
+                  ) : (
+                    <div className="mt-1">
+                      <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Financials incomplete</span>
+                      <div className="mt-1 text-xs text-amber-800">Missing {financialCompleteness(load).missingLabels.join(", ")}</div>
+                    </div>
+                  )}
+                </div>)}
                 <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-1.5">
                     <LoadStatusSelect loadId={load.id} status={load.status} closeoutStatus={load.post_delivery_status} />
