@@ -330,6 +330,23 @@ describe("load and document actions", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
+  it("updates closeout milestones through the tenant-safe RPC", async () => {
+    rpc.mockResolvedValue({ data: "Documents Complete", error: null });
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { updateLoadCloseout } = await import("./loads");
+
+    const result = await updateLoadCloseout("load-1", "documents_complete", true);
+
+    expect(result).toEqual({ status: "success", message: "Closeout updated." });
+    expect(rpc).toHaveBeenCalledWith("set_load_closeout_milestone", {
+      p_load_id: "load-1",
+      p_milestone: "documents_complete",
+      p_complete: true,
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+    expect(revalidatePath).toHaveBeenCalledWith("/loads/load-1");
+  });
+
   it("deletes a document using only server-resolved metadata from the cleanup RPC", async () => {
     rpc.mockResolvedValue({
       data: [{ job_id: "job-1", bucket_id: "load-documents", storage_path: "load-1/bol.pdf", load_id: "load-1" }],

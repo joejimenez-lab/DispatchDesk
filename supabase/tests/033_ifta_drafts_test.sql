@@ -34,7 +34,7 @@ insert into public.loads (
   truck_unit_id, status
 ) values
   ('85000000-0000-4000-8000-000000000030', 'IFTA-L1', 'Reno, NV', '2026-05-01', 'Phoenix, AZ', '2026-05-02', '85000000-0000-4000-8000-000000000010', 'Delivered'),
-  ('85000000-0000-4000-8000-000000000031', 'IFTA-L2', 'Boise, ID', '2026-05-03', 'Portland, OR', '2026-05-04', null, 'Closed'),
+  ('85000000-0000-4000-8000-000000000031', 'IFTA-L2', 'Boise, ID', '2026-05-03', 'Portland, OR', '2026-05-04', null, 'Delivered'),
   ('85000000-0000-4000-8000-000000000032', 'IFTA-OPEN', 'Reno, NV', '2026-05-05', 'Phoenix, AZ', '2026-05-06', '85000000-0000-4000-8000-000000000010', 'In Transit');
 
 insert into public.load_stops (load_id, position, stop_type, location, scheduled_start, scheduled_end, schedule_precision, time_zone) values

@@ -8,6 +8,7 @@ export type BillingRow = {
   loadDate: string;
   broker: string | null;
   status: string;
+  postDeliveryStatus: string | null;
   loadRate: number;
   invoiceSent: boolean;
   invoiceSentDate: string | null;
@@ -145,12 +146,13 @@ export function yearlyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
 
 export function clientBillingCsv(rows: BillingRow[]) {
   return csv(
-    ["Fleet", "Load Number", "Load Date", "Client", "Status", "Invoice Amount", "Invoice Sent", "Invoice Sent Date", "Client Paid", "Amount Received", "Date Received", "Outstanding"],
+    ["Fleet", "Load Number", "Load Date", "Client", "Operational Status", "Post-delivery Stage", "Invoice Amount", "Invoice Sent", "Invoice Sent Date", "Client Paid", "Amount Received", "Date Received", "Outstanding"],
     rows.map((row) => [
       row.fleet, row.loadNumber,
       row.loadDate,
       row.broker,
       row.status,
+      row.postDeliveryStatus,
       row.loadRate,
       row.invoiceSent,
       row.invoiceSentDate,

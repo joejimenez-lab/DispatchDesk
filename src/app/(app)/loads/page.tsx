@@ -9,14 +9,15 @@ import { getFormOptions } from "@/lib/data/options";
 import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import { getLoads, isLoadClientPaymentPaid } from "@/lib/data/loads";
 import { currency, formatDate } from "@/lib/utils";
-import { loadStatuses } from "@/types/database";
+import { loadCloseoutStatuses, loadStatuses } from "@/types/database";
+import { closeoutReason } from "@/lib/load-lifecycle";
 import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
 import { formatStopWindow, type DispatchStop } from "@/lib/dispatch";
 
 export default async function LoadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; broker?: string; driver?: string; payment?: string; fleet?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; closeout?: string; broker?: string; driver?: string; payment?: string; fleet?: string }>;
 }) {
   const params = await searchParams;
   const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
@@ -27,6 +28,7 @@ export default async function LoadsPage({
   const exportParams = new URLSearchParams();
   if (params.q) exportParams.set("q", params.q);
   if (params.status) exportParams.set("status", params.status);
+  if (params.closeout) exportParams.set("closeout", params.closeout);
   if (params.broker) exportParams.set("broker", params.broker);
   if (params.driver) exportParams.set("driver", params.driver);
   if (params.payment) exportParams.set("payment", params.payment);
@@ -64,13 +66,14 @@ export default async function LoadsPage({
         params={{
           q: params.q,
           status: params.status,
+          closeout: params.closeout,
           broker: params.broker,
           driver: params.driver,
           payment: params.payment,
         }}
       />
 
-      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-6">
+      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-7">
         {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <Field label="Search">
           <Input name="q" defaultValue={params.q ?? ""} placeholder="Load, city, carrier" />
@@ -79,6 +82,13 @@ export default async function LoadsPage({
           <Select name="status" defaultValue={params.status ?? ""}>
             <option value="">All statuses</option>
             {loadStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+          </Select>
+        </Field>
+        <Field label="Closeout">
+          <Select name="closeout" defaultValue={params.closeout ?? ""}>
+            <option value="">All stages</option>
+            <option value="all-open">All open closeout</option>
+            {loadCloseoutStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
           </Select>
         </Field>
         <Field label="Broker">
@@ -179,7 +189,12 @@ export default async function LoadsPage({
                 {linkedCell(load.id, currency(load.load_rate))}
                 <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-1.5">
-                    <LoadStatusSelect loadId={load.id} status={load.status} />
+                    <LoadStatusSelect loadId={load.id} status={load.status} closeoutStatus={load.post_delivery_status} />
+                    {load.post_delivery_status ? (
+                      <span className="max-w-40 rounded-full bg-amber-50 px-2.5 py-1 text-center text-xs font-semibold text-amber-800" title={closeoutReason(load.post_delivery_status)}>
+                        {load.post_delivery_status}
+                      </span>
+                    ) : null}
                     <LoadPaymentSelect loadId={load.id} paid={isLoadClientPaymentPaid(load)} />
                   </div>
                 </td>

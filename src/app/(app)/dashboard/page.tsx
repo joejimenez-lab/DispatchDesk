@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 import {
   CircleCheckBig,
-  CircleDollarSign,
   Clock3,
+  FileClock,
   Truck,
   type LucideIcon,
 } from "lucide-react";
@@ -52,10 +52,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const collectedWidth = Math.round((metrics.collectedRevenue / totalRevenue) * 100);
   const outstandingWidth = Math.round((metrics.outstandingRevenue / totalRevenue) * 100);
   const cards: Array<{ label: string; value: string | number; icon: LucideIcon; color: string }> = [
-    { label: "Active loads", value: metrics.activeLoads, icon: Truck, color: "#6757e8" },
-    { label: "Delivered loads", value: metrics.deliveredLoads, icon: CircleCheckBig, color: "#39805d" },
-    { label: "Unpaid loads", value: metrics.unpaidLoads, icon: Clock3, color: "#bc5262" },
-    { label: "Total revenue", value: currency(metrics.totalRevenue), icon: CircleDollarSign, color: "#303047" },
+    { label: "Active transportation", value: metrics.activeLoads, icon: Truck, color: "#6757e8" },
+    { label: "Post-delivery work", value: metrics.postDeliveryLoads, icon: FileClock, color: "#bc7a27" },
+    { label: "Awaiting payment", value: metrics.closeoutCounts.Invoiced, icon: Clock3, color: "#bc5262" },
+    { label: "Closed loads", value: metrics.closedLoads, icon: CircleCheckBig, color: "#39805d" },
   ];
 
   return (
@@ -89,12 +89,41 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       <FleetScopeTabs basePath="/dashboard" companies={companies} scope={scope} />
 
+      <section className="dispatch-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Post-delivery closeout</h2>
+            <p>Delivered loads stay out of active transportation while documents, invoicing, payments, and closure are completed.</p>
+          </div>
+          <Link href={fleet ? `/loads?fleet=${encodeURIComponent(fleet)}&closeout=all-open` : "/loads?closeout=all-open"} className="panel-link">View closeout work</Link>
+        </div>
+        <div className="grid gap-3 border-b border-zinc-200 px-5 pb-5 sm:grid-cols-2 lg:grid-cols-5">
+          {Object.entries(metrics.closeoutCounts).map(([stage, count]) => (
+            <div key={stage} className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+              <div className="text-xs font-semibold uppercase text-zinc-500">{stage}</div>
+              <div className="mt-1 text-xl font-semibold text-zinc-950">{count}</div>
+            </div>
+          ))}
+        </div>
+        <div className="divide-y divide-zinc-200 px-5">
+          {metrics.postDeliveryWork.map((load) => (
+            <Link key={load.id} href={`/loads/${load.id}`} className="grid gap-2 py-4 hover:bg-zinc-50 md:grid-cols-[150px_180px_minmax(0,1fr)_auto] md:items-center">
+              <span className="font-semibold text-zinc-950">{load.load_number}</span>
+              <span className="text-sm font-semibold text-amber-800">{load.post_delivery_status}</span>
+              <span className="text-sm text-zinc-600">{load.closeoutReason}</span>
+              <span className="text-xs text-zinc-500">Delivered {formatDate(load.delivery_date)}</span>
+            </Link>
+          ))}
+          {!metrics.postDeliveryWork.length ? <p className="py-6 text-sm text-zinc-500">No delivered loads need closeout work.</p> : null}
+        </div>
+      </section>
+
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="dispatch-panel lg:col-span-2">
           <div className="panel-heading">
             <div>
-              <h2>Current loads</h2>
-              <p>Active loads ordered by delivery date.</p>
+              <h2>Active transportation</h2>
+              <p>Booked through in-transit loads ordered by delivery date.</p>
             </div>
             <Link href={fleet ? `/loads?fleet=${encodeURIComponent(fleet)}` : "/loads"} className="panel-link">View all loads</Link>
           </div>

@@ -125,7 +125,10 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
                 </td>
                 <td className="px-4 py-3 text-zinc-700">{load.fleetCompany ?? "Unassigned"}</td>
                 <td className="px-4 py-3 text-zinc-700">{formatDate(load.date)}</td>
-                <td className="px-4 py-3 text-zinc-700">{load.status}</td>
+                <td className="px-4 py-3 text-zinc-700">
+                  <div>{load.status}</div>
+                  {load.postDeliveryStatus ? <div className="mt-1 text-xs font-medium text-amber-700">{load.postDeliveryStatus}</div> : null}
+                </td>
                 <td className="px-4 py-3 text-right text-zinc-700">{currency(load.loadRate)}</td>
                 <td className="px-4 py-3 text-right text-zinc-700">{currency(load.driverPay)}</td>
                 <td className="px-4 py-3 text-right text-zinc-700">{currency(load.dispatcherFee)}</td>
