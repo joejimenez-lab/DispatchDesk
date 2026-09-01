@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { clientCollected, clientOutstanding, profitForLoad, roundCents, totalDeductionsForLoad } from "@/lib/financials";
 import { mapMaintenanceAlerts } from "@/lib/data/maintenance";
-import { getDashboardMaintenanceSummary } from "@/lib/maintenance";
+import { buildMaintenanceReadiness, getDashboardMaintenanceSummary, summarizeMaintenanceReadiness } from "@/lib/maintenance";
 import type { LoadStatus } from "@/types/database";
 import { applyFleetScope, matchesFleetScope, type FleetScope } from "@/lib/fleet-scope";
 
@@ -41,22 +41,26 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
       .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, fleet_company, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_amount, load_deductions(amount), brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
       .order("created_at", { ascending: false });
   loadsQuery = applyFleetScope(loadsQuery, scope);
-  const [loadsResult, remindersResult] = await Promise.all([
+  const [loadsResult, remindersResult, unitsResult] = await Promise.all([
     loadsQuery,
     supabase
       .from("maintenance_reminders")
       .select("*, fleet_units!inner(id, unit_number, unit_type, odometer, company)")
       .is("completed_at", null)
       .order("due_date", { ascending: true, nullsFirst: false }),
+    supabase.from("fleet_units").select("*").order("unit_type").order("unit_number"),
   ]);
 
   if (loadsResult.error) throw loadsResult.error;
   if (remindersResult.error) throw remindersResult.error;
+  if (unitsResult.error) throw unitsResult.error;
 
   const rows = (loadsResult.data ?? []) as unknown as DashboardLoad[];
   const allMaintenanceAlerts = mapMaintenanceAlerts((remindersResult.data ?? []) as unknown[])
     .filter((alert) => matchesFleetScope(alert.unit.company, scope));
   const maintenanceSummary = getDashboardMaintenanceSummary(allMaintenanceAlerts);
+  const scopedUnits = (unitsResult.data ?? []).filter((unit) => matchesFleetScope(unit.company, scope));
+  const maintenanceReadiness = summarizeMaintenanceReadiness(buildMaintenanceReadiness(scopedUnits, allMaintenanceAlerts));
 
   const metrics = rows.reduce(
     (metrics, load) => {
@@ -145,7 +149,8 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
     unpaidAlerts,
     upcomingDeliveries,
     maintenanceAlerts: maintenanceSummary.visible,
-    maintenanceCounts: maintenanceSummary.counts,
+    maintenanceCounts: { ...maintenanceSummary.counts, unconfigured: maintenanceReadiness.unconfigured },
+    maintenanceReadiness,
     statusCounts: Object.entries(statusCounts).sort(([, a], [, b]) => b - a),
   };
 }

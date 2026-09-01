@@ -13,6 +13,17 @@ const businessDateFormatter = new Intl.DateTimeFormat("en-CA", {
 
 export type MaintenanceStatus = "overdue" | "due-soon" | "upcoming";
 export type MaintenanceReminderRow = Database["public"]["Tables"]["maintenance_reminders"]["Row"];
+export type FleetUnitRow = Database["public"]["Tables"]["fleet_units"]["Row"];
+export type OdometerFreshness = "missing" | "unknown" | "fresh" | "stale";
+
+export type MaintenanceReadiness = {
+  unit: FleetUnitRow;
+  configured: boolean;
+  missingOdometer: boolean;
+  missingSchedule: boolean;
+  odometerFreshness: OdometerFreshness;
+  odometerAgeDays: number | null;
+};
 
 export type MaintenanceAlert = MaintenanceReminderRow & {
   unit: {
@@ -166,6 +177,48 @@ export function sortMaintenanceAlerts(alerts: MaintenanceAlert[]) {
     if (b.daysRemaining != null) return 1;
     return (a.milesRemaining ?? Number.MAX_SAFE_INTEGER) - (b.milesRemaining ?? Number.MAX_SAFE_INTEGER);
   });
+}
+
+export function buildMaintenanceReadiness(
+  units: FleetUnitRow[],
+  alerts: Pick<MaintenanceAlert, "unit_id">[],
+  today = localDateString(),
+  staleAfterDays = 30,
+) {
+  const scheduledUnits = new Set(alerts.map((alert) => alert.unit_id));
+  return units.map((unit): MaintenanceReadiness => {
+    const missingOdometer = unit.odometer == null;
+    const missingSchedule = !scheduledUnits.has(unit.id);
+    const updatedDate = unit.odometer_updated_at?.slice(0, 10) ?? null;
+    const odometerAgeDays = updatedDate ? Math.max(0, daysBetween(updatedDate, today)) : null;
+    const odometerFreshness: OdometerFreshness = missingOdometer
+      ? "missing"
+      : odometerAgeDays == null
+        ? "unknown"
+        : odometerAgeDays > staleAfterDays ? "stale" : "fresh";
+    return {
+      unit,
+      configured: !missingOdometer && !missingSchedule,
+      missingOdometer,
+      missingSchedule,
+      odometerFreshness,
+      odometerAgeDays,
+    };
+  });
+}
+
+export function summarizeMaintenanceReadiness(readiness: MaintenanceReadiness[]) {
+  return readiness.reduce(
+    (summary, item) => {
+      if (!item.configured) summary.unconfigured += 1;
+      else summary.configured += 1;
+      if (item.missingOdometer) summary.missingOdometers += 1;
+      if (item.missingSchedule) summary.missingSchedules += 1;
+      if (item.odometerFreshness === "stale" || item.odometerFreshness === "unknown") summary.staleOdometers += 1;
+      return summary;
+    },
+    { configured: 0, unconfigured: 0, missingOdometers: 0, missingSchedules: 0, staleOdometers: 0 },
+  );
 }
 
 export function getDashboardMaintenanceSummary(alerts: MaintenanceAlert[], limit = 8) {

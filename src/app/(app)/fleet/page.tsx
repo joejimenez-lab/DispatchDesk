@@ -10,30 +10,33 @@ import { getFleetCompanies, getUnits } from "@/lib/data/fleet";
 import { getMaintenanceAlerts } from "@/lib/data/maintenance";
 import { unitTypes, type Database } from "@/types/database";
 import { fleetScopeLabel, fleetScopeParam, matchesFleetScope, parseFleetScope } from "@/lib/fleet-scope";
+import { buildMaintenanceReadiness, type MaintenanceReadiness } from "@/lib/maintenance";
 
 type Unit = Database["public"]["Tables"]["fleet_units"]["Row"];
 type MaintenanceCounts = { overdue: number; dueSoon: number; upcoming: number; snoozed: number };
 
 const emptyMaintenanceCounts = (): MaintenanceCounts => ({ overdue: 0, dueSoon: 0, upcoming: 0, snoozed: 0 });
 
-function MaintenanceSummary({ counts }: { counts: MaintenanceCounts }) {
+function MaintenanceSummary({ counts, readiness }: { counts: MaintenanceCounts; readiness: MaintenanceReadiness }) {
   const total = counts.overdue + counts.dueSoon + counts.upcoming + counts.snoozed;
 
   return (
     <div>
       <div className="text-xs text-zinc-500">Maintenance</div>
       <div className="mt-1 flex flex-wrap gap-1">
+        {!readiness.configured ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Not configured</span> : null}
         {counts.overdue ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">{counts.overdue} overdue</span> : null}
         {counts.dueSoon ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">{counts.dueSoon} due soon</span> : null}
         {counts.upcoming ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">{counts.upcoming} upcoming</span> : null}
         {counts.snoozed ? <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">{counts.snoozed} snoozed</span> : null}
-        {!total ? <span className="text-sm font-medium text-zinc-500">No alerts</span> : null}
+        {!total && readiness.configured ? <span className="text-sm font-medium text-green-700">No alerts</span> : null}
+        {!readiness.configured ? <span className="block w-full text-xs text-zinc-500">{[readiness.missingOdometer ? "odometer" : null, readiness.missingSchedule ? "schedule" : null].filter(Boolean).join(" + ")} missing</span> : null}
       </div>
     </div>
   );
 }
 
-function UnitGroup({ title, units, maintenanceByUnit }: { title: string; units: Unit[]; maintenanceByUnit: Map<string, MaintenanceCounts> }) {
+function UnitGroup({ title, units, maintenanceByUnit, readinessByUnit }: { title: string; units: Unit[]; maintenanceByUnit: Map<string, MaintenanceCounts>; readinessByUnit: Map<string, MaintenanceReadiness> }) {
   return (
     <section className="space-y-3">
       <div className="flex items-end justify-between gap-3">
@@ -72,8 +75,9 @@ function UnitGroup({ title, units, maintenanceByUnit }: { title: string; units: 
                     {unit.odometer != null ? `${unit.odometer.toLocaleString()} mi` : "Not set"}
                   </div>
                 </div>
-                <MaintenanceSummary counts={maintenanceByUnit.get(unit.id) ?? emptyMaintenanceCounts()} />
+                <MaintenanceSummary counts={maintenanceByUnit.get(unit.id) ?? emptyMaintenanceCounts()} readiness={readinessByUnit.get(unit.id)!} />
               </div>
+              <div className="mt-2 text-xs text-zinc-500">Last odometer update: {unit.odometer_updated_at ? new Date(unit.odometer_updated_at).toLocaleDateString() : unit.odometer == null ? "Never" : "Unknown"}</div>
               <div className="mt-4 text-sm font-medium text-zinc-500 transition group-hover:text-zinc-950">
                 View unit <span aria-hidden="true">→</span>
               </div>
@@ -101,6 +105,7 @@ export default async function FleetPage({
   const fleet = fleetScopeParam(scope);
   const [maintenanceAlerts] = await Promise.all([getMaintenanceAlerts(scope)]);
   const units = allUnits.filter((unit) => matchesFleetScope(unit.company, scope));
+  const readinessByUnit = new Map(buildMaintenanceReadiness(units, maintenanceAlerts).map((item) => [item.unit.id, item]));
   const maintenanceByUnit = maintenanceAlerts.reduce((byUnit, alert) => {
     const counts = byUnit.get(alert.unit_id) ?? emptyMaintenanceCounts();
     if (alert.snoozed) counts.snoozed += 1;
@@ -177,8 +182,8 @@ export default async function FleetPage({
         params={{ q: params.q }}
       />
 
-      <UnitGroup title="Trucks" units={trucks} maintenanceByUnit={maintenanceByUnit} />
-      <UnitGroup title="Trailers" units={trailers} maintenanceByUnit={maintenanceByUnit} />
+      <UnitGroup title="Trucks" units={trucks} maintenanceByUnit={maintenanceByUnit} readinessByUnit={readinessByUnit} />
+      <UnitGroup title="Trailers" units={trailers} maintenanceByUnit={maintenanceByUnit} readinessByUnit={readinessByUnit} />
     </div>
   );
 }
