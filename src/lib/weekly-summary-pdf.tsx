@@ -161,7 +161,7 @@ export function WeeklySummaryPdf({
     { label: "OTHER COSTS", width: "12%", right: true },
     { label: "FACTORING", width: "10%", right: true },
     { label: "OTHER DED.", width: "11%", right: true },
-    { label: "COMPLETE PROFIT", width: "14%", right: true },
+    { label: "EST. PROFIT", width: "14%", right: true },
   ];
   const driverColumns: Column[] = [
     { label: "DRIVER", width: "42%" },
@@ -186,10 +186,10 @@ export function WeeklySummaryPdf({
           <Metric label="Loads" value={String(totals.loads)} />
           <Metric label="Revenue" value={money(totals.revenue)} />
           <Metric label="Total costs" value={money(totals.driverPay + totals.dispatcherFees + totals.fuel + totals.factoring + totals.otherDeductions)} />
-          <Metric label="Complete-load profit" value={money(totals.profit)} accent />
+          <Metric label="Est. profit" value={money(totals.profit)} accent />
         </View>
 
-        {totals.incompleteLoads ? <Text style={styles.warning}>{totals.incompleteLoads} incomplete load(s) affect {money(totals.incompleteRevenue)} in revenue. Their {money(totals.provisionalMargin)} provisional margin is excluded from complete-load profit.</Text> : null}
+        {totals.incompleteLoads ? <Text style={styles.warning}>Estimated profit excludes {totals.incompleteLoads} load(s) with incomplete cost inputs, affecting {money(totals.incompleteRevenue)} in revenue.</Text> : null}
 
         <View style={styles.section}>
           <View style={styles.sectionHeading} wrap={false} minPresenceAhead={60}>
@@ -229,7 +229,7 @@ export function WeeklySummaryPdf({
               </View>
             )) : <Text style={styles.empty}>No driver payroll in this period.</Text>}
           </View>
-          <Text style={styles.note}>Complete-load profit is revenue less driver pay, dispatcher fees, load-level fuel estimates, factoring, and other labeled deductions for loads with every required cost confirmed. Actual fuel purchases live in IFTA and Bookkeeping and are not added again here. Complete-load profit ratio against displayed revenue: {margin.toFixed(1)}%.</Text>
+          <Text style={styles.note}>Estimated profit is revenue less driver pay, dispatcher fees, load-level fuel estimates, factoring, and other labeled deductions for loads with every required cost confirmed. Actual fuel purchases live in IFTA and Bookkeeping and are not added again here. Profit margin against displayed revenue: {margin.toFixed(1)}%.</Text>
         </View>
 
         <View style={styles.footer} fixed>

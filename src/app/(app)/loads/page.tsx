@@ -9,11 +9,9 @@ import { getFormOptions } from "@/lib/data/options";
 import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import { getLoads, isLoadClientPaymentPaid } from "@/lib/data/loads";
 import { currency, formatDate } from "@/lib/utils";
-import { loadCloseoutStatuses, loadStatuses } from "@/types/database";
-import { closeoutReason } from "@/lib/load-lifecycle";
+import { loadStatuses } from "@/types/database";
 import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
 import { formatStopWindow, type DispatchStop } from "@/lib/dispatch";
-import { financialCompleteness } from "@/lib/financials";
 import { PaginationControls } from "@/components/pagination-controls";
 import { normalizeLoadView } from "@/lib/data/loads";
 import { pageHref, parsePagination, totalPages } from "@/lib/pagination";
@@ -21,38 +19,42 @@ import { pageHref, parsePagination, totalPages } from "@/lib/pagination";
 export default async function LoadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; closeout?: string; broker?: string; driver?: string; payment?: string; financial?: string; fleet?: string; page?: string; pageSize?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; broker?: string; driver?: string; payment?: string; fleet?: string; page?: string; pageSize?: string }>;
 }) {
   const params = await searchParams;
   const pagination = parsePagination(params);
-  const status = normalizeLoadView(params.status);
+  const status = normalizeLoadView(params.status ?? "all");
   const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
   const scope = parseFleetScope(params.fleet, fleetCompanies);
   if (!scope) notFound();
   const fleet = fleetScopeParam(scope);
-  const result = await getLoads({ ...params, status, fleetScope: scope, pagination });
+  const result = await getLoads({
+    q: params.q,
+    status,
+    broker: params.broker,
+    driver: params.driver,
+    payment: params.payment,
+    fleetScope: scope,
+    pagination,
+  });
   const loads = result.items;
   const lastPage = totalPages(result.total, pagination.pageSize);
   if (pagination.page > lastPage) {
     redirect(pageHref("/loads", {
       q: params.q,
       status,
-      closeout: params.closeout,
       broker: params.broker,
       driver: params.driver,
       payment: params.payment,
-      financial: params.financial,
       fleet,
     }, lastPage, pagination.pageSize));
   }
   const exportParams = new URLSearchParams();
   if (params.q) exportParams.set("q", params.q);
   exportParams.set("status", status);
-  if (params.closeout) exportParams.set("closeout", params.closeout);
   if (params.broker) exportParams.set("broker", params.broker);
   if (params.driver) exportParams.set("driver", params.driver);
   if (params.payment) exportParams.set("payment", params.payment);
-  if (params.financial) exportParams.set("financial", params.financial);
   if (fleet) exportParams.set("fleet", fleet);
   const exportHref = `/api/loads/export${exportParams.size ? `?${exportParams.toString()}` : ""}`;
   const roundTripSummary = (load: (typeof loads)[number]) =>
@@ -87,34 +89,23 @@ export default async function LoadsPage({
         params={{
           q: params.q,
           status,
-          closeout: params.closeout,
           broker: params.broker,
           driver: params.driver,
           payment: params.payment,
-          financial: params.financial,
           pageSize: String(pagination.pageSize),
         }}
       />
 
-      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-4 xl:grid-cols-8">
+      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-6">
         {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
         <input type="hidden" name="pageSize" value={pagination.pageSize} />
         <Field label="Search">
-          <Input name="q" defaultValue={params.q ?? ""} placeholder="Load, contact, equipment, or stop" />
+          <Input name="q" defaultValue={params.q ?? ""} placeholder="Load, city, carrier" />
         </Field>
         <Field label="Status">
           <Select name="status" defaultValue={status}>
-            <option value="active">Operationally active</option>
-            <option value="recent">Created in the last 30 days</option>
             <option value="all">All statuses</option>
             {loadStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-          </Select>
-        </Field>
-        <Field label="Closeout">
-          <Select name="closeout" defaultValue={params.closeout ?? ""}>
-            <option value="">All stages</option>
-            <option value="all-open">All open closeout</option>
-            {loadCloseoutStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
           </Select>
         </Field>
         <Field label="Broker">
@@ -134,13 +125,6 @@ export default async function LoadsPage({
             <option value="">All payments</option>
             <option value="paid">Paid</option>
             <option value="unpaid">Not paid</option>
-          </Select>
-        </Field>
-        <Field label="Financial data">
-          <Select name="financial" defaultValue={params.financial ?? "all"}>
-            <option value="all">All records</option>
-            <option value="complete">Complete only</option>
-            <option value="incomplete">Incomplete only</option>
           </Select>
         </Field>
         <div className="flex items-end gap-2">
@@ -219,25 +203,10 @@ export default async function LoadsPage({
                     ) : null}
                   </div>,
                 )}
-                {linkedCell(load.id, <div>
-                  <div>{currency(load.load_rate)}</div>
-                  {financialCompleteness(load).complete ? (
-                    <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">Financials complete</span>
-                  ) : (
-                    <div className="mt-1">
-                      <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Financials incomplete</span>
-                      <div className="mt-1 text-xs text-amber-800">Missing {financialCompleteness(load).missingLabels.join(", ")}</div>
-                    </div>
-                  )}
-                </div>)}
+                {linkedCell(load.id, currency(load.load_rate))}
                 <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-1.5">
-                    <LoadStatusSelect loadId={load.id} status={load.status} closeoutStatus={load.post_delivery_status} />
-                    {load.post_delivery_status ? (
-                      <span className="max-w-40 rounded-full bg-amber-50 px-2.5 py-1 text-center text-xs font-semibold text-amber-800" title={closeoutReason(load.post_delivery_status)}>
-                        {load.post_delivery_status}
-                      </span>
-                    ) : null}
+                    <LoadStatusSelect loadId={load.id} status={load.status} />
                     <LoadPaymentSelect loadId={load.id} paid={isLoadClientPaymentPaid(load)} />
                   </div>
                 </td>
@@ -264,11 +233,9 @@ export default async function LoadsPage({
         params={{
           q: params.q,
           status,
-          closeout: params.closeout,
           broker: params.broker,
           driver: params.driver,
           payment: params.payment,
-          financial: params.financial,
           fleet,
         }}
         pagination={pagination}

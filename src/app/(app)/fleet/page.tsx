@@ -77,7 +77,6 @@ function UnitGroup({ title, units, maintenanceByUnit, readinessByUnit }: { title
                 </div>
                 <MaintenanceSummary counts={maintenanceByUnit.get(unit.id) ?? emptyMaintenanceCounts()} readiness={readinessByUnit.get(unit.id)!} />
               </div>
-              <div className="mt-2 text-xs text-zinc-500">Last odometer update: {unit.odometer_updated_at ? new Date(unit.odometer_updated_at).toLocaleDateString() : unit.odometer == null ? "Never" : "Unknown"}</div>
               <div className="mt-4 text-sm font-medium text-zinc-500 transition group-hover:text-zinc-950">
                 View unit <span aria-hidden="true">→</span>
               </div>

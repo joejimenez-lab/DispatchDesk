@@ -4,13 +4,12 @@ import { LinkButton } from "@/components/button";
 import { Field, Select, Textarea } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import { StatusBadge } from "@/components/status-badge";
-import { addNote, deleteDocument, deleteLoad, updateLoadCloseout, updatePaymentFlag, uploadDocument } from "@/lib/actions/loads";
+import { addNote, deleteDocument, deleteLoad, updatePaymentFlag, uploadDocument } from "@/lib/actions/loads";
 import { getAssignmentWindows, getLoad, getLoadRelated } from "@/lib/data/loads";
 import { clientCollected, clientOutstanding, financialCompleteness, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
 import { currency, formatDate } from "@/lib/utils";
 import { documentCategories } from "@/types/database";
 import { findAssignmentConflicts, formatStopWindow, type DispatchStop } from "@/lib/dispatch";
-import { closeoutReason } from "@/lib/load-lifecycle";
 
 function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -123,39 +122,6 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
         </section>
       ) : null}
 
-      {load.status === "Delivered" ? (
-        <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Post-delivery closeout</div>
-              <h2 className="mt-1 text-lg font-semibold text-amber-950">{load.post_delivery_status ?? "Awaiting Documents"}</h2>
-              <p className="mt-1 text-sm text-amber-900">{closeoutReason(load.post_delivery_status)}</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <ActionForm action={updateLoadCloseout.bind(null, id, "documents_complete", !load.documents_complete_at)} successMessage={false}>
-                <SubmitButton variant="secondary" pendingText="Updating...">
-                  {load.documents_complete_at ? "Mark documents incomplete" : "Mark documents complete"}
-                </SubmitButton>
-              </ActionForm>
-              {load.post_delivery_status === "Paid" ? (
-                <ActionForm action={updateLoadCloseout.bind(null, id, "closed", true)} successMessage={false}>
-                  <SubmitButton pendingText="Closing...">Close load</SubmitButton>
-                </ActionForm>
-              ) : null}
-              {load.post_delivery_status === "Closed" ? (
-                <ActionForm action={updateLoadCloseout.bind(null, id, "closed", false)} successMessage={false}>
-                  <SubmitButton variant="secondary" pendingText="Reopening...">Reopen closeout</SubmitButton>
-                </ActionForm>
-              ) : null}
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-amber-800">
-            <span>Documents: {load.documents_complete_at ? new Date(load.documents_complete_at).toLocaleString() : "Incomplete"}</span>
-            <span>Closed: {load.closed_at ? new Date(load.closed_at).toLocaleString() : "Not closed"}</span>
-          </div>
-        </section>
-      ) : null}
-
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
           <h2 className="mb-4 text-lg font-semibold text-zinc-950">Load Details</h2>
@@ -214,15 +180,8 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="mb-4 text-lg font-semibold text-zinc-950">Financial Summary</h2>
-            {completeness.complete ? (
-              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-900">Financial inputs complete</div>
-            ) : (
-              <div role="alert" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
-                <div className="font-semibold">Financial inputs incomplete</div>
-                <div className="mt-1">Missing {completeness.missingLabels.join(", ")}. The margin below is provisional and must not be treated as final profit.</div>
-              </div>
-            )}
             <dl className="space-y-3">
+              {!completeness.complete ? <Detail label="Financial data" value={`Incomplete · missing ${completeness.missingLabels.join(", ")}`} /> : null}
               <Detail label="Load Rate" value={currency(load.load_rate)} />
               <Detail label="Driver Pay" value={load.driver_pay_known ? currency(load.driver_pay) : "Unknown"} />
               <Detail label="Dispatcher Fee" value={load.dispatcher_fee_known ? currency(load.dispatcher_fee) : "Unknown"} />
