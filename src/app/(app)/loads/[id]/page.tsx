@@ -4,12 +4,13 @@ import { LinkButton } from "@/components/button";
 import { Field, Select, Textarea } from "@/components/field";
 import { ConfirmSubmitButton, SubmitButton } from "@/components/form-buttons";
 import { StatusBadge } from "@/components/status-badge";
-import { addNote, deleteDocument, deleteLoad, updatePaymentFlag, uploadDocument } from "@/lib/actions/loads";
+import { addNote, deleteDocument, deleteLoad, updateLoadCloseout, updatePaymentFlag, uploadDocument } from "@/lib/actions/loads";
 import { getAssignmentWindows, getLoad, getLoadRelated } from "@/lib/data/loads";
 import { clientCollected, clientOutstanding, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
 import { currency, formatDate } from "@/lib/utils";
 import { documentCategories } from "@/types/database";
 import { findAssignmentConflicts, formatStopWindow, type DispatchStop } from "@/lib/dispatch";
+import { closeoutReason } from "@/lib/load-lifecycle";
 
 function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -118,6 +119,39 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
           <ul className="mt-2 list-disc pl-5 text-sm text-amber-900">
             {conflicts.map((conflict) => <li key={conflict.loadId}><Link className="font-semibold underline" href={`/loads/${conflict.loadId}`}>Load {conflict.loadNumber}</Link>: {conflict.resources.join(", ")}</li>)}
           </ul>
+        </section>
+      ) : null}
+
+      {load.status === "Delivered" ? (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Post-delivery closeout</div>
+              <h2 className="mt-1 text-lg font-semibold text-amber-950">{load.post_delivery_status ?? "Awaiting Documents"}</h2>
+              <p className="mt-1 text-sm text-amber-900">{closeoutReason(load.post_delivery_status)}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <ActionForm action={updateLoadCloseout.bind(null, id, "documents_complete", !load.documents_complete_at)} successMessage={false}>
+                <SubmitButton variant="secondary" pendingText="Updating...">
+                  {load.documents_complete_at ? "Mark documents incomplete" : "Mark documents complete"}
+                </SubmitButton>
+              </ActionForm>
+              {load.post_delivery_status === "Paid" ? (
+                <ActionForm action={updateLoadCloseout.bind(null, id, "closed", true)} successMessage={false}>
+                  <SubmitButton pendingText="Closing...">Close load</SubmitButton>
+                </ActionForm>
+              ) : null}
+              {load.post_delivery_status === "Closed" ? (
+                <ActionForm action={updateLoadCloseout.bind(null, id, "closed", false)} successMessage={false}>
+                  <SubmitButton variant="secondary" pendingText="Reopening...">Reopen closeout</SubmitButton>
+                </ActionForm>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-amber-800">
+            <span>Documents: {load.documents_complete_at ? new Date(load.documents_complete_at).toLocaleString() : "Incomplete"}</span>
+            <span>Closed: {load.closed_at ? new Date(load.closed_at).toLocaleString() : "Not closed"}</span>
+          </div>
         </section>
       ) : null}
 

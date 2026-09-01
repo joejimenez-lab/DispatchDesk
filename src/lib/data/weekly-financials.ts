@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { deductionsTotal, profitForLoad, roundCents, totalDeductionsForLoad } from "@/lib/financials";
-import type { LoadStatus } from "@/types/database";
+import type { LoadCloseoutStatus, LoadStatus } from "@/types/database";
 import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
 
 type WeeklyFinancialLoad = {
   id: string;
   load_number: string;
   status: LoadStatus;
+  post_delivery_status: LoadCloseoutStatus | null;
   pickup_date: string | null;
   delivery_date: string | null;
   is_round_trip: boolean;
@@ -47,6 +48,7 @@ export type WeeklyDriverFinancialSummary = {
     id: string;
     loadNumber: string;
     status: LoadStatus;
+    postDeliveryStatus: LoadCloseoutStatus | null;
     date: string;
     isRoundTrip: boolean;
     returnLocation: string | null;
@@ -172,7 +174,7 @@ export async function getWeeklyDriverFinancialSummary(
 
   let query = supabase
     .from("loads")
-    .select("id, load_number, status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, fleet_company, drivers(name)")
+    .select("id, load_number, status, post_delivery_status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, fleet_company, drivers(name)")
     .neq("status", "Cancelled")
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("pickup_date", { ascending: false, nullsFirst: false })
@@ -237,6 +239,7 @@ export async function getWeeklyDriverFinancialSummary(
       id: load.id,
       loadNumber: load.load_number,
       status: load.status,
+      postDeliveryStatus: load.post_delivery_status,
       date,
       isRoundTrip: load.is_round_trip,
       returnLocation: load.return_location,

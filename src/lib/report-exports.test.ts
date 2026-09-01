@@ -18,7 +18,7 @@ const summaries: WeeklyDriverFinancialSummary[] = [
     otherDeductionTotal: 20,
     totalDeductionsTotal: 50,
     estimatedProfitTotal: 200,
-    loads: [{ id: "1", loadNumber: "L1", status: "Closed", date: "2026-01-06", isRoundTrip: false, returnLocation: null, roundTripDetails: null, loadRate: 1000, driverPay: 500, dispatcherFee: 100, fuelCost: 150, factoringMode: "percentage", factoringPercent: 3, factoringFixedAmount: 0, factoringAmount: 30, otherDeductions: [{ label: "Lumper", amount: 20 }], otherDeductionTotal: 20, totalDeductions: 50, estimatedProfit: 200 }],
+    loads: [{ id: "1", loadNumber: "L1", status: "Delivered", postDeliveryStatus: "Closed", date: "2026-01-06", isRoundTrip: false, returnLocation: null, roundTripDetails: null, loadRate: 1000, driverPay: 500, dispatcherFee: 100, fuelCost: 150, factoringMode: "percentage", factoringPercent: 3, factoringFixedAmount: 0, factoringAmount: 30, otherDeductions: [{ label: "Lumper", amount: 20 }], otherDeductionTotal: 20, totalDeductions: 50, estimatedProfit: 200 }],
   },
   {
     key: "2026-01-05:b",
@@ -35,7 +35,7 @@ const summaries: WeeklyDriverFinancialSummary[] = [
     otherDeductionTotal: 10,
     totalDeductionsTotal: 34,
     estimatedProfitTotal: 166,
-    loads: [{ id: "2", loadNumber: "L2", status: "Delivered", date: "2026-01-07", isRoundTrip: false, returnLocation: null, roundTripDetails: null, loadRate: 800, driverPay: 400, dispatcherFee: 80, fuelCost: 120, factoringMode: "amount", factoringPercent: 0, factoringFixedAmount: 24, factoringAmount: 24, otherDeductions: [{ label: "Scale", amount: 10 }], otherDeductionTotal: 10, totalDeductions: 34, estimatedProfit: 166 }],
+    loads: [{ id: "2", loadNumber: "L2", status: "Delivered", postDeliveryStatus: "Invoiced", date: "2026-01-07", isRoundTrip: false, returnLocation: null, roundTripDetails: null, loadRate: 800, driverPay: 400, dispatcherFee: 80, fuelCost: 120, factoringMode: "amount", factoringPercent: 0, factoringFixedAmount: 24, factoringAmount: 24, otherDeductions: [{ label: "Scale", amount: 10 }], otherDeductionTotal: 10, totalDeductions: 34, estimatedProfit: 166 }],
   },
 ];
 

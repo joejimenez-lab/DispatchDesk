@@ -238,7 +238,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
     if (report === "client-billing") {
       let query = supabase
         .from("loads")
-        .select("load_number, status, pickup_date, delivery_date, created_at, load_rate, driver_id, fleet_company, brokers(company_name), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
+        .select("load_number, status, post_delivery_status, pickup_date, delivery_date, created_at, load_rate, driver_id, fleet_company, brokers(company_name), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
         .neq("status", "Cancelled")
         .order("delivery_date", { ascending: false, nullsFirst: false })
         .order("pickup_date", { ascending: false, nullsFirst: false });
@@ -249,6 +249,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
       const rows: BillingRow[] = ((data ?? []) as unknown as {
         load_number: string;
         status: string;
+        post_delivery_status: string | null;
         pickup_date: string | null;
         delivery_date: string | null;
         created_at: string;
@@ -269,6 +270,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         loadDate: load.delivery_date ?? load.pickup_date ?? load.created_at.slice(0, 10),
         broker: load.brokers?.company_name ?? null,
         status: load.status,
+        postDeliveryStatus: load.post_delivery_status,
         loadRate: Number(load.load_rate),
         invoiceSent: Boolean(load.payments?.invoice_sent),
         invoiceSentDate: load.payments?.invoice_sent_date ?? null,
@@ -303,7 +305,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Received", width: "12%", align: "right" },
           { label: "Outstanding", width: "14%", align: "right" },
         ],
-        rows: rows.map((row) => [row.fleet, row.loadNumber, row.loadDate, row.broker ?? "", row.status, money(row.loadRate), money(row.amountReceived), money(row.outstanding)]),
+        rows: rows.map((row) => [row.fleet, row.loadNumber, row.loadDate, row.broker ?? "", [row.status, row.postDeliveryStatus].filter(Boolean).join(" · "), money(row.loadRate), money(row.amountReceived), money(row.outstanding)]),
         emptyMessage: "No client billing records match the selected filters.",
       }, report, scope);
     }

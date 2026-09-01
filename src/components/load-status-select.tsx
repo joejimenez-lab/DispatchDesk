@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateLoadStatus } from "@/lib/actions/loads";
 import { cn } from "@/lib/utils";
-import { loadStatuses, type LoadStatus } from "@/types/database";
+import { loadStatuses, type LoadCloseoutStatus, type LoadStatus } from "@/types/database";
 
 const tones: Record<LoadStatus, string> = {
   Booked: "border-sky-200 bg-sky-50 text-sky-700",
@@ -16,7 +16,7 @@ const tones: Record<LoadStatus, string> = {
   Cancelled: "border-red-200 bg-red-50 text-red-700",
 };
 
-export function LoadStatusSelect({ loadId, status }: { loadId: string; status: LoadStatus }) {
+export function LoadStatusSelect({ loadId, status, closeoutStatus }: { loadId: string; status: LoadStatus; closeoutStatus?: LoadCloseoutStatus | null }) {
   const router = useRouter();
   const [selectedStatus, setSelectedStatus] = useState(status);
   const [isPending, startTransition] = useTransition();
@@ -40,7 +40,8 @@ export function LoadStatusSelect({ loadId, status }: { loadId: string; status: L
     <select
       aria-label="Update load status"
       value={selectedStatus}
-      disabled={isPending}
+      disabled={isPending || closeoutStatus === "Closed"}
+      title={closeoutStatus === "Closed" ? "Reopen the closeout before changing transportation status." : undefined}
       onChange={(event) => changeStatus(event.target.value as LoadStatus)}
       className={cn(
         "h-9 rounded-xl border px-3 text-[12px] font-semibold tracking-[0.01em] outline-none transition focus:ring-2 focus:ring-[#6757e8]/25 disabled:cursor-wait disabled:opacity-70",

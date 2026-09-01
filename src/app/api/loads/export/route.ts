@@ -3,9 +3,10 @@ import { csvRow } from "@/lib/csv";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
 import { clientCollected, clientOutstanding, deductionsTotal, isClientPaymentPaid, profitForLoad, totalDeductionsForLoad } from "@/lib/financials";
 import { ilikeOr, searchTokens } from "@/lib/search";
-import type { LoadStatus } from "@/types/database";
+import type { LoadCloseoutStatus, LoadStatus } from "@/types/database";
 import { applyFleetScope, fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
 import { formatStopWindow, type DispatchStop } from "@/lib/dispatch";
+import { closeoutReason } from "@/lib/load-lifecycle";
 
 const LOAD_SEARCH_COLUMNS = ["load_number", "pickup_location", "delivery_location", "return_location", "carrier_company", "fleet_company", "truck_number", "trailer_number", "commodity", "special_instructions"];
 const STOP_SEARCH_COLUMNS = ["location", "appointment_number", "reference_number", "instructions"];
@@ -13,6 +14,9 @@ const STOP_SEARCH_COLUMNS = ["location", "appointment_number", "reference_number
 type ExportLoad = {
   load_number: string;
   status: LoadStatus;
+  post_delivery_status: LoadCloseoutStatus | null;
+  documents_complete_at: string | null;
+  closed_at: string | null;
   pickup_location: string;
   pickup_date: string | null;
   delivery_location: string;
@@ -75,6 +79,7 @@ export async function GET(request: Request) {
 
   const { supabase } = auth;
   const status = searchParams.get("status");
+  const closeout = searchParams.get("closeout");
   const broker = searchParams.get("broker");
   const driver = searchParams.get("driver");
   const paymentFilter = searchParams.get("payment");
@@ -89,12 +94,17 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("loads")
-    .select("load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, commodity, weight_lbs, pallet_count, special_instructions, load_stops(*), load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
+    .select("load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, commodity, weight_lbs, pallet_count, special_instructions, load_stops(*), load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
     .order("created_at", { ascending: false });
 
-  if (status) query = query.eq("status", status as LoadStatus);
+  if (status && !closeout) query = query.eq("status", status as LoadStatus);
   if (broker) query = query.eq("broker_id", broker);
   if (driver) query = query.eq("driver_id", driver);
+  if (closeout === "all-open") {
+    query = query.eq("status", "Delivered").or("post_delivery_status.is.null,post_delivery_status.neq.Closed");
+  } else if (closeout) {
+    query = query.eq("post_delivery_status", closeout as LoadCloseoutStatus);
+  }
   query = applyFleetScope(query, scope);
   for (const token of searchTokens(q)) {
     const stopMatches = await supabase.from("load_stops").select("load_id").or(ilikeOr(STOP_SEARCH_COLUMNS, token));
@@ -119,6 +129,10 @@ export async function GET(request: Request) {
   const headers = [
     "Load Number",
     "Status",
+    "Post-delivery Stage",
+    "Why Not Closed",
+    "Documents Complete At",
+    "Closed At",
     "Broker",
     "Broker Contact",
     "Carrier",
@@ -182,6 +196,10 @@ export async function GET(request: Request) {
       return csvRow([
         load.load_number,
         load.status,
+        load.post_delivery_status,
+        load.post_delivery_status === "Closed" ? "" : closeoutReason(load.post_delivery_status),
+        load.documents_complete_at,
+        load.closed_at,
         load.brokers?.company_name,
         load.brokers?.contact_name,
         load.carrier_company,

@@ -256,7 +256,7 @@ export const trustedTools = {
   },
 
   get_pending_driver_payments: {
-    description: "Calculate unpaid driver pay for delivered or closed loads using stored driver payment amounts.",
+    description: "Calculate unpaid driver pay for delivered loads using stored driver payment amounts.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     async run(supabase, argumentsValue) {
       emptyArgumentsSchema.parse(argumentsValue);
@@ -271,7 +271,7 @@ export const trustedTools = {
       const { rows, sourceResultsLimited } = await fetchAllPages<PendingDriverPayRow>((from, to) => supabase
         .from("loads")
         .select("id, load_number, delivery_date, driver_pay, drivers(name), payments(driver_paid, driver_amount_paid)")
-        .in("status", ["Delivered", "Closed"])
+        .eq("status", "Delivered")
         .order("id")
         .range(from, to) as unknown as PromiseLike<{ data: PendingDriverPayRow[] | null; error: unknown }>);
 

@@ -4,11 +4,15 @@ import { mapMaintenanceAlerts } from "@/lib/data/maintenance";
 import { buildMaintenanceReadiness, getDashboardMaintenanceSummary, summarizeMaintenanceReadiness } from "@/lib/maintenance";
 import type { LoadStatus } from "@/types/database";
 import { applyFleetScope, matchesFleetScope, type FleetScope } from "@/lib/fleet-scope";
+import { closeoutReason, isActiveTransportation, summarizeLifecycle, type LoadCloseoutStatus } from "@/lib/load-lifecycle";
 
 type DashboardLoad = {
   id: string;
   load_number: string;
   status: LoadStatus;
+  post_delivery_status: LoadCloseoutStatus | null;
+  documents_complete_at: string | null;
+  closed_at: string | null;
   pickup_location: string;
   pickup_date: string | null;
   delivery_location: string;
@@ -25,8 +29,8 @@ type DashboardLoad = {
   drivers: { name: string } | null;
   fleet_company: string | null;
   payments:
-    | { client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean }
-    | { client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean }[]
+    | { invoice_sent: boolean; client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean }
+    | { invoice_sent: boolean; client_paid: boolean; client_amount_received: number; driver_paid: boolean; driver_amount_paid: number; dispatcher_paid: boolean }[]
     | null;
 };
 
@@ -38,7 +42,7 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
 
   let loadsQuery = supabase
       .from("loads")
-      .select("id, load_number, status, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, fleet_company, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_amount, load_deductions(amount), brokers(company_name), drivers(name), payments(client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
+      .select("id, load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, fleet_company, load_rate, driver_pay, dispatcher_fee, fuel_cost, factoring_amount, load_deductions(amount), brokers(company_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid)")
       .order("created_at", { ascending: false });
   loadsQuery = applyFleetScope(loadsQuery, scope);
   const [loadsResult, remindersResult, unitsResult] = await Promise.all([
@@ -61,17 +65,14 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
   const maintenanceSummary = getDashboardMaintenanceSummary(allMaintenanceAlerts);
   const scopedUnits = (unitsResult.data ?? []).filter((unit) => matchesFleetScope(unit.company, scope));
   const maintenanceReadiness = summarizeMaintenanceReadiness(buildMaintenanceReadiness(scopedUnits, allMaintenanceAlerts));
+  const lifecycle = summarizeLifecycle(rows);
 
   const metrics = rows.reduce(
     (metrics, load) => {
       const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
-      const active = !["Closed", "Cancelled"].includes(load.status);
       const billable = load.status !== "Cancelled";
-      const delivered = ["Delivered", "Closed"].includes(load.status);
+      const delivered = load.status === "Delivered";
 
-      if (active) metrics.activeLoads += 1;
-      if (delivered) metrics.deliveredLoads += 1;
-      if (load.status === "Closed") metrics.closedLoads += 1;
       if (clientOutstanding(load.load_rate, payment) > 0 && load.status !== "Cancelled") metrics.unpaidLoads += 1;
       if (!payment?.driver_paid && delivered) {
         metrics.pendingDriverPayments += Math.max(
@@ -92,10 +93,7 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
       return metrics;
     },
     {
-      activeLoads: 0,
-      deliveredLoads: 0,
       unpaidLoads: 0,
-      closedLoads: 0,
       totalRevenue: 0,
       collectedRevenue: 0,
       outstandingRevenue: 0,
@@ -107,7 +105,7 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
   );
 
   const currentLoads = rows
-    .filter((load) => !["Closed", "Cancelled"].includes(load.status))
+    .filter((load) => isActiveTransportation(load.status))
     .sort((a, b) => (a.delivery_date ?? "9999-12-31").localeCompare(b.delivery_date ?? "9999-12-31"))
     .slice(0, 6);
 
@@ -131,7 +129,7 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
 
   const upcomingDeliveries = rows
     .filter((load) => {
-      if (!load.delivery_date || ["Closed", "Cancelled"].includes(load.status)) return false;
+      if (!load.delivery_date || !isActiveTransportation(load.status)) return false;
       const deliveryDate = new Date(`${load.delivery_date}T00:00:00`);
       return deliveryDate >= today;
     })
@@ -143,9 +141,17 @@ export async function getDashboardMetrics(scope: FleetScope = { kind: "all" }) {
     return counts;
   }, {});
 
+  const postDeliveryWork = rows
+    .filter((load) => load.status === "Delivered" && load.post_delivery_status !== "Closed")
+    .sort((a, b) => (a.delivery_date ?? "9999-12-31").localeCompare(b.delivery_date ?? "9999-12-31"))
+    .slice(0, 8)
+    .map((load) => ({ ...load, closeoutReason: closeoutReason(load.post_delivery_status) }));
+
   return {
     ...metrics,
+    ...lifecycle,
     currentLoads,
+    postDeliveryWork,
     unpaidAlerts,
     upcomingDeliveries,
     maintenanceAlerts: maintenanceSummary.visible,

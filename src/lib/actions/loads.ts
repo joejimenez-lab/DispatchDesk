@@ -324,6 +324,29 @@ export async function updateLoadStatus(loadId: string, status: LoadStatus): Prom
   return successState("Status updated.");
 }
 
+export async function updateLoadCloseout(
+  loadId: string,
+  milestone: "documents_complete" | "closed",
+  complete: boolean,
+): Promise<ActionState> {
+  if (!loadId || !["documents_complete", "closed"].includes(milestone)) {
+    return errorState(new Error("Invalid closeout milestone."), "Could not update closeout.");
+  }
+
+  const { supabase } = await createAuthenticatedClient();
+  const { error } = await supabase.rpc("set_load_closeout_milestone", {
+    p_load_id: loadId,
+    p_milestone: milestone,
+    p_complete: complete,
+  });
+  if (error) return errorState(error, "Could not update closeout.");
+
+  revalidatePath("/loads");
+  revalidatePath(`/loads/${loadId}`);
+  revalidatePath("/dashboard");
+  return successState("Closeout updated.");
+}
+
 export async function deleteLoad(loadId: string, _state: ActionState): Promise<ActionState> {
   void _state;
 

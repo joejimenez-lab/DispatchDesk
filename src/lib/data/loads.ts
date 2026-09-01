@@ -3,7 +3,7 @@ import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { createClient } from "@/lib/supabase/server";
 import { ilikeOr, searchTokens } from "@/lib/search";
 import { isClientPaymentPaid } from "@/lib/financials";
-import type { Database, LoadStatus } from "@/types/database";
+import type { Database, LoadCloseoutStatus, LoadStatus } from "@/types/database";
 import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
 import { scheduleWindow, type AssignmentWindow, type DispatchStop } from "@/lib/dispatch";
 
@@ -49,6 +49,7 @@ export async function getLoads(params: {
   broker?: string;
   driver?: string;
   payment?: string;
+  closeout?: string;
   fleetScope?: FleetScope;
 }) {
   const supabase = await createClient();
@@ -58,9 +59,16 @@ export async function getLoads(params: {
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
-  if (params.status) query = query.eq("status", params.status as LoadStatus);
+  // A closeout filter defines Delivered work and takes precedence over an old
+  // operational-status query parameter retained in a bookmarked URL.
+  if (params.status && !params.closeout) query = query.eq("status", params.status as LoadStatus);
   if (params.broker) query = query.eq("broker_id", params.broker);
   if (params.driver) query = query.eq("driver_id", params.driver);
+  if (params.closeout === "all-open") {
+    query = query.eq("status", "Delivered").or("post_delivery_status.is.null,post_delivery_status.neq.Closed");
+  } else if (params.closeout) {
+    query = query.eq("post_delivery_status", params.closeout as LoadCloseoutStatus);
+  }
   if (params.fleetScope) query = applyFleetScope(query, params.fleetScope);
   // Each token must match at least one column; chained `.or()` calls are ANDed
   // together, so "Dallas Memphis" matches a load whose lane spans both cities.

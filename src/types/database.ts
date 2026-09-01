@@ -7,13 +7,15 @@ export type Json =
   | Json[]
 
 export type LoadStatus = Database["public"]["Enums"]["load_status"]
+export type LoadCloseoutStatus = Database["public"]["Enums"]["load_closeout_status"]
 export type DocumentCategory = Database["public"]["Enums"]["document_category"]
 export type ExpenseCategory = Database["public"]["Enums"]["expense_category"]
 export type UnitType = Database["public"]["Enums"]["unit_type"]
 export type MaintenanceReminderType = "Monthly service" | "90-day inspection" | "Annual inspection" | "Oil change" | "Repair follow-up" | "Daily repair log"
 export type RepairLogType = "Repair" | "Daily repair log"
 
-export const loadStatuses: LoadStatus[] = ["Booked", "Dispatched", "Picked Up", "In Transit", "Delivered", "Closed", "Cancelled"]
+export const loadStatuses: LoadStatus[] = ["Booked", "Dispatched", "Picked Up", "In Transit", "Delivered", "Cancelled"]
+export const loadCloseoutStatuses: LoadCloseoutStatus[] = ["Awaiting Documents", "Documents Complete", "Invoiced", "Paid", "Closed"]
 export const documentCategories: DocumentCategory[] = ["Rate Confirmation", "Invoice", "BOL", "Fuel Receipt", "Lumper Receipt", "Insurance", "Carrier Packet", "Other"]
 export const expenseCategories: ExpenseCategory[] = ["Fuel", "Maintenance", "Tolls", "Insurance", "Permits", "Parking", "Parts", "Supplies", "Other"]
 export const unitTypes: UnitType[] = ["Truck", "Trailer"]
@@ -970,6 +972,7 @@ export type Database = {
           broker_id: string | null
           carrier_company: string | null
           commodity: string | null
+          closed_at: string | null
           created_at: string
           delivery_date: string | null
           delivery_location: string
@@ -988,9 +991,11 @@ export type Database = {
           load_rate: number
           notes: string | null
           organization_id: string
+          documents_complete_at: string | null
           pallet_count: number | null
           pickup_date: string | null
           pickup_location: string
+          post_delivery_status: Database["public"]["Enums"]["load_closeout_status"] | null
           return_location: string | null
           round_trip_details: string | null
           status: Database["public"]["Enums"]["load_status"]
@@ -1006,6 +1011,7 @@ export type Database = {
           broker_id?: string | null
           carrier_company?: string | null
           commodity?: string | null
+          closed_at?: string | null
           created_at?: string
           delivery_date?: string | null
           delivery_location: string
@@ -1024,9 +1030,11 @@ export type Database = {
           load_rate?: number
           notes?: string | null
           organization_id?: string
+          documents_complete_at?: string | null
           pallet_count?: number | null
           pickup_date?: string | null
           pickup_location: string
+          post_delivery_status?: Database["public"]["Enums"]["load_closeout_status"] | null
           return_location?: string | null
           round_trip_details?: string | null
           status?: Database["public"]["Enums"]["load_status"]
@@ -1042,6 +1050,7 @@ export type Database = {
           broker_id?: string | null
           carrier_company?: string | null
           commodity?: string | null
+          closed_at?: string | null
           created_at?: string
           delivery_date?: string | null
           delivery_location?: string
@@ -1060,9 +1069,11 @@ export type Database = {
           load_rate?: number
           notes?: string | null
           organization_id?: string
+          documents_complete_at?: string | null
           pallet_count?: number | null
           pickup_date?: string | null
           pickup_location?: string
+          post_delivery_status?: Database["public"]["Enums"]["load_closeout_status"] | null
           return_location?: string | null
           round_trip_details?: string | null
           status?: Database["public"]["Enums"]["load_status"]
@@ -1650,6 +1661,10 @@ export type Database = {
         Args: { p_duplicate_id: string; p_survivor_id: string; p_values: Json }
         Returns: Json
       }
+      load_closeout_stage: {
+        Args: { p_load_id: string }
+        Returns: Database["public"]["Enums"]["load_closeout_status"] | null
+      }
       queue_bookkeeping_group_delete: {
         Args: { p_allow_source?: string; p_group_id: string }
         Returns: {
@@ -1680,6 +1695,10 @@ export type Database = {
           p_receipt?: Json
         }
         Returns: string
+      }
+      set_load_closeout_milestone: {
+        Args: { p_complete: boolean; p_load_id: string; p_milestone: string }
+        Returns: Database["public"]["Enums"]["load_closeout_status"]
       }
       update_bookkeeping_expense_group: {
         Args: { p_expense: Json; p_group_id: string; p_lines: Json }
@@ -1738,6 +1757,12 @@ export type Database = {
         | "Delivered"
         | "Closed"
         | "Cancelled"
+      load_closeout_status:
+        | "Awaiting Documents"
+        | "Documents Complete"
+        | "Invoiced"
+        | "Paid"
+        | "Closed"
       unit_type: "Truck" | "Trailer"
     }
     CompositeTypes: {
@@ -1895,6 +1920,13 @@ export const Constants = {
         "Delivered",
         "Closed",
         "Cancelled",
+      ],
+      load_closeout_status: [
+        "Awaiting Documents",
+        "Documents Complete",
+        "Invoiced",
+        "Paid",
+        "Closed",
       ],
       unit_type: ["Truck", "Trailer"],
     },
