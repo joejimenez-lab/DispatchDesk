@@ -10,6 +10,7 @@ import { clientCollected, clientOutstanding, financialCompleteness, profitForLoa
 import { currency, formatDate } from "@/lib/utils";
 import { documentCategories } from "@/types/database";
 import { findAssignmentConflicts, formatStopWindow, type DispatchStop } from "@/lib/dispatch";
+import { invoiceStatusClass } from "@/lib/invoices";
 
 function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -33,7 +34,7 @@ function PaymentToggle({
   detail?: React.ReactNode;
   paid: boolean;
   loadId: string;
-  field: "invoice_sent" | "client_paid" | "driver_paid" | "dispatcher_paid";
+  field: "client_paid" | "driver_paid" | "dispatcher_paid";
 }) {
   return (
     <div>
@@ -167,15 +168,24 @@ export default async function LoadDetailsPage({ params }: { params: Promise<{ id
         <div className="space-y-4">
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="mb-4 text-lg font-semibold text-zinc-950">Documentation</h2>
-            <dl className="space-y-3">
-              <PaymentToggle
-                label="Invoice Sent"
-                loadId={id}
-                field="invoice_sent"
-                paid={Boolean(payment?.invoice_sent)}
-                detail={payment?.invoice_sent_date ? formatDate(payment.invoice_sent_date) : undefined}
-              />
-            </dl>
+            {payment?.invoice_status ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${invoiceStatusClass(payment.invoice_status)}`}>{payment.invoice_status}</span>
+                  <span className="text-sm font-semibold text-zinc-950">{payment.invoice_number ?? "Draft invoice"}</span>
+                </div>
+                <p className="text-sm text-zinc-600">
+                  {payment.invoice_date ? `Invoice date ${formatDate(payment.invoice_date)}` : "Invoice date not set"}
+                  {payment.due_date ? ` · Due ${formatDate(payment.due_date)}` : ""}
+                </p>
+                <LinkButton href={`/invoices/${id}`} variant="secondary">View invoice</LinkButton>
+              </div>
+            ) : (
+              <div>
+                <p className="mb-3 text-sm text-zinc-600">No invoice has been created for this load.</p>
+                <LinkButton href={`/invoices/new?load=${id}`}>Create invoice</LinkButton>
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">

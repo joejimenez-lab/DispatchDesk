@@ -3,6 +3,7 @@ import { iftaStateCodes } from "@/lib/ifta";
 import { factoringModes } from "@/lib/financials";
 import { documentCategories, expenseCategories, loadStatuses, maintenanceReminderTypes, repairLogTypes, unitTypes } from "@/types/database";
 import { dispatchTimeZones, stopTypes } from "@/lib/dispatch";
+import { invoiceStatuses } from "@/lib/invoices";
 
 const money = z.coerce.number().min(0).multipleOf(0.01, "Use no more than two decimal places").default(0);
 const positiveMoney = z.coerce.number().positive("Amount must be greater than zero");
@@ -98,8 +99,6 @@ export const loadDeductionsSchema = z.array(z.object({
 }));
 
 export const paymentSchema = z.object({
-  invoice_sent: z.coerce.boolean().default(false),
-  invoice_sent_date: optionalDate,
   client_paid: z.coerce.boolean().default(false),
   client_amount_received: money,
   client_date_received: optionalDate,
@@ -109,6 +108,25 @@ export const paymentSchema = z.object({
   dispatcher_fee_amount: money,
   dispatcher_paid: z.coerce.boolean().default(false),
   dispatcher_date_paid: optionalDate,
+});
+
+export const invoiceSchema = z.object({
+  load_id: z.string().uuid("Choose a load"),
+  invoice_status: z.enum(invoiceStatuses),
+  invoice_number: optionalText,
+  invoice_date: optionalDate,
+  payment_terms_days: z.coerce.number().int().min(0).max(365).default(30),
+  due_date: optionalDate,
+}).superRefine((invoice, context) => {
+  if (invoice.invoice_status === "Sent" && !invoice.invoice_number) {
+    context.addIssue({ code: "custom", path: ["invoice_number"], message: "Invoice number is required when sent" });
+  }
+  if (invoice.invoice_status === "Sent" && !invoice.invoice_date) {
+    context.addIssue({ code: "custom", path: ["invoice_date"], message: "Invoice date is required when sent" });
+  }
+  if (invoice.invoice_date && invoice.due_date && invoice.due_date < invoice.invoice_date) {
+    context.addIssue({ code: "custom", path: ["due_date"], message: "Due date cannot be before invoice date" });
+  }
 });
 
 export const driverSchema = z.object({
