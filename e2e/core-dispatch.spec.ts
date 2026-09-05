@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const demoLoadId = "14000000-0000-4000-8000-000000000001";
-const demoLoadNumber = "RD-260717-01";
+const demoLoadId = "25000000-0000-4000-8000-000000000201";
+const demoLoadNumber = "DEMO-001";
 
 test("signs in and opens a seeded load from the dashboard", async ({ page }) => {
   const email = process.env.E2E_EMAIL;

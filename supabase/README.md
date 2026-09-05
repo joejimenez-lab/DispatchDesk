@@ -26,39 +26,29 @@
    npm run db:test
    ```
 
-## Grand demo data
+## Minimal demo data
 
-The committed seed replaces business data with a fictional, date-relative demo
-covering only the `RD` and `RC` fleet scopes. It includes all load statuses,
-payment edge cases, maintenance alert states, IFTA trips, unified bookkeeping,
-and private Storage documents.
+The committed seed replaces only the fixed DispatchDesk Demo workspace with a
+small fictional dataset: two drivers, one broker, and two loads. It does not
+truncate shared tables or modify any other organization's rows. The minimal
+demo has no maintenance, IFTA, bookkeeping, or private Storage documents.
 
-The generated sample PDFs are committed with the demo assets. Reset the local
-database and upload both private Storage buckets in one command:
+Reset the local database and load the minimal demo in one command:
 
 ```bash
 npm run demo:reset
 ```
 
-The final PDFs are generated under `output/pdf/`. Database rows use stable UUIDs
-that match the generated Storage object paths. Run the reset again any time you
-want a clean demonstration state with dates recalculated relative to that day.
+Run the reset again any time you want the same clean, minimal demonstration
+state with dates recalculated relative to that day.
 
-Audit the row counts, fleet isolation, operational reconciliation, and Storage
-references with `npm run demo:audit:local` (or `npm run demo:audit:linked` for
-the explicitly linked demo project).
+The seed does not delete real authentication accounts. On a fresh local reset,
+it temporarily uses an audit identity for tenant-aware triggers and removes that
+row before commit. Continue signing in with the normal admin account.
 
-To redesign the PDF fixtures, install `reportlab` in your Python environment and
-run `npm run demo:pdfs` before resetting.
-
-The seed does not delete real authentication accounts. It adds one fictional,
-non-login audit user (`Andres Castillo`) so seeded created-by fields remain
-readable. Continue signing in with the normal admin account.
-
-`supabase db query --linked --file supabase/seed.sql` and
-`supabase seed buckets --linked` target the linked hosted project and are
-destructive to its business data. Use them only when the linked project is the
-intended demo environment and after verifying locally.
+`supabase db query --linked --file supabase/seed.sql` targets the linked hosted
+project and replaces only the fixed demo workspace. Verify the linked project
+and tenant IDs before using it.
 
 ## Hosted project setup
 

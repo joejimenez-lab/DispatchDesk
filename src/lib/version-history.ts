@@ -9,6 +9,7 @@ export type ProductRelease = {
 };
 
 export const VERSION_HISTORY: readonly ProductRelease[] = [
+  { version: "2.12.1", date: "2026-09-04", title: "Demo workspace safety", summary: "Kept demo resets isolated from production data and aligned the repository with the complete applied migration history.", kind: "patch" },
   { version: "2.12.0", date: "2026-09-04", title: "Invoice and load-save recovery", summary: "Restored focused invoice creation and replaced the fragile load-write chain with one reliable atomic save path.", kind: "minor" },
   { version: "2.11.0", date: "2026-09-01", title: "Familiar workflows restored", summary: "Restored the compact pre-update experience across core pages while retaining Dispatch, structured stops, pagination, contact tools, and data safeguards.", kind: "minor" },
   { version: "2.10.4", date: "2026-09-01", title: "Bookkeeping page recovery", summary: "Resolved the fuel-purchase relationship ambiguity that prevented Bookkeeping from loading against the production schema.", kind: "patch" },

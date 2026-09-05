@@ -64,7 +64,7 @@ Local full-stack truck dispatcher/load management application built with Next.js
 - Every authenticated user belongs to one organization. RLS scopes all operational, financial, maintenance, and document records to that organization.
 - The `load-documents` storage bucket is private. The `/api/documents/[id]/view` and `/api/documents/[id]/download` routes check auth, then fetch the file from Storage and stream it back to the browser (inline or as an attachment). The storage path is never exposed to the client.
 - Location autocomplete uses Photon through `/api/locations/search` and limits results to US locations. Development has a low-volume demo fallback; production requires a configured, self-hosted instance. See [`docs/photon-geocoding.md`](docs/photon-geocoding.md) for setup and operations.
-- New Auth users automatically receive an empty organization. The committed demo identity is the only account automatically attached to the fictional demo organization.
+- New Auth users automatically receive an empty organization. The hosted demo login is the only account automatically attached to the fictional demo organization.
 
 ## Production notes
 

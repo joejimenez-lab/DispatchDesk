@@ -1,35 +1,78 @@
-with metrics as (
-  select 'fleet_companies' metric, string_agg(distinct company, ', ' order by company) value from public.fleet_units
-  union all select 'fleet_units', count(*)::text from public.fleet_units
-  union all select 'drivers', count(*)::text from public.drivers
-  union all select 'brokers', count(*)::text from public.brokers
-  union all select 'loads', count(*)::text from public.loads
-  union all select 'load_statuses', string_agg(status::text || ':' || count::text, ', ' order by status::text) from (select status, count(*) from public.loads group by status) statuses
-  union all select 'round_trips', count(*)::text from public.loads where is_round_trip
-  union all select 'partial_client_payments', count(*)::text from public.payments p join public.loads l on l.id = p.load_id where p.client_amount_received > 0 and p.client_amount_received < l.load_rate
-  union all select 'aged_unpaid_loads', count(*)::text from public.loads l join public.payments p on p.load_id = l.id where l.status <> 'Cancelled' and coalesce(l.delivery_date, l.pickup_date) <= current_date - 30 and p.client_amount_received < l.load_rate
-  union all select 'active_reminders', count(*)::text from public.maintenance_reminders where completed_at is null
-  union all select 'completed_reminders', count(*)::text from public.maintenance_reminders where completed_at is not null
-  union all select 'maintenance_history', ((select count(*) from public.service_records) + (select count(*) from public.inspection_records) + (select count(*) from public.repair_logs))::text
-  union all select 'ifta_trips', count(*)::text from public.ifta_trips
-  union all select 'ifta_state_legs', count(*)::text from public.ifta_trip_miles
-  union all select 'ifta_fuel_purchases', count(*)::text from public.ifta_fuel_purchases
-  union all select 'expense_groups', count(*)::text from public.bookkeeping_expense_groups
-  union all select 'expense_categories', string_agg(distinct category::text, ', ' order by category::text) from public.bookkeeping_expenses
-  union all select 'bookkeeping_receipts', count(*)::text from public.bookkeeping_receipts
-  union all select 'load_documents', count(*)::text from public.documents
-  union all select 'notes', count(*)::text from public.notes
-  union all select 'load_storage_objects', count(*)::text from storage.objects where bucket_id = 'load-documents'
-  union all select 'receipt_storage_objects', count(*)::text from storage.objects where bucket_id = 'bookkeeping-receipts'
-  union all select 'missing_load_files', count(*)::text from public.documents d left join storage.objects o on o.bucket_id = 'load-documents' and o.name = d.storage_path where o.id is null
-  union all select 'missing_receipt_files', count(*)::text from public.bookkeeping_receipts r left join storage.objects o on o.bucket_id = 'bookkeeping-receipts' and o.name = r.storage_path where o.id is null
-  union all select 'receipt_size_mismatches', count(*)::text from public.bookkeeping_receipts r join storage.objects o on o.bucket_id = 'bookkeeping-receipts' and o.name = r.storage_path where r.file_size <> (o.metadata ->> 'size')::integer
-  union all select 'unexpected_fleets', count(*)::text from public.fleet_units where company not in ('RD', 'RC') or company is null
-  union all select 'unreconciled_operational_sources', (
-    (select count(*) from public.service_records s where s.cost > 0 and not exists (select 1 from public.bookkeeping_expense_groups g where g.service_record_id = s.id)) +
-    (select count(*) from public.inspection_records i where i.cost > 0 and not exists (select 1 from public.bookkeeping_expense_groups g where g.inspection_record_id = i.id)) +
-    (select count(*) from public.repair_logs r where r.cost > 0 and not exists (select 1 from public.bookkeeping_expense_groups g where g.repair_log_id = r.id)) +
-    (select count(*) from public.ifta_fuel_purchases f where f.amount_paid > 0 and not exists (select 1 from public.bookkeeping_expense_groups g where g.ifta_fuel_purchase_id = f.id))
+-- Audit only the fixed DispatchDesk Demo tenant. This query never aggregates
+-- another organization's business rows into the demo report.
+with demo as (
+  select '00000000-0000-4000-8000-000000000001'::uuid organization_id
+), metrics as (
+  select 'drivers' metric, count(*)::text value
+  from public.drivers, demo
+  where drivers.organization_id = demo.organization_id
+
+  union all
+  select 'brokers', count(*)::text
+  from public.brokers, demo
+  where brokers.organization_id = demo.organization_id
+
+  union all
+  select 'loads', count(*)::text
+  from public.loads, demo
+  where loads.organization_id = demo.organization_id
+
+  union all
+  select 'load_statuses', coalesce(string_agg(status::text || ':' || count::text, ', ' order by status::text), '')
+  from (
+    select status, count(*)
+    from public.loads, demo
+    where loads.organization_id = demo.organization_id
+    group by status
+  ) statuses
+
+  union all
+  select 'payments', count(*)::text
+  from public.payments, demo
+  where payments.organization_id = demo.organization_id
+
+  union all
+  select 'activity_logs', count(*)::text
+  from public.activity_logs, demo
+  where activity_logs.organization_id = demo.organization_id
+
+  union all
+  select 'load_stops', count(*)::text
+  from public.load_stops, demo
+  where load_stops.organization_id = demo.organization_id
+
+  union all
+  select 'contact_merge_logs', count(*)::text
+  from public.contact_merge_logs, demo
+  where contact_merge_logs.organization_id = demo.organization_id
+
+  union all
+  select 'documents', count(*)::text
+  from public.documents, demo
+  where documents.organization_id = demo.organization_id
+
+  union all
+  select 'maintenance_rows', (
+    (select count(*) from public.fleet_units, demo where fleet_units.organization_id = demo.organization_id) +
+    (select count(*) from public.service_records, demo where service_records.organization_id = demo.organization_id) +
+    (select count(*) from public.inspection_records, demo where inspection_records.organization_id = demo.organization_id) +
+    (select count(*) from public.repair_logs, demo where repair_logs.organization_id = demo.organization_id) +
+    (select count(*) from public.maintenance_reminders, demo where maintenance_reminders.organization_id = demo.organization_id)
+  )::text
+
+  union all
+  select 'ifta_rows', (
+    (select count(*) from public.ifta_trips, demo where ifta_trips.organization_id = demo.organization_id) +
+    (select count(*) from public.ifta_trip_miles, demo where ifta_trip_miles.organization_id = demo.organization_id) +
+    (select count(*) from public.ifta_fuel_purchases, demo where ifta_fuel_purchases.organization_id = demo.organization_id) +
+    (select count(*) from public.ifta_drafts, demo where ifta_drafts.organization_id = demo.organization_id)
+  )::text
+
+  union all
+  select 'bookkeeping_rows', (
+    (select count(*) from public.bookkeeping_expense_groups, demo where bookkeeping_expense_groups.organization_id = demo.organization_id) +
+    (select count(*) from public.bookkeeping_expenses, demo where bookkeeping_expenses.organization_id = demo.organization_id) +
+    (select count(*) from public.bookkeeping_receipts, demo where bookkeeping_receipts.organization_id = demo.organization_id)
   )::text
 )
-select * from metrics;
+select * from metrics order by metric;

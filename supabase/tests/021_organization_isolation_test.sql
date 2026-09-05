@@ -69,7 +69,7 @@ select is_empty(
   $$
     update public.loads
     set notes = 'cross-tenant update'
-    where id = '14000000-0000-4000-8000-000000000001'
+    where id = '25000000-0000-4000-8000-000000000201'
     returning 1
   $$,
   'production cannot update a demo row by a known ID'
@@ -78,7 +78,7 @@ select is_empty(
 select throws_ok(
   $$
     insert into public.notes (load_id, note_text)
-    values ('14000000-0000-4000-8000-000000000001', 'cross-tenant note')
+    values ('25000000-0000-4000-8000-000000000201', 'cross-tenant note')
   $$,
   '23503',
   null,
@@ -106,7 +106,7 @@ select lives_ok(
 select throws_ok(
   $$
     insert into storage.objects (bucket_id, name)
-    values ('load-documents', '14000000-0000-4000-8000-000000000001/cross-tenant.pdf')
+    values ('load-documents', '25000000-0000-4000-8000-000000000201/cross-tenant.pdf')
   $$,
   '42501',
   null,
