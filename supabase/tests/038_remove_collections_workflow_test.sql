@@ -7,8 +7,8 @@ select is(to_regclass('public.collection_contacts'), null::regclass, 'collection
 select is(to_regtype('public.invoice_status'), null::regtype, 'invoice status type is removed');
 select is(
   (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'payments' and column_name = 'invoice_status'),
-  0::bigint,
-  'collection invoice fields are removed'
+  1::bigint,
+  'focused invoice status is available without the collections workflow'
 );
 select is(
   (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'payments' and column_name = 'next_follow_up_date'),

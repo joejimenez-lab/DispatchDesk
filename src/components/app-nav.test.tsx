@@ -23,10 +23,11 @@ describe("AppNav", () => {
   it("links the visible current version to the version history", () => {
     render(<AppNav />);
 
-    const versionLink = screen.getByRole("link", { name: "View version history, current version v2.11.0" });
+    const versionLink = screen.getByRole("link", { name: "View version history, current version v2.12.0" });
     expect(versionLink.getAttribute("href")).toBe("/versions");
     expect(versionLink.getAttribute("aria-current")).toBe("page");
-    expect(screen.getByText("v2.11.0")).toBeTruthy();
+    expect(screen.getByText("v2.12.0")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Dispatch" }).getAttribute("href")).toBe("/dispatch");
+    expect(screen.getByRole("link", { name: "Invoices" }).getAttribute("href")).toBe("/invoices");
   });
 });

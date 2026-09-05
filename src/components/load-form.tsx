@@ -138,17 +138,6 @@ export function LoadForm({ action, drivers, brokers, equipment, load, payment, d
       <LoadStopsEditor stops={stops} onChange={setStops} />
 
       {showPayments ? (
-        <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5">
-          <div className="space-y-3">
-            <Checkbox name="invoice_sent" label="Invoice sent" defaultChecked={payment?.invoice_sent} />
-            <Field label="Invoice Sent Date">
-              <Input type="date" name="invoice_sent_date" defaultValue={inputDate(payment?.invoice_sent_date)} />
-            </Field>
-          </div>
-        </section>
-      ) : null}
-
-      {showPayments ? (
         <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 md:grid-cols-3">
           <div className="space-y-3">
             <Checkbox name="client_paid" label="Client paid" defaultChecked={payment?.client_paid} />

@@ -1326,6 +1326,11 @@ export type Database = {
           id: string
           invoice_sent: boolean
           invoice_sent_date: string | null
+          invoice_status: string | null
+          invoice_number: string | null
+          invoice_date: string | null
+          payment_terms_days: number | null
+          due_date: string | null
           load_id: string
           organization_id: string
           updated_at: string
@@ -1344,6 +1349,11 @@ export type Database = {
           id?: string
           invoice_sent?: boolean
           invoice_sent_date?: string | null
+          invoice_status?: string | null
+          invoice_number?: string | null
+          invoice_date?: string | null
+          payment_terms_days?: number | null
+          due_date?: string | null
           load_id: string
           organization_id?: string
           updated_at?: string
@@ -1362,6 +1372,11 @@ export type Database = {
           id?: string
           invoice_sent?: boolean
           invoice_sent_date?: string | null
+          invoice_status?: string | null
+          invoice_number?: string | null
+          invoice_date?: string | null
+          payment_terms_days?: number | null
+          due_date?: string | null
           load_id?: string
           organization_id?: string
           updated_at?: string
@@ -1726,6 +1741,28 @@ export type Database = {
           p_purchase: Json
           p_purchase_id: string
           p_receipt?: Json
+        }
+        Returns: string
+      }
+      save_invoice: {
+        Args: {
+          p_due_date: string | null
+          p_invoice_date: string | null
+          p_invoice_number: string | null
+          p_invoice_status: string
+          p_load_id: string
+          p_payment_terms_days: number
+        }
+        Returns: string
+      }
+      save_load: {
+        Args: {
+          p_deductions: Json
+          p_financial_completeness: Json
+          p_load: Json
+          p_load_id: string | null
+          p_payment: Json | null
+          p_stops: Json
         }
         Returns: string
       }

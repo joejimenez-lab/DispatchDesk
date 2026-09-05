@@ -9,7 +9,7 @@ import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import { documentSchema, loadDeductionsSchema, loadSchema, loadStopsSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
 import { loadStatuses, type Database, type LoadStatus } from "@/types/database";
 
-type PaymentFlag = "invoice_sent" | "client_paid" | "driver_paid" | "dispatcher_paid";
+type PaymentFlag = "client_paid" | "driver_paid" | "dispatcher_paid";
 type PaymentUpdate = Database["public"]["Tables"]["payments"]["Update"];
 type AuthenticatedSupabase = Awaited<ReturnType<typeof createAuthenticatedClient>>["supabase"];
 type StorageCleanupJob = {
@@ -194,8 +194,6 @@ function deductionEntries(formData: FormData) {
 
 function paymentPayload(formData: FormData) {
   return paymentSchema.parse({
-    invoice_sent: formData.get("invoice_sent") === "on",
-    invoice_sent_date: value(formData, "invoice_sent_date"),
     client_paid: formData.get("client_paid") === "on",
     client_amount_received: value(formData, "client_amount_received"),
     client_date_received: value(formData, "client_date_received"),
@@ -217,13 +215,18 @@ export async function createLoad(_state: ActionState, formData: FormData): Promi
     const payload = loadPayload(formData, stops);
     const deductions = deductionEntries(formData);
 
-    const { data, error } = await supabase.rpc("create_load_with_deductions", {
+    const { data, error } = await supabase.rpc("save_load", {
+      p_load_id: null,
       p_load: payload,
+      p_payment: null,
       p_deductions: deductions,
       p_stops: stops,
       p_financial_completeness: financialCompletenessPayload(formData),
     });
-    if (error) return loadWriteError(error, "Could not create load.");
+    if (error) {
+      logError("load.create_failed", error, { loadNumber: payload.load_number });
+      return loadWriteError(error, "Could not create load.");
+    }
     if (!data) return errorState(new Error("Load creation did not return an id."));
     loadId = data;
   } catch (error) {
@@ -244,7 +247,7 @@ export async function updateLoad(loadId: string, _state: ActionState, formData: 
     const payment = paymentPayload(formData);
     const deductions = deductionEntries(formData);
 
-    const { error } = await supabase.rpc("update_load_with_payment", {
+    const { error } = await supabase.rpc("save_load", {
       p_load_id: loadId,
       p_load: load,
       p_payment: payment,
@@ -280,10 +283,6 @@ export async function updatePaymentFlag(loadId: string, flag: PaymentFlag, paid:
   const payment = Array.isArray(load.payments) ? load.payments[0] : load.payments;
   const today = new Date().toISOString().slice(0, 10);
   const updates: PaymentUpdate = { [flag]: paid };
-
-  if (flag === "invoice_sent") {
-    updates.invoice_sent_date = paid ? today : null;
-  }
 
   if (flag === "client_paid") {
     updates.client_date_received = paid ? today : null;

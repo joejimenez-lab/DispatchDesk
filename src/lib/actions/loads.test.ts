@@ -144,7 +144,7 @@ describe("load and document actions", () => {
     formData.append("deduction_amount", "75");
     await updateLoad("load-1", initialActionState, formData);
 
-    expect(rpc).toHaveBeenCalledWith("update_load_with_payment", {
+    expect(rpc).toHaveBeenCalledWith("save_load", {
       p_load_id: "load-1",
       p_load: expect.objectContaining({
         load_number: "L-100",
@@ -177,7 +177,8 @@ describe("load and document actions", () => {
 
     await createLoad(initialActionState, formData);
 
-    expect(rpc).toHaveBeenCalledWith("create_load_with_deductions", {
+    expect(rpc).toHaveBeenCalledWith("save_load", {
+      p_load_id: null,
       p_load: expect.objectContaining({
         load_number: "L-100",
         factoring_mode: "percentage",
@@ -187,6 +188,7 @@ describe("load and document actions", () => {
         truck_unit_id: "00000000-0000-4000-8000-000000000101",
         trailer_unit_id: "00000000-0000-4000-8000-000000000501",
       }),
+      p_payment: null,
       p_deductions: [{ label: "Scale fee", amount: 24.5 }],
       p_stops: expect.any(Array),
       p_financial_completeness: { driver_pay_known: true, dispatcher_fee_known: true, fuel_cost_known: true },
@@ -205,7 +207,7 @@ describe("load and document actions", () => {
 
     await createLoad(initialActionState, formData);
 
-    expect(rpc).toHaveBeenCalledWith("create_load_with_deductions", expect.objectContaining({
+    expect(rpc).toHaveBeenCalledWith("save_load", expect.objectContaining({
       p_load: expect.objectContaining({ driver_pay: 0, dispatcher_fee: 0, fuel_cost: 0 }),
       p_financial_completeness: { driver_pay_known: true, dispatcher_fee_known: false, fuel_cost_known: false },
     }));
@@ -247,7 +249,7 @@ describe("load and document actions", () => {
 
     await createLoad(initialActionState, formData);
 
-    expect(rpc).toHaveBeenCalledWith("create_load_with_deductions", expect.objectContaining({
+    expect(rpc).toHaveBeenCalledWith("save_load", expect.objectContaining({
       p_load: expect.objectContaining({
         factoring_mode: "amount",
         factoring_percent: 0,
@@ -319,7 +321,7 @@ describe("load and document actions", () => {
 
     await updateLoad("load-1", initialActionState, formData);
 
-    expect(rpc).toHaveBeenCalledWith("update_load_with_payment", expect.objectContaining({ p_deductions: [] }));
+    expect(rpc).toHaveBeenCalledWith("save_load", expect.objectContaining({ p_deductions: [] }));
   });
 
   it("returns an error when the atomic load update RPC fails", async () => {
