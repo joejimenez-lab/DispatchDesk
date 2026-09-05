@@ -1,6 +1,6 @@
 {
   "name": "dispatch-desk",
-  "version": "2.12.0",
+  "version": "2.12.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -18,7 +18,7 @@
     "db:test": "supabase test db --local supabase/tests",
     "db:types": "supabase gen types --local --schema public > src/types/database.ts",
     "demo:pdfs": "python3 scripts/generate-demo-pdfs.py",
-    "demo:reset": "supabase db reset --local && supabase seed buckets --local",
+    "demo:reset": "supabase db reset --local",
     "demo:audit:local": "supabase db query --local --file supabase/demo-audit.sql",
     "demo:audit:linked": "supabase db query --linked --file supabase/demo-audit.sql"
   },
