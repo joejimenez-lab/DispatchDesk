@@ -41,7 +41,7 @@ test("creates a load and opens its new invoice page", async ({ page }) => {
 
   await page.goto("/loads/new");
   await page.getByLabel("Load Number").fill("E2E-LOAD-102");
-  const locations = page.getByLabel("Location");
+  const locations = page.locator('input[name="stop_location"]');
   await locations.nth(0).fill("Los Angeles, CA");
   await locations.nth(1).fill("Phoenix, AZ");
   await page.getByRole("button", { name: "Save load" }).click();
