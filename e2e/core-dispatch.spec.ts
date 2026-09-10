@@ -109,7 +109,7 @@ test("keeps crossover loads with their carrier across dashboard, reports, export
   expect(haulingCsv).toContain("E2E-DC-CROSS");
   expect(haulingCsv).not.toContain("E2E-RD-CROSS");
   await page.goto("/invoices/new?company=DC");
-  await page.getByLabel("Load", { exact: true }).selectOption("40000000-0000-4000-8000-000000000201");
+  await page.getByRole("combobox", { name: "Load", exact: true }).selectOption("40000000-0000-4000-8000-000000000201");
   await page.getByRole("button", { name: "Create invoice" }).click();
   await expect(page).toHaveURL(/\/invoices\/40000000-0000-4000-8000-000000000201$/);
   await page.goto("/invoices?company=DC");
