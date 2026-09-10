@@ -1,3 +1,5 @@
+import { readAllRows } from "@/lib/data/all-rows";
+import { resolveExportFleetScope, fleetScopeLabel, fleetScopeSlug, matchesFleetScope, type FleetScope } from "@/lib/fleet-scope";
 import { NextResponse } from "next/server";
 import { renderBusinessReportPdf, type BusinessReportPdfData } from "@/lib/business-report-pdf";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
@@ -13,7 +15,7 @@ import {
   yearlyFinancialRows,
 } from "@/lib/report-exports";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
-import { applyFleetScope, fleetScopeLabel, fleetScopeSlug, matchesFleetScope, resolveExportFleetScope, type FleetScope } from "@/lib/fleet-scope";
+import { applyCompanyScope, companyScopeLabel, companyScopeSlug, resolveExportCompanyScope, type CompanyScope } from "@/lib/company-scope";
 
 export const runtime = "nodejs";
 
@@ -25,24 +27,24 @@ function normalizePeriod(value: string | null): WeeklyFinancialPeriod {
   return PERIODS.includes(value as WeeklyFinancialPeriod) ? (value as WeeklyFinancialPeriod) : "all";
 }
 
-function csvDownload(csv: string, report: Report, scope: FleetScope) {
+function csvDownload(csv: string, report: Report, scope: CompanyScope | FleetScope) {
   const stamp = new Date().toISOString().slice(0, 10);
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="dispatchdesk-${report}-${fleetScopeSlug(scope)}-${stamp}.csv"`,
+      "Content-Disposition": `attachment; filename="dispatchdesk-${report}-${scope.kind === "fleet" ? fleetScopeSlug(scope) : companyScopeSlug(scope)}-${stamp}.csv"`,
       "Cache-Control": "private, no-store",
     },
   });
 }
 
-async function pdfDownload(data: BusinessReportPdfData, report: Report, scope: FleetScope) {
+async function pdfDownload(data: BusinessReportPdfData, report: Report, scope: CompanyScope | FleetScope) {
   const stamp = new Date().toISOString().slice(0, 10);
   const pdf = await renderBusinessReportPdf(data);
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="dispatchdesk-${report}-${fleetScopeSlug(scope)}-${stamp}.pdf"`,
+      "Content-Disposition": `attachment; filename="dispatchdesk-${report}-${scope.kind === "fleet" ? fleetScopeSlug(scope) : companyScopeSlug(scope)}-${stamp}.pdf"`,
       "Cache-Control": "private, no-store",
     },
   });
@@ -62,7 +64,7 @@ function selectedRange(searchParams: URLSearchParams) {
 
 function filterLabel({ from, to, fleet }: { from: string | null; to: string | null; fleet: string }) {
   const date = from && to ? `${from} through ${to}` : from ? `From ${from}` : to ? `Through ${to}` : "All available dates";
-  return `${date} · Fleet: ${fleet}`;
+  return `${date} · Company: ${fleet}`;
 }
 
 type Unit = { unit_number: string; unit_type: string; company: string | null } | null;
@@ -91,12 +93,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
   }
   let scope;
   try {
-    scope = await resolveExportFleetScope(supabase, searchParams.get("fleet"));
+    scope = report === "maintenance" && !searchParams.has("company")
+      ? await resolveExportFleetScope(supabase, searchParams.get("fleet") ?? searchParams.get("company"))
+      : await resolveExportCompanyScope(supabase, searchParams.get("company") ?? searchParams.get("fleet"));
   } catch {
-    return NextResponse.json({ error: "Could not validate fleet." }, { status: 500 });
+    return NextResponse.json({ error: "Could not validate company." }, { status: 500 });
   }
-  if (!scope) return NextResponse.json({ error: "Unknown fleet." }, { status: 400 });
-  const fleet = fleetScopeLabel(scope);
+  if (!scope) return NextResponse.json({ error: "Unknown company." }, { status: 400 });
+  const fleet = scope.kind === "fleet" ? fleetScopeLabel(scope) : companyScopeLabel(scope);
+  const accountingScope: CompanyScope = scope.kind === "fleet" ? { kind: "company", company: scope.company } : scope;
   const range = selectedRange(searchParams);
 
   try {
@@ -106,7 +111,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         from: searchParams.get("from") ?? undefined,
         to: searchParams.get("to") ?? undefined,
         driver: searchParams.get("driver") ?? undefined,
-        fleetScope: scope,
+        companyScope: accountingScope,
         financial: searchParams.get("financial") === "complete" || searchParams.get("financial") === "incomplete" ? searchParams.get("financial") as "complete" | "incomplete" : "all",
       });
       if (format === "csv") {
@@ -134,14 +139,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Gross driver pay", value: money(totals.pay) },
         ],
         columns: [
-          { label: "Fleet", width: "14%" },
+          { label: "Carrier Company", width: "14%" },
           { label: "Week", width: "24%" },
           { label: "Driver", width: "25%" },
           { label: "Loads", width: "12%", align: "right" },
           { label: "Gross pay", width: "25%", align: "right" },
         ],
         rows: summaries.map((summary) => [
-          summary.fleetCompany ?? "Unassigned",
+          summary.carrierCompany ?? "Unassigned",
           `${summary.weekStart} - ${summary.weekEnd}`,
           summary.driverName,
           String(summary.loadCount),
@@ -161,7 +166,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Affected revenue", value: money(totals.incompleteRevenue) },
         ],
         columns: [
-          { label: "Fleet", width: "9%" },
+          { label: "Carrier Company", width: "9%" },
           { label: "Week", width: "16%" },
           { label: "Driver", width: "14%" },
           { label: "Loads", width: "7%", align: "right" },
@@ -172,7 +177,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Est. profit", width: "12%", align: "right" },
         ],
         rows: summaries.map((summary) => [
-          summary.fleetCompany ?? "Unassigned",
+          summary.carrierCompany ?? "Unassigned",
           `${summary.weekStart} - ${summary.weekEnd}`,
           summary.driverName,
           String(summary.loadCount),
@@ -193,7 +198,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         from: searchParams.get("from") ?? undefined,
         to: searchParams.get("to") ?? undefined,
         driver: searchParams.get("driver") ?? undefined,
-        fleetScope: scope,
+        companyScope: accountingScope,
         financial: searchParams.get("financial") === "complete" || searchParams.get("financial") === "incomplete" ? searchParams.get("financial") as "complete" | "incomplete" : "all",
       });
       if (format === "csv") return csvDownload(yearlyFinancialCsv(summaries), report, scope);
@@ -221,7 +226,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Affected revenue", value: money(totals.incompleteRevenue) },
         ],
         columns: [
-          { label: "Fleet", width: "10%" },
+          { label: "Carrier Company", width: "10%" },
           { label: "Year", width: "10%" },
           { label: "Loads", width: "7%", align: "right" },
           { label: "Revenue", width: "13%", align: "right" },
@@ -249,12 +254,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
     if (report === "client-billing") {
       let query = supabase
         .from("loads")
-        .select("load_number, status, post_delivery_status, pickup_date, delivery_date, created_at, load_rate, driver_id, fleet_company, brokers(company_name), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
+        .select("load_number, status, post_delivery_status, pickup_date, delivery_date, created_at, load_rate, driver_id, accounting_company, brokers(company_name), payments(invoice_sent, invoice_sent_date, client_paid, client_amount_received, client_date_received)")
         .neq("status", "Cancelled")
         .order("delivery_date", { ascending: false, nullsFirst: false })
         .order("pickup_date", { ascending: false, nullsFirst: false });
-      query = applyFleetScope(query, scope);
-      const { data, error } = await query;
+      query = applyCompanyScope(query, accountingScope);
+      const { data, error } = await readAllRows(query.order("id"));
       if (error) throw error;
 
       const rows: BillingRow[] = ((data ?? []) as unknown as {
@@ -266,7 +271,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         created_at: string;
         load_rate: number;
         driver_id: string | null;
-        fleet_company: string | null;
+        accounting_company: string | null;
         brokers: { company_name: string | null } | null;
         payments: { invoice_sent: boolean; invoice_sent_date: string | null; client_paid: boolean; client_amount_received: number; client_date_received: string | null } | null;
       }[]).filter((load) => {
@@ -276,7 +281,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
         if (searchParams.get("driver") && load.driver_id !== searchParams.get("driver")) return false;
         return true;
       }).map((load) => ({
-        fleet: load.fleet_company ?? "Unassigned",
+        fleet: load.accounting_company ?? "Unassigned",
         loadNumber: load.load_number,
         loadDate: load.delivery_date ?? load.pickup_date ?? load.created_at.slice(0, 10),
         broker: load.brokers?.company_name ?? null,
@@ -307,7 +312,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
           { label: "Outstanding", value: money(totals.outstanding) },
         ],
         columns: [
-          { label: "Fleet", width: "10%" },
+          { label: "Carrier Company", width: "10%" },
           { label: "Load", width: "11%" },
           { label: "Date", width: "10%" },
           { label: "Client", width: "19%" },
@@ -350,7 +355,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ repo
       ...((bookkeepingExpenses.data ?? []) as unknown as { expense_date: string; category: string; amount: number; vendor: string | null; notes: string | null; fleet_units: Unit }[]).map((row) => ({
         ...unitFields(row.fleet_units), recordType: `Bookkeeping ${row.category}`, date: row.expense_date, odometer: null, description: row.vendor ? `${row.category} - ${row.vendor}` : row.category, result: null, cost: Number(row.amount), status: "Recorded", notes: row.notes,
       })),
-    ].filter((row) => matchesFleetScope(row.company, scope))
+    ].filter((row) => matchesFleetScope(row.company, scope.kind === "company" ? { kind: "fleet", company: scope.company } : scope))
       .filter((row) => !range.from || Boolean(row.date && row.date >= range.from))
       .filter((row) => !range.to || Boolean(row.date && row.date <= range.to))
       .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || a.unitNumber.localeCompare(b.unitNumber));

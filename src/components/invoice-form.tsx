@@ -32,7 +32,7 @@ export function InvoiceForm({
           <div className="text-xs font-semibold uppercase text-zinc-500">Load</div>
           <div className="mt-1 font-semibold text-zinc-950">{selected.load_number}</div>
           <div className="text-sm text-zinc-600">
-            {selected.brokers?.company_name ?? "No broker"} · {selected.pickup_location} to {selected.delivery_location} · {currency(selected.load_rate)}
+            {selected.accounting_company ?? "Unassigned carrier"} · {selected.brokers?.company_name ?? "No broker"} · {selected.pickup_location} to {selected.delivery_location} · {currency(selected.load_rate)}
           </div>
         </div>
       ) : (
@@ -41,7 +41,7 @@ export function InvoiceForm({
             <option value="" disabled>Choose a load</option>
             {(loads ?? []).map((load) => (
               <option key={load.id} value={load.id}>
-                {load.load_number} · {load.brokers?.company_name ?? "No broker"} · {currency(load.load_rate)}
+                {load.load_number} · {load.accounting_company ?? "Unassigned carrier"} · {load.brokers?.company_name ?? "No broker"} · {currency(load.load_rate)}
               </option>
             ))}
           </Select>

@@ -10,7 +10,8 @@ function catalogClient(companies: string[]) {
   return {
     from: vi.fn((table: string) => ({
       select: vi.fn(() => ({
-        not: vi.fn(async () => ({
+        not: vi.fn(() => ({
+          order: vi.fn(() => ({ range: vi.fn(async () => ({ data: companies.map((accounting_company) => ({ accounting_company })), error: null })) })),
           data: table === "fleet_units"
             ? companies.map((company) => ({ company }))
             : companies.map((fleet_company) => ({ fleet_company })),

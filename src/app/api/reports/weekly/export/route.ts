@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { csvRow } from "@/lib/csv";
 import { getWeeklyDriverFinancialSummary, type WeeklyFinancialPeriod } from "@/lib/data/weekly-financials";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
-import { fleetScopeSlug, resolveExportFleetScope } from "@/lib/fleet-scope";
+import { companyScopeSlug, resolveExportCompanyScope } from "@/lib/company-scope";
 import type { FinancialCompletenessFilter } from "@/lib/financials";
 
 const PERIODS: WeeklyFinancialPeriod[] = ["this", "last", "all", "custom"];
@@ -31,17 +31,17 @@ export async function GET(request: Request) {
   const { searchParams } = url;
   let scope;
   try {
-    scope = await resolveExportFleetScope(auth.supabase, searchParams.get("fleet"));
+    scope = await resolveExportCompanyScope(auth.supabase, searchParams.get("company") ?? searchParams.get("fleet"));
   } catch {
-    return NextResponse.json({ error: "Could not validate fleet." }, { status: 500 });
+    return NextResponse.json({ error: "Could not validate company." }, { status: 500 });
   }
-  if (!scope) return NextResponse.json({ error: "Unknown fleet." }, { status: 400 });
+  if (!scope) return NextResponse.json({ error: "Unknown company." }, { status: 400 });
   const { summaries, range } = await getWeeklyDriverFinancialSummary({
     period: normalizePeriod(searchParams.get("period")),
     from: searchParams.get("from") ?? undefined,
     to: searchParams.get("to") ?? undefined,
     driver: searchParams.get("driver") ?? undefined,
-    fleetScope: scope,
+    companyScope: scope,
     financial: normalizeFinancial(searchParams.get("financial")),
   });
 
@@ -49,7 +49,8 @@ export async function GET(request: Request) {
     "Week Start",
     "Week End",
     "Driver",
-    "Fleet",
+    "Carrier Company",
+    "Hauling Fleet",
     "Load Count",
     "Load Number",
     "Load Date",
@@ -87,7 +88,8 @@ export async function GET(request: Request) {
         summary.weekStart,
         summary.weekEnd,
         summary.driverName,
-        load.fleetCompany ?? "Unassigned",
+        load.carrierCompany ?? "Unassigned",
+        load.haulingFleet ?? "Unassigned",
         summary.loadCount,
         load.loadNumber,
         load.date,
@@ -128,7 +130,7 @@ export async function GET(request: Request) {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="dispatchdesk-weekly-report-${fleetScopeSlug(scope)}-${rangeLabel}-${stamp}.csv"`,
+      "Content-Disposition": `attachment; filename="dispatchdesk-weekly-report-${companyScopeSlug(scope)}-${rangeLabel}-${stamp}.csv"`,
       "Cache-Control": "private, no-store",
     },
   });

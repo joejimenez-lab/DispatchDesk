@@ -1,16 +1,18 @@
+import { parseFleetScope } from "@/lib/fleet-scope";
+import { getLoadFleetCompanies } from "@/lib/data/fleet";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { LinkButton } from "@/components/button";
 import { Field, Input, Select } from "@/components/field";
-import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
+import { CompanyScopeTabs } from "@/components/company-scope-tabs";
 import { LoadPaymentSelect } from "@/components/load-payment-select";
 import { LoadStatusSelect } from "@/components/load-status-select";
 import { getFormOptions } from "@/lib/data/options";
-import { getLoadFleetCompanies } from "@/lib/data/fleet";
+import { getLoadCompanies } from "@/lib/data/companies";
 import { getLoads, isLoadClientPaymentPaid } from "@/lib/data/loads";
 import { currency, formatDate } from "@/lib/utils";
 import { loadStatuses } from "@/types/database";
-import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
+import { companyScopeLabel, companyScopeParam, parseCompanyScope } from "@/lib/company-scope";
 import { formatStopWindow, type DispatchStop } from "@/lib/dispatch";
 import { PaginationControls } from "@/components/pagination-controls";
 import { normalizeLoadView } from "@/lib/data/loads";
@@ -19,22 +21,25 @@ import { pageHref, parsePagination, totalPages } from "@/lib/pagination";
 export default async function LoadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; broker?: string; driver?: string; payment?: string; fleet?: string; page?: string; pageSize?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; broker?: string; driver?: string; payment?: string; company?: string; fleet?: string; page?: string; pageSize?: string }>;
 }) {
   const params = await searchParams;
   const pagination = parsePagination(params);
   const status = normalizeLoadView(params.status ?? "all");
-  const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
-  const scope = parseFleetScope(params.fleet, fleetCompanies);
+  const [options, companies] = await Promise.all([getFormOptions(), getLoadCompanies()]);
+  const scope = parseCompanyScope(params.company, companies);
   if (!scope) notFound();
-  const fleet = fleetScopeParam(scope);
+  const company = companyScopeParam(scope);
+  const equipmentScope = parseFleetScope(params.fleet, params.fleet ? await getLoadFleetCompanies() : []);
+  if (!equipmentScope) notFound();
   const result = await getLoads({
+    fleetScope: equipmentScope,
     q: params.q,
     status,
     broker: params.broker,
     driver: params.driver,
     payment: params.payment,
-    fleetScope: scope,
+    companyScope: scope,
     pagination,
   });
   const loads = result.items;
@@ -46,7 +51,8 @@ export default async function LoadsPage({
       broker: params.broker,
       driver: params.driver,
       payment: params.payment,
-      fleet,
+      company,
+      fleet: params.fleet,
     }, lastPage, pagination.pageSize));
   }
   const exportParams = new URLSearchParams();
@@ -55,7 +61,8 @@ export default async function LoadsPage({
   if (params.broker) exportParams.set("broker", params.broker);
   if (params.driver) exportParams.set("driver", params.driver);
   if (params.payment) exportParams.set("payment", params.payment);
-  if (fleet) exportParams.set("fleet", fleet);
+  if (company) exportParams.set("company", company);
+  if (params.fleet) exportParams.set("fleet", params.fleet);
   const exportHref = `/api/loads/export${exportParams.size ? `?${exportParams.toString()}` : ""}`;
   const roundTripSummary = (load: (typeof loads)[number]) =>
     load.is_round_trip ? `Returns to ${load.return_location || load.pickup_location}` : null;
@@ -74,7 +81,7 @@ export default async function LoadsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">Loads</h1>
-          <p className="text-sm text-zinc-600">{fleetScopeLabel(scope)} · Search, filter, and manage dispatch loads.</p>
+          <p className="text-sm text-zinc-600">{companyScopeLabel(scope)} · Search, filter, and manage dispatch loads.</p>
         </div>
         <div className="flex gap-2">
           <LinkButton href={exportHref} variant="secondary">Export CSV</LinkButton>
@@ -82,11 +89,12 @@ export default async function LoadsPage({
         </div>
       </div>
 
-      <FleetScopeTabs
+      <CompanyScopeTabs
         basePath="/loads"
-        companies={fleetCompanies}
+        companies={companies}
         scope={scope}
         params={{
+          fleet: params.fleet,
           q: params.q,
           status,
           broker: params.broker,
@@ -97,7 +105,8 @@ export default async function LoadsPage({
       />
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-6">
-        {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
+        {params.fleet ? <input type="hidden" name="fleet" value={params.fleet} /> : null}
+        {company ? <input type="hidden" name="company" value={company} /> : null}
         <input type="hidden" name="pageSize" value={pagination.pageSize} />
         <Field label="Search">
           <Input name="q" defaultValue={params.q ?? ""} placeholder="Load, city, carrier" />
@@ -140,7 +149,7 @@ export default async function LoadsPage({
               <th className="px-4 py-3">Load</th>
               <th className="px-4 py-3">Broker</th>
               <th className="px-4 py-3">Driver</th>
-              <th className="px-4 py-3">Fleet / Equipment</th>
+              <th className="px-4 py-3">Carrier / Hauling fleet</th>
               <th className="px-4 py-3">Pickup</th>
               <th className="px-4 py-3">Delivery</th>
               <th className="px-4 py-3">Rate</th>
@@ -176,7 +185,8 @@ export default async function LoadsPage({
                 {linkedCell(
                   load.id,
                   <div className="min-w-32">
-                    <div className="font-medium text-zinc-900">{load.fleet_company ?? "Unassigned"}</div>
+                    <div className="font-medium text-zinc-900">{load.accounting_company ?? "Unassigned carrier"}</div>
+                    <div className="text-xs text-zinc-500">Hauling fleet: {load.fleet_company ?? "Unassigned"}</div>
                     <div className="mt-1 text-xs text-zinc-500">
                       {[load.truck_number ? `Truck ${load.truck_number}` : null, load.trailer_number ? `Trailer ${load.trailer_number}` : null]
                         .filter(Boolean)
@@ -231,12 +241,13 @@ export default async function LoadsPage({
       <PaginationControls
         basePath="/loads"
         params={{
+          fleet: params.fleet,
           q: params.q,
           status,
           broker: params.broker,
           driver: params.driver,
           payment: params.payment,
-          fleet,
+          company,
         }}
         pagination={pagination}
         total={result.total}

@@ -132,7 +132,7 @@ export function LoadEquipmentFields({
           Driver equipment is only a suggestion; this load keeps its own assignment.
         </span>
       </Field>
-      <Field label="Fleet">
+      <Field label="Fleet (hauling equipment)">
         <Select name="fleet_company" value={fleet} onChange={(event) => changeFleet(event.target.value)}>
           <option value="">No fleet assigned</option>
           {companies.map((company) => <option key={company} value={company}>{company}</option>)}

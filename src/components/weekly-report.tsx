@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { WeeklyDriverFinancialSummary } from "@/lib/data/weekly-financials";
 import { currency, formatDate } from "@/lib/utils";
-import { UNASSIGNED_FLEET } from "@/lib/fleet-scope";
+import { UNASSIGNED_COMPANY } from "@/lib/company-scope";
 
 export function SummaryTotals({ summaries }: { summaries: WeeklyDriverFinancialSummary[] }) {
   const totals = summaries.reduce(
@@ -80,7 +80,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSummary; linkDriver: boolean }) {
   const driverHeading =
     linkDriver && summary.driverId ? (
-      <Link href={`/reports/drivers/${summary.driverId}?fleet=${encodeURIComponent(summary.fleetCompany ?? UNASSIGNED_FLEET)}`} className="underline-offset-2 hover:underline">
+      <Link href={`/reports/drivers/${summary.driverId}?company=${encodeURIComponent(summary.carrierCompany ?? UNASSIGNED_COMPANY)}`} className="underline-offset-2 hover:underline">
         {summary.driverName}
       </Link>
     ) : (
@@ -91,7 +91,7 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
     <div className="rounded-lg border border-zinc-200 bg-white">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 p-5">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-950">{driverHeading} · {summary.fleetCompany ?? "Unassigned"}</h2>
+          <h2 className="text-lg font-semibold text-zinc-950">{driverHeading} · {summary.carrierCompany ?? "Unassigned"}</h2>
           <p className="text-sm text-zinc-500">
             {formatDate(summary.weekStart)} to {formatDate(summary.weekEnd)} · {summary.loadCount} load
             {summary.loadCount === 1 ? "" : "s"}
@@ -114,7 +114,7 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
           <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-500">
             <tr>
               <th className="px-4 py-3">Load</th>
-              <th className="px-4 py-3">Fleet</th>
+              <th className="px-4 py-3">Carrier Company</th>
               <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Rate</th>
@@ -139,7 +139,7 @@ function WeekCard({ summary, linkDriver }: { summary: WeeklyDriverFinancialSumma
                     </span>
                   ) : null}
                 </td>
-                <td className="px-4 py-3 text-zinc-700">{load.fleetCompany ?? "Unassigned"}</td>
+                <td className="px-4 py-3 text-zinc-700">{load.carrierCompany ?? "Unassigned"}<span className="block text-xs text-zinc-500">Hauled by {load.haulingFleet ?? "Unassigned"}</span></td>
                 <td className="px-4 py-3 text-zinc-700">{formatDate(load.date)}</td>
                 <td className="px-4 py-3 text-zinc-700">
                   <div>{load.status}</div>

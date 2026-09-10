@@ -1,14 +1,14 @@
 import { notFound } from "next/navigation";
 import { InvoiceForm } from "@/components/invoice-form";
 import { createInvoice } from "@/lib/actions/invoices";
-import { getLoadFleetCompanies } from "@/lib/data/fleet";
+import { getLoadCompanies } from "@/lib/data/companies";
 import { getInvoiceLoadOptions } from "@/lib/data/invoices";
-import { parseFleetScope } from "@/lib/fleet-scope";
+import { parseCompanyScope } from "@/lib/company-scope";
 
-export default async function NewInvoicePage({ searchParams }: { searchParams: Promise<{ fleet?: string; load?: string }> }) {
+export default async function NewInvoicePage({ searchParams }: { searchParams: Promise<{ company?: string; fleet?: string; load?: string }> }) {
   const params = await searchParams;
-  const companies = await getLoadFleetCompanies();
-  const scope = parseFleetScope(params.fleet, companies);
+  const companies = await getLoadCompanies();
+  const scope = parseCompanyScope(params.company ?? params.fleet, companies);
   if (!scope) notFound();
   const loads = await getInvoiceLoadOptions(scope);
   const selectedLoadId = loads.some((load) => load.id === params.load) ? params.load : undefined;

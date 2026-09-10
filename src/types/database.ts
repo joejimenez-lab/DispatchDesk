@@ -970,6 +970,7 @@ export type Database = {
       loads: {
         Row: {
           broker_id: string | null
+          accounting_company: string | null
           carrier_company: string | null
           commodity: string | null
           closed_at: string | null
@@ -1012,6 +1013,7 @@ export type Database = {
         }
         Insert: {
           broker_id?: string | null
+          accounting_company?: never
           carrier_company?: string | null
           commodity?: string | null
           closed_at?: string | null
@@ -1054,6 +1056,7 @@ export type Database = {
         }
         Update: {
           broker_id?: string | null
+          accounting_company?: never
           carrier_company?: string | null
           commodity?: string | null
           closed_at?: string | null
@@ -1584,6 +1587,7 @@ export type Database = {
     Views: {
       load_list_index: {
         Row: {
+          accounting_company: string | null
           broker_id: string | null
           client_paid: boolean | null
           created_at: string | null
@@ -1605,6 +1609,10 @@ export type Database = {
       }
     }
     Functions: {
+      normalize_accounting_company: {
+        Args: { value: string }
+        Returns: string
+      }
       configure_maintenance_units: {
         Args: { p_apply_templates?: boolean; p_updates: Json }
         Returns: Json

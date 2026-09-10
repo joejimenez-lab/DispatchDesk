@@ -1,3 +1,5 @@
+import { companyScopeLabel, companyScopeSlug, matchesCompanyScope, resolveExportCompanyScope } from "@/lib/company-scope";
+import { bookkeepingAccountingCompany } from "@/lib/data/bookkeeping";
 import { NextResponse } from "next/server";
 import {
   bookkeepingCsv,
@@ -39,7 +41,7 @@ function filterLabel(filters: { from: string | null; to: string | null; category
       : filters.to
         ? `Through ${filters.to}`
         : "All available dates";
-  return [date, filters.category ? `Category: ${filters.category}` : null, `Fleet: ${filters.fleet}`]
+  return [date, filters.category ? `Category: ${filters.category}` : null, `Company: ${filters.fleet}`]
     .filter(Boolean)
     .join(" · ");
 }
@@ -56,6 +58,7 @@ export async function GET(request: Request) {
 
   const { supabase } = auth;
   const { searchParams } = url;
+  const accountingMode = searchParams.has("company") || searchParams.get("basis") === "carrier";
   const format = searchParams.get("format") ?? "csv";
   const view = searchParams.get("view") ?? "detailed";
   if (!(["csv", "pdf"] as const).includes(format as "csv" | "pdf") || !(["summary", "detailed"] as const).includes(view as "summary" | "detailed")) {
@@ -67,6 +70,13 @@ export async function GET(request: Request) {
   const unit = validUuid(searchParams.get("unit"));
   const load = validUuid(searchParams.get("load"));
   const driver = validUuid(searchParams.get("driver"));
+  let companyScope;
+  try {
+    companyScope = await resolveExportCompanyScope(supabase, searchParams.get("company"));
+  } catch {
+    return NextResponse.json({ error: "Could not validate company." }, { status: 500 });
+  }
+  if (!companyScope) return NextResponse.json({ error: "Unknown company." }, { status: 400 });
   let scope;
   try {
     scope = await resolveExportFleetScope(supabase, searchParams.get("fleet"));
@@ -92,11 +102,12 @@ export async function GET(request: Request) {
 
   const expenses = ((data ?? []) as unknown as BookkeepingExpense[]).map((expense) => ({ ...expense, ...resolveBookkeepingFleet(expense) }));
   const rows = expenses
+    .filter((expense) => matchesCompanyScope(bookkeepingAccountingCompany(expense), companyScope))
     .filter((expense) => bookkeepingExpenseMatchesFleet(expense, scope))
     .filter((expense) => !category || expense.bookkeeping_expenses.some((line) => line.category === category))
-    .flatMap((expense) => bookkeepingExpenseToExportRows(expense, category));
+    .flatMap((expense) => bookkeepingExpenseToExportRows(expense, category).map((row) => accountingMode ? { ...row, fleet: bookkeepingAccountingCompany(expense) ?? "Unassigned" } : row));
   const stamp = new Date().toISOString().slice(0, 10);
-  const baseFilename = `dispatchdesk-bookkeeping-${view}-${fleetScopeSlug(scope)}-${stamp}`;
+  const baseFilename = `dispatchdesk-bookkeeping-${view}-${accountingMode ? companyScopeSlug(companyScope) : fleetScopeSlug(scope)}-${stamp}`;
 
   if (format === "pdf") {
     const summaryRows = summarizeBookkeepingRows(rows);
@@ -104,7 +115,7 @@ export async function GET(request: Request) {
     const receiptCount = rows.reduce((sum, row) => sum + row.receiptCount, 0);
     const pdf = await renderBusinessReportPdf(view === "summary" ? {
       title: "Bookkeeping Summary",
-      subtitle: filterLabel({ from, to, category, fleet: fleetScopeLabel(scope) }),
+      subtitle: filterLabel({ from, to, category, fleet: accountingMode ? companyScopeLabel(companyScope) : fleetScopeLabel(scope) }),
       metrics: [
         { label: "Categories", value: String(summaryRows.length) },
         { label: "Expense lines", value: String(rows.length) },
@@ -112,7 +123,7 @@ export async function GET(request: Request) {
         { label: "Total", value: moneyFormatter.format(total) },
       ],
       columns: [
-        { label: "Fleet", width: "20%" },
+        { label: accountingMode ? "Carrier Company" : "Fleet", width: "20%" },
         { label: "Category", width: "25%" },
         { label: "Expense lines", width: "18%", align: "right" },
         { label: "Receipts", width: "17%", align: "right" },
@@ -122,7 +133,7 @@ export async function GET(request: Request) {
       emptyMessage: "No bookkeeping expenses match the selected filters.",
     } : {
       title: "Detailed Bookkeeping Expenses",
-      subtitle: filterLabel({ from, to, category, fleet: fleetScopeLabel(scope) }),
+      subtitle: filterLabel({ from, to, category, fleet: accountingMode ? companyScopeLabel(companyScope) : fleetScopeLabel(scope) }),
       metrics: [
         { label: "Expense lines", value: String(rows.length) },
         { label: "Receipts", value: String(receiptCount) },
@@ -130,7 +141,7 @@ export async function GET(request: Request) {
       ],
       columns: [
         { label: "Date", width: "10%" },
-        { label: "Fleet", width: "10%" },
+        { label: accountingMode ? "Carrier Company" : "Fleet", width: "10%" },
         { label: "Category", width: "12%" },
         { label: "Vendor", width: "14%" },
         { label: "Unit", width: "12%" },
@@ -160,7 +171,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const csv = view === "summary" ? bookkeepingSummaryCsv(rows) : bookkeepingCsv(rows);
+  const csv = view === "summary" ? bookkeepingSummaryCsv(rows, accountingMode ? "Carrier Company" : "Fleet") : bookkeepingCsv(rows, accountingMode ? "Carrier Company" : "Fleet");
 
   return new NextResponse(csv, {
     headers: {

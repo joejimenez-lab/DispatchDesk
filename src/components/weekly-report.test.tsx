@@ -9,7 +9,7 @@ const summary: WeeklyDriverFinancialSummary = {
   weekEnd: "2026-09-06",
   driverId: "driver-1",
   driverName: "Driver One",
-  fleetCompany: "West",
+  carrierCompany: "West",
   loadCount: 2,
   loadRateTotal: 2500,
   driverPayTotal: 1000,

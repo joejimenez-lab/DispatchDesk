@@ -96,3 +96,18 @@ describe("weekly report detail pagination", () => {
     expect(result.total).toBe(2);
   });
 });
+
+it("groups the same driver's week by carrier even when hauling fleets cross", async () => {
+  const rows = [
+    { ...weeklyLoad("dc-1"), accounting_company: "DC", fleet_company: "RD", load_rate: 1000 },
+    { ...weeklyLoad("dc-2"), accounting_company: "DC", fleet_company: "DC", load_rate: 1500 },
+    { ...weeklyLoad("rd-1"), accounting_company: "RD", fleet_company: "DC", load_rate: 3000 },
+  ];
+  createClient.mockResolvedValue({ from: vi.fn(() => reportQuery({ data: rows, count: null, error: null })) });
+  const { getWeeklyDriverFinancialSummary } = await import("./weekly-financials");
+  const { summaries } = await getWeeklyDriverFinancialSummary({ period: "all" });
+  expect(summaries).toHaveLength(2);
+  expect(summaries.find((row) => row.carrierCompany === "DC")).toMatchObject({ loadCount: 2, loadRateTotal: 2500 });
+  expect(summaries.find((row) => row.carrierCompany === "RD")).toMatchObject({ loadCount: 1, loadRateTotal: 3000 });
+  expect(summaries.find((row) => row.carrierCompany === "DC")?.loads.find((load) => load.id === "dc-1")?.haulingFleet).toBe("RD");
+});

@@ -28,7 +28,8 @@ function catalogClient(companies = ["West"]) {
   return {
     from: vi.fn((table: string) => ({
       select: vi.fn(() => ({
-        not: vi.fn(async () => ({
+        not: vi.fn(() => ({
+          order: vi.fn(() => ({ range: vi.fn(async () => ({ data: companies.map((accounting_company) => ({ accounting_company })), error: null })) })),
           data: table === "fleet_units"
             ? companies.map((company) => ({ company }))
             : companies.map((fleet_company) => ({ fleet_company })),
@@ -67,7 +68,7 @@ describe("/api/reports/exports/[report]", () => {
       from: "2026-01-05",
       to: "2026-01-11",
       driver: "123e4567-e89b-42d3-a456-426614174000",
-      fleetScope: { kind: "fleet", company: "West" },
+      companyScope: { kind: "company", company: "West" },
       financial: "all",
     });
   });
@@ -81,7 +82,7 @@ describe("/api/reports/exports/[report]", () => {
     if (!response) throw new Error("Expected a report export response");
 
     expect(response.headers.get("content-type")).toBe("application/pdf");
-    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-weekly-payroll-all-fleets-\d{4}-\d{2}-\d{2}\.pdf/);
+    expect(response.headers.get("content-disposition")).toMatch(/dispatchdesk-weekly-payroll-all-companies-\d{4}-\d{2}-\d{2}\.pdf/);
     expect(Buffer.from(await response.arrayBuffer()).subarray(0, 4).toString()).toBe("%PDF");
   });
 

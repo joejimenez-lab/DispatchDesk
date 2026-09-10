@@ -10,7 +10,8 @@ function catalogClient(companies = ["West"]) {
   return {
     from: vi.fn((table: string) => ({
       select: vi.fn(() => ({
-        not: vi.fn(async () => ({
+        not: vi.fn(() => ({
+          order: vi.fn(() => ({ range: vi.fn(async () => ({ data: companies.map((accounting_company) => ({ accounting_company })), error: null })) })),
           data: table === "fleet_units"
             ? companies.map((company) => ({ company }))
             : companies.map((fleet_company) => ({ fleet_company })),
@@ -88,7 +89,7 @@ describe("/api/reports/weekly/export", () => {
     expect(csv).toContain(",1000,500,100,50,Fixed amount,30,30,20,");
     expect(csv).toContain(",50,300,Complete,,1000,500,100,50,30,20,50,300");
     expect(getWeeklyDriverFinancialSummary).toHaveBeenCalledWith(expect.objectContaining({
-      fleetScope: { kind: "fleet", company: "West" },
+      companyScope: { kind: "company", company: "West" },
     }));
   });
 

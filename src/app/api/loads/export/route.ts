@@ -1,3 +1,4 @@
+import { companyScopeSlug, resolveExportCompanyScope } from "@/lib/company-scope";
 import { NextResponse } from "next/server";
 import { csvRow } from "@/lib/csv";
 import { createAuthenticatedRouteClient } from "@/lib/supabase/route-auth";
@@ -34,6 +35,7 @@ type ExportLoad = {
   factoring_fixed_amount: number;
   factoring_amount: number;
   load_deductions: { label: string; amount: number; position: number }[];
+  accounting_company: string | null;
   carrier_company: string | null;
   fleet_company: string | null;
   truck_number: string | null;
@@ -87,6 +89,13 @@ export async function GET(request: Request) {
   const financialFilter = searchParams.get("financial");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  let companyScope;
+  try {
+    companyScope = await resolveExportCompanyScope(supabase, searchParams.get("company"));
+  } catch {
+    return NextResponse.json({ error: "Could not validate company." }, { status: 500 });
+  }
+  if (!companyScope) return NextResponse.json({ error: "Unknown company." }, { status: 400 });
   let scope;
   try {
     scope = await resolveExportFleetScope(supabase, searchParams.get("fleet"));
@@ -107,6 +116,7 @@ export async function GET(request: Request) {
       payment: paymentFilter,
       financial: financialFilter,
       fleetScope: scope,
+      companyScope,
       from,
       to,
     });
@@ -120,7 +130,7 @@ export async function GET(request: Request) {
     const chunkIds = ids.slice(offset, offset + exportChunkSize);
     const { data, error } = await supabase
       .from("loads")
-      .select("id, load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, commodity, weight_lbs, pallet_count, special_instructions, load_stops(*), load_rate, driver_pay, dispatcher_fee, fuel_cost, driver_pay_known, dispatcher_fee_known, fuel_cost_known, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
+      .select("id, load_number, status, post_delivery_status, documents_complete_at, closed_at, pickup_location, pickup_date, delivery_location, delivery_date, is_round_trip, return_location, round_trip_details, commodity, weight_lbs, pallet_count, special_instructions, load_stops(*), load_rate, driver_pay, dispatcher_fee, fuel_cost, driver_pay_known, dispatcher_fee_known, fuel_cost_known, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), accounting_company, carrier_company, fleet_company, truck_number, trailer_number, notes, brokers(company_name, contact_name), drivers(name), payments(invoice_sent, client_paid, client_amount_received, driver_paid, driver_amount_paid, dispatcher_paid, dispatcher_fee_amount)")
       .in("id", chunkIds);
     if (error) return NextResponse.json({ error: "Could not export loads." }, { status: 500 });
     fetched.push(...(data ?? []) as unknown as ExportLoad[]);
@@ -136,6 +146,7 @@ export async function GET(request: Request) {
     "Closed At",
     "Broker",
     "Broker Contact",
+    "Accounting Company",
     "Carrier",
     "Fleet",
     "Driver",
@@ -205,6 +216,7 @@ export async function GET(request: Request) {
         load.closed_at,
         load.brokers?.company_name,
         load.brokers?.contact_name,
+        load.accounting_company ?? "Unassigned",
         load.carrier_company,
         load.fleet_company ?? "Unassigned",
         load.drivers?.name,
@@ -251,7 +263,7 @@ export async function GET(request: Request) {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="dispatchdesk-loads-${fleetScopeSlug(scope)}-${stamp}.csv"`,
+      "Content-Disposition": `attachment; filename="dispatchdesk-loads-${searchParams.has("company") ? companyScopeSlug(companyScope) : fleetScopeSlug(scope)}-${stamp}.csv"`,
       "Cache-Control": "private, no-store",
     },
   });

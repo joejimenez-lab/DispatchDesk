@@ -1,3 +1,4 @@
+import { type CompanyScope } from "@/lib/company-scope";
 import { notFound } from "next/navigation";
 import { isMissingPostgrestRow } from "@/lib/data/not-found";
 import { createClient } from "@/lib/supabase/server";
@@ -41,6 +42,7 @@ export async function getLoads(params: {
   closeout?: string;
   financial?: string;
   fleetScope?: FleetScope;
+  companyScope?: CompanyScope;
   pagination?: Pagination;
 }) {
   const supabase = await createClient();
