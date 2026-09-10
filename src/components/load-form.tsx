@@ -29,6 +29,7 @@ type LoadFormProps = {
   payment?: PaymentRow | null;
   deductions?: DeductionRow[];
   showPayments?: boolean;
+  initialCarrier?: string | null;
   initialFleet?: string | null;
   stops?: LoadStopRow[];
   assignmentWindows?: AssignmentWindow[];
@@ -59,7 +60,7 @@ function editableStops(load?: LoadRow, stops: LoadStopRow[] = []): EditableStop[
   ];
 }
 
-export function LoadForm({ action, drivers, brokers, equipment, load, payment, deductions = [], showPayments = false, initialFleet, stops: savedStops = [], assignmentWindows = [] }: LoadFormProps) {
+export function LoadForm({ action, drivers, brokers, equipment, load, payment, deductions = [], showPayments = false, initialFleet, initialCarrier, stops: savedStops = [], assignmentWindows = [] }: LoadFormProps) {
   const [stops, setStops] = useState<EditableStop[]>(() => editableStops(load, savedStops));
   const [assignment, setAssignment] = useState<AssignmentSelection>({ driverId: load?.driver_id ?? null, truckUnitId: load?.truck_unit_id ?? null, trailerUnitId: load?.trailer_unit_id ?? null });
   const conflicts = useMemo(() => findAssignmentConflicts(assignment, stops, assignmentWindows, load?.id), [assignment, assignmentWindows, load?.id, stops]);
@@ -84,8 +85,9 @@ export function LoadForm({ action, drivers, brokers, equipment, load, payment, d
             ))}
           </Select>
         </Field>
-        <Field label="Carrier Company">
-          <Input name="carrier_company" defaultValue={load?.carrier_company ?? ""} />
+        <Field label="Carrier Company (whose load it is)">
+          <Input name="carrier_company" defaultValue={load?.carrier_company ?? initialCarrier ?? ""} />
+          <span className="mt-1 block text-xs font-normal text-zinc-500">Used for company totals, reports, exports, and invoices.</span>
         </Field>
         <LoadEquipmentFields
           drivers={drivers}

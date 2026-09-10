@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { addFinancialCompletenessTotals, deductionsTotal, financialCompleteness, matchesFinancialCompleteness, profitForLoad, roundCents, totalDeductionsForLoad, type FinancialCompletenessFilter } from "@/lib/financials";
 import type { LoadCloseoutStatus, LoadStatus } from "@/types/database";
-import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
+import { applyCompanyScope, type CompanyScope } from "@/lib/company-scope";
 import { pageRange, type Pagination } from "@/lib/pagination";
 
 type WeeklyFinancialLoad = {
@@ -28,6 +28,7 @@ type WeeklyFinancialLoad = {
   load_deductions: { label: string; amount: number; position: number }[];
   created_at: string;
   driver_id: string | null;
+  accounting_company: string | null;
   fleet_company: string | null;
   drivers: { name: string | null } | null;
 };
@@ -38,7 +39,7 @@ export type WeeklyDriverFinancialSummary = {
   weekEnd: string;
   driverId: string | null;
   driverName: string;
-  fleetCompany?: string | null;
+  carrierCompany?: string | null;
   loadCount: number;
   loadRateTotal: number;
   driverPayTotal: number;
@@ -75,7 +76,8 @@ export type WeeklyDriverFinancialSummary = {
     estimatedProfit: number;
     financialComplete: boolean;
     missingFinancialFields: string[];
-    fleetCompany?: string | null;
+    carrierCompany?: string | null;
+    haulingFleet?: string | null;
   }[];
 };
 
@@ -86,7 +88,7 @@ export type WeeklyFinancialFilters = {
   from?: string;
   to?: string;
   driver?: string;
-  fleetScope?: FleetScope;
+  companyScope?: CompanyScope;
   financial?: FinancialCompletenessFilter;
   pagination?: Pagination;
 };
@@ -191,15 +193,15 @@ export async function getWeeklyDriverFinancialSummary(
 
   let query = supabase
     .from("loads")
-    .select("id, load_number, status, post_delivery_status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, driver_pay_known, dispatcher_fee_known, fuel_cost_known, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, fleet_company, drivers(name)")
+    .select("id, load_number, status, post_delivery_status, pickup_date, delivery_date, is_round_trip, return_location, round_trip_details, load_rate, driver_pay, dispatcher_fee, fuel_cost, driver_pay_known, dispatcher_fee_known, fuel_cost_known, factoring_mode, factoring_percent, factoring_fixed_amount, factoring_amount, load_deductions(label, amount, position), created_at, driver_id, accounting_company, fleet_company, drivers(name)")
     .neq("status", "Cancelled")
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("pickup_date", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }).order("id");
 
   if (filters.driver && !driverId) return { summaries: [], detailSummaries: [], range, total: 0 };
   if (driverId) query = query.eq("driver_id", driverId);
-  if (filters.fleetScope) query = applyFleetScope(query, filters.fleetScope);
+  if (filters.companyScope) query = applyCompanyScope(query, filters.companyScope);
   if (filters.financial === "complete") {
     query = query.eq("driver_pay_known", true).eq("dispatcher_fee_known", true).eq("fuel_cost_known", true);
   } else if (filters.financial === "incomplete") {
@@ -232,9 +234,9 @@ export async function getWeeklyDriverFinancialSummary(
     .neq("status", "Cancelled")
     .order("delivery_date", { ascending: false, nullsFirst: false })
     .order("pickup_date", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }).order("id");
   if (driverId) pageQuery = pageQuery.eq("driver_id", driverId);
-  if (filters.fleetScope) pageQuery = applyFleetScope(pageQuery, filters.fleetScope);
+  if (filters.companyScope) pageQuery = applyCompanyScope(pageQuery, filters.companyScope);
   if (filters.financial === "complete") {
     pageQuery = pageQuery.eq("driver_pay_known", true).eq("dispatcher_fee_known", true).eq("fuel_cost_known", true);
   } else if (filters.financial === "incomplete") {
@@ -285,7 +287,7 @@ export async function getWeeklyDriverFinancialSummary(
     const { weekStart, weekEnd } = weekRange(date);
     const driverId = load.driver_id;
     const driverName = load.drivers?.name?.trim() || "Unassigned";
-    const key = `${weekStart}:${driverId ?? "unassigned"}:${load.fleet_company ?? "unassigned-fleet"}`;
+    const key = `${weekStart}:${driverId ?? "unassigned"}:${load.accounting_company ?? "unassigned-company"}`;
     const otherDeductions = [...load.load_deductions]
       .sort((a, b) => a.position - b.position)
       .map(({ label, amount }) => ({ label, amount: Number(amount) }));
@@ -301,7 +303,7 @@ export async function getWeeklyDriverFinancialSummary(
         weekEnd,
         driverId,
         driverName,
-        fleetCompany: load.fleet_company,
+        carrierCompany: load.accounting_company,
         loadCount: 0,
         loadRateTotal: 0,
         driverPayTotal: 0,
@@ -353,7 +355,8 @@ export async function getWeeklyDriverFinancialSummary(
       estimatedProfit,
       financialComplete: completeness.complete,
       missingFinancialFields: completeness.missingLabels,
-      fleetCompany: load.fleet_company,
+      carrierCompany: load.accounting_company,
+      haulingFleet: load.fleet_company,
     });
 
     summaries.set(key, summary);

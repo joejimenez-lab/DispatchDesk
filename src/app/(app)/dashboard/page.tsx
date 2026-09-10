@@ -12,9 +12,9 @@ import { LinkButton } from "@/components/button";
 import { StatusBadge } from "@/components/status-badge";
 import { currency, formatDate } from "@/lib/utils";
 import { getDashboardMetrics } from "@/lib/data/dashboard";
-import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
-import { getLoadFleetCompanies } from "@/lib/data/fleet";
-import { fleetScopeLabel, fleetScopeParam, parseFleetScope } from "@/lib/fleet-scope";
+import { CompanyScopeTabs } from "@/components/company-scope-tabs";
+import { getLoadCompanies } from "@/lib/data/companies";
+import { companyScopeLabel, companyScopeParam, parseCompanyScope } from "@/lib/company-scope";
 
 function overdueAge(value: string | null) {
   if (!value) return "Delivery date unavailable";
@@ -40,13 +40,13 @@ function ProgressBar({ label, value, max }: { label: string; value: number; max:
   );
 }
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ fleet?: string }> }) {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ company?: string; fleet?: string }> }) {
   const params = await searchParams;
-  const companies = await getLoadFleetCompanies();
-  const scope = parseFleetScope(params.fleet, companies);
+  const companies = await getLoadCompanies();
+  const scope = parseCompanyScope(params.company ?? params.fleet, companies);
   if (!scope) notFound();
   const metrics = await getDashboardMetrics(scope);
-  const fleet = fleetScopeParam(scope);
+  const company = companyScopeParam(scope);
   const maxStatusCount = Math.max(0, ...metrics.statusCounts.map(([, count]) => count));
   const totalRevenue = Math.max(metrics.totalRevenue, 1);
   const collectedWidth = Math.round((metrics.collectedRevenue / totalRevenue) * 100);
@@ -64,9 +64,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <div className="dashboard-hero-heading">
           <div>
             <h1>Dashboard</h1>
-            <p>{fleetScopeLabel(scope)} · Loads, payments, revenue, and maintenance.</p>
+            <p>{companyScopeLabel(scope)} · Loads and financial totals by carrier company.</p>
           </div>
-          <LinkButton href={fleet ? `/loads/new?fleet=${encodeURIComponent(fleet)}` : "/loads/new"}>
+          <LinkButton href={company ? `/loads/new?company=${encodeURIComponent(company)}` : "/loads/new"}>
             <span aria-hidden="true">+</span> Create load
           </LinkButton>
         </div>
@@ -87,7 +87,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       </section>
 
-      <FleetScopeTabs basePath="/dashboard" companies={companies} scope={scope} />
+      <CompanyScopeTabs basePath="/dashboard" companies={companies} scope={scope} />
 
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="dispatch-panel lg:col-span-2">
@@ -96,7 +96,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <h2>Current loads</h2>
               <p>Active loads ordered by delivery date.</p>
             </div>
-            <Link href={fleet ? `/loads?fleet=${encodeURIComponent(fleet)}` : "/loads"} className="panel-link">View all loads</Link>
+            <Link href={company ? `/loads?company=${encodeURIComponent(company)}` : "/loads"} className="panel-link">View all loads</Link>
           </div>
           <div className="divide-y divide-zinc-200 px-5">
             {metrics.currentLoads.map((load) => {
@@ -128,7 +128,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     ) : null}
                   </div>
                   <div className="text-xs text-zinc-500 md:col-span-2 md:col-start-2">
-                    {load.fleet_company ?? "Unassigned"} · {load.brokers?.company_name ?? "No broker"} · {load.drivers?.name ?? "No driver"}
+                    {load.accounting_company ?? "Unassigned"} · {load.brokers?.company_name ?? "No broker"} · {load.drivers?.name ?? "No driver"}
                   </div>
                   <div className="justify-self-start md:col-start-4 md:row-start-1">
                     <StatusBadge status={load.status} />
@@ -162,9 +162,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <div className="panel-heading">
               <div>
                 <h2>Maintenance alerts</h2>
-                <p>Scheduled service that needs attention.</p>
+                <p>Equipment fleet service that needs attention.</p>
               </div>
-              <Link href={fleet ? `/maintenance?fleet=${encodeURIComponent(fleet)}` : "/maintenance"} className="panel-link">View maintenance</Link>
+              <Link href="/maintenance" className="panel-link">View maintenance</Link>
             </div>
             <div className="dispatch-panel-inner">
               <div className="maintenance-tally maintenance-tally-four">

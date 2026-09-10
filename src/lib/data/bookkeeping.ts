@@ -20,6 +20,7 @@ type LoadLink = {
   pickup_location: string;
   delivery_location: string;
   fleet_company: string | null;
+  accounting_company?: string | null;
 };
 type DriverLink = { id: string; name: string; truck_number?: string | null };
 type ServiceLink = { id: string; service_date: string | null; description: string; fleet_units?: UnitLink | null };
@@ -75,7 +76,7 @@ export const BOOKKEEPING_EXPENSE_SELECT = `
   bookkeeping_expenses(*),
   bookkeeping_receipts(*),
   fleet_units(id, unit_number, unit_type, company),
-  loads(id, load_number, pickup_location, delivery_location, fleet_company),
+  loads(id, load_number, pickup_location, delivery_location, fleet_company, accounting_company),
   drivers(id, name, truck_number),
   service_records(id, service_date, description, fleet_units(id, unit_number, unit_type, company)),
   inspection_records(id, inspection_date, result, fleet_units(id, unit_number, unit_type, company)),
@@ -242,7 +243,7 @@ export async function getBookkeepingOptions(): Promise<BookkeepingOptions> {
     supabase.from("fleet_units").select("id, unit_number, unit_type, company").order("unit_type").order("unit_number"),
     supabase
       .from("loads")
-      .select("id, load_number, pickup_location, delivery_location, fleet_company")
+      .select("id, load_number, pickup_location, delivery_location, fleet_company, accounting_company")
       .order("delivery_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(300),
@@ -347,4 +348,10 @@ export async function getOperationalReconciliation(): Promise<ReconciliationSumm
   const { data, error } = await supabase.rpc("reconcile_operational_expenses", { p_apply: false });
   if (error) throw error;
   return data as ReconciliationSummary;
+}
+
+export function bookkeepingAccountingCompany(expense: BookkeepingExpense) {
+  // A load-linked expense follows that load, even when another fleet hauled it.
+  // Equipment-only expenses continue to belong to the equipment company.
+  return expense.loads ? expense.loads.accounting_company ?? null : resolveBookkeepingFleet(expense).fleetCompany;
 }

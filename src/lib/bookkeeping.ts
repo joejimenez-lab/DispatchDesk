@@ -87,9 +87,9 @@ export function summarizeBookkeepingRows(rows: BookkeepingExportRow[]): Bookkeep
   return [...categories.values()].sort((a, b) => a.fleet.localeCompare(b.fleet) || b.total - a.total || a.category.localeCompare(b.category));
 }
 
-export function bookkeepingSummaryCsv(rows: BookkeepingExportRow[]) {
+export function bookkeepingSummaryCsv(rows: BookkeepingExportRow[], companyLabel = "Fleet") {
   return [
-    csvRow(["Fleet", "Category", "Expense Lines", "Receipt Count", "Total"]),
+    csvRow([companyLabel, "Category", "Expense Lines", "Receipt Count", "Total"]),
     ...summarizeBookkeepingRows(rows).map((row) => csvRow([
       row.fleet, row.category,
       row.expenseLines,
@@ -99,11 +99,11 @@ export function bookkeepingSummaryCsv(rows: BookkeepingExportRow[]) {
   ].join("\n");
 }
 
-export function bookkeepingCsv(rows: BookkeepingExportRow[]) {
+export function bookkeepingCsv(rows: BookkeepingExportRow[], companyLabel = "Fleet") {
   return [
     csvRow([
       "Date",
-      "Fleet",
+      companyLabel,
       "Category",
       "Amount",
       "Vendor",

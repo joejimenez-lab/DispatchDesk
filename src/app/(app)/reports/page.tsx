@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { FleetScopeTabs } from "@/components/fleet-scope-tabs";
+import { CompanyScopeTabs } from "@/components/company-scope-tabs";
 import { Field, Input, Select } from "@/components/field";
 import { ExportMenu, type ExportMenuItem } from "@/components/export-menu";
 import { SummaryTotals, WeeklySummaryList } from "@/components/weekly-report";
-import { getLoadFleetCompanies } from "@/lib/data/fleet";
+import { getLoadCompanies } from "@/lib/data/companies";
 import { getFormOptions } from "@/lib/data/options";
 import { getWeeklyDriverFinancialSummary } from "@/lib/data/weekly-financials";
-import { fleetScopeLabel, fleetScopeParam, parseFleetScope, UNASSIGNED_FLEET } from "@/lib/fleet-scope";
+import { companyScopeLabel, companyScopeParam, parseCompanyScope, UNASSIGNED_COMPANY } from "@/lib/company-scope";
 import { PaginationControls } from "@/components/pagination-controls";
 import { pageHref, parsePagination, totalPages } from "@/lib/pagination";
 import { normalizeReportPeriod, REPORT_PERIODS } from "@/lib/report-period";
@@ -15,21 +15,21 @@ import { normalizeReportPeriod, REPORT_PERIODS } from "@/lib/report-period";
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string; fleet?: string; page?: string; pageSize?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; driver?: string; company?: string; fleet?: string; page?: string; pageSize?: string }>;
 }) {
   const params = await searchParams;
   const period = normalizeReportPeriod(params.period ?? "all");
   const pagination = parsePagination(params);
-  const [options, fleetCompanies] = await Promise.all([getFormOptions(), getLoadFleetCompanies()]);
-  const scope = parseFleetScope(params.fleet, fleetCompanies);
+  const [options, companies] = await Promise.all([getFormOptions(), getLoadCompanies()]);
+  const scope = parseCompanyScope(params.company ?? params.fleet, companies);
   if (!scope) notFound();
-  const fleet = fleetScopeParam(scope);
+  const company = companyScopeParam(scope);
   const report = await getWeeklyDriverFinancialSummary({
     period,
     from: params.from,
     to: params.to,
     driver: params.driver || undefined,
-    fleetScope: scope,
+    companyScope: scope,
     financial: "all",
     pagination,
   });
@@ -41,12 +41,12 @@ export default async function ReportsPage({
       from: params.from,
       to: params.to,
       driver: params.driver,
-      fleet,
+      company,
     }, lastPage, pagination.pageSize));
   }
   const exportParams = new URLSearchParams();
   exportParams.set("period", period);
-  if (fleet) exportParams.set("fleet", fleet);
+  if (company) exportParams.set("company", company);
   if (report.range.from) exportParams.set("from", report.range.from);
   if (report.range.to) exportParams.set("to", report.range.to);
   if (params.driver) exportParams.set("driver", params.driver);
@@ -94,13 +94,13 @@ export default async function ReportsPage({
       title: "Bookkeeping expenses",
       description: "Tax and receipt records with truck, trailer, load, driver, and maintenance links.",
       formats: [
-        { label: "Detailed CSV", description: "Accounting rows with categories, links, and receipt references.", href: `/api/bookkeeping/export?${exportParams.toString()}&view=detailed&format=csv`, type: "csv" },
-        { label: "Summary PDF", description: "Category totals and receipt counts for quick review.", href: `/api/bookkeeping/export?${exportParams.toString()}&view=summary&format=pdf`, type: "pdf" },
+        { label: "Detailed CSV", description: "Accounting rows with categories, links, and receipt references.", href: `/api/bookkeeping/export?${exportParams.toString()}&basis=carrier&view=detailed&format=csv`, type: "csv" },
+        { label: "Summary PDF", description: "Category totals and receipt counts for quick review.", href: `/api/bookkeeping/export?${exportParams.toString()}&basis=carrier&view=summary&format=pdf`, type: "pdf" },
       ],
     },
     {
       title: "Maintenance",
-      description: "Fleet service, inspection, repair, and reminder history.",
+      description: "Equipment fleet service, inspection, repair, and reminder history.",
       formats: [
         { label: "History CSV", description: "Service, inspection, repair, reminder, and cost rows.", href: reportExportHref("maintenance", "csv"), type: "csv" },
         { label: "History PDF", description: "Print-ready maintenance history and recorded cost totals.", href: reportExportHref("maintenance", "pdf"), type: "pdf" },
@@ -121,17 +121,17 @@ export default async function ReportsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-950">Reports</h1>
-          <p className="text-sm text-zinc-600">{fleetScopeLabel(scope)} · Financial review and business exports.</p>
+          <p className="text-sm text-zinc-600">{companyScopeLabel(scope)} · Financial review and business exports.</p>
         </div>
         <ExportMenu
           items={exports}
           filters={[
             {
-              key: "fleet",
-              label: "Fleet",
-              allLabel: "All fleets",
-              defaultValue: fleet,
-              options: [...fleetCompanies.map((company) => ({ label: company, value: company })), { label: "Unassigned", value: UNASSIGNED_FLEET }],
+              key: "company",
+              label: "Company",
+              allLabel: "All companies",
+              defaultValue: company,
+              options: [...companies.map((company) => ({ label: company, value: company })), { label: "Unassigned", value: UNASSIGNED_COMPANY }],
             },
             {
               key: "driver",
@@ -145,7 +145,7 @@ export default async function ReportsPage({
       </div>
 
       <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-5">
-        {fleet ? <input type="hidden" name="fleet" value={fleet} /> : null}
+        {company ? <input type="hidden" name="company" value={company} /> : null}
         <input type="hidden" name="pageSize" value={pagination.pageSize} />
         <Field label="Period">
           <Select name="period" defaultValue={period}>
@@ -181,9 +181,9 @@ export default async function ReportsPage({
         <p className="-mt-3 text-xs text-zinc-500">Custom range uses the From and To dates above. Leave a side blank to leave it open-ended.</p>
       ) : null}
 
-      <FleetScopeTabs
+      <CompanyScopeTabs
         basePath="/reports"
-        companies={fleetCompanies}
+        companies={companies}
         scope={scope}
         params={{ period, from: params.from, to: params.to, driver: params.driver, pageSize: String(pagination.pageSize) }}
       />
@@ -199,7 +199,7 @@ export default async function ReportsPage({
 
       <PaginationControls
         basePath="/reports"
-        params={{ period, from: params.from, to: params.to, driver: params.driver, fleet }}
+        params={{ period, from: params.from, to: params.to, driver: params.driver, company }}
         pagination={pagination}
         total={total}
       />

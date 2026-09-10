@@ -55,9 +55,9 @@ function csv(headers: string[], rows: (string | number | boolean | null | undefi
 
 export function weeklyPayrollCsv(summaries: WeeklyDriverFinancialSummary[]) {
   return csv(
-    ["Fleet", "Week Start", "Week End", "Driver", "Load Count", "Gross Driver Pay"],
+    ["Carrier Company", "Week Start", "Week End", "Driver", "Load Count", "Gross Driver Pay"],
     summaries.map((summary) => [
-      summary.fleetCompany ?? "Unassigned", summary.weekStart,
+      summary.carrierCompany ?? "Unassigned", summary.weekStart,
       summary.weekEnd,
       summary.driverName,
       summary.loadCount,
@@ -70,11 +70,11 @@ export function weeklyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
   const weeks = new Map<string, Omit<WeeklyDriverFinancialSummary, "key" | "driverId" | "driverName" | "loads">>();
 
   for (const summary of summaries) {
-    const mapKey = `${summary.weekStart}:${summary.fleetCompany ?? "unassigned"}`;
+    const mapKey = `${summary.weekStart}:${summary.carrierCompany ?? "unassigned"}`;
     const week = weeks.get(mapKey) ?? {
       weekStart: summary.weekStart,
       weekEnd: summary.weekEnd,
-      fleetCompany: summary.fleetCompany,
+      carrierCompany: summary.carrierCompany,
       loadCount: 0,
       loadRateTotal: 0,
       driverPayTotal: 0,
@@ -106,9 +106,9 @@ export function weeklyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
   }
 
   return csv(
-    ["Fleet", "Week Start", "Week End", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit", "Incomplete Loads", "Incomplete Revenue", "Provisional Margin"],
+    ["Carrier Company", "Week Start", "Week End", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit", "Incomplete Loads", "Incomplete Revenue", "Provisional Margin"],
     [...weeks.values()].map((week) => [
-      week.fleetCompany ?? "Unassigned", week.weekStart,
+      week.carrierCompany ?? "Unassigned", week.weekStart,
       week.weekEnd,
       week.loadCount,
       week.loadRateTotal,
@@ -132,7 +132,7 @@ export function yearlyFinancialRows(summaries: WeeklyDriverFinancialSummary[]): 
   for (const summary of summaries) {
     for (const load of summary.loads) {
       const year = load.date.slice(0, 4);
-      const fleet = load.fleetCompany ?? "Unassigned";
+      const fleet = load.carrierCompany ?? "Unassigned";
       const mapKey = `${year}:${fleet}`;
       const total = years.get(mapKey) ?? { year, fleet, loadCount: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuelCost: 0, factoring: 0, otherDeductions: 0, totalDeductions: 0, profit: 0, incompleteLoadCount: 0, incompleteRevenue: 0, provisionalMargin: 0 };
       total.loadCount += 1;
@@ -158,14 +158,14 @@ export function yearlyFinancialRows(summaries: WeeklyDriverFinancialSummary[]): 
 
 export function yearlyFinancialCsv(summaries: WeeklyDriverFinancialSummary[]) {
   return csv(
-    ["Fleet", "Year", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit", "Incomplete Loads", "Incomplete Revenue", "Provisional Margin"],
+    ["Carrier Company", "Year", "Load Count", "Revenue", "Driver Pay", "Dispatcher Fees", "Fuel Cost", "Factoring", "Other Deductions", "Total Deductions", "Estimated Profit", "Incomplete Loads", "Incomplete Revenue", "Provisional Margin"],
     yearlyFinancialRows(summaries).map((row) => [row.fleet, row.year, row.loadCount, row.revenue, row.driverPay, row.dispatcherFees, row.fuelCost, row.factoring, row.otherDeductions, row.totalDeductions, row.profit, row.incompleteLoadCount, row.incompleteRevenue, row.provisionalMargin]),
   );
 }
 
 export function clientBillingCsv(rows: BillingRow[]) {
   return csv(
-    ["Fleet", "Load Number", "Load Date", "Client", "Operational Status", "Post-delivery Stage", "Invoice Amount", "Invoice Sent", "Invoice Sent Date", "Client Paid", "Amount Received", "Date Received", "Outstanding"],
+    ["Carrier Company", "Load Number", "Load Date", "Client", "Operational Status", "Post-delivery Stage", "Invoice Amount", "Invoice Sent", "Invoice Sent Date", "Client Paid", "Amount Received", "Date Received", "Outstanding"],
     rows.map((row) => [
       row.fleet, row.loadNumber,
       row.loadDate,

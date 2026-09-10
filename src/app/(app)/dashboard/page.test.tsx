@@ -2,8 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import DashboardPage from "./page";
 
-vi.mock("@/lib/data/fleet", () => ({
-  getLoadFleetCompanies: vi.fn().mockResolvedValue([]),
+vi.mock("@/lib/data/companies", () => ({
+  getLoadCompanies: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/lib/data/dashboard", () => ({

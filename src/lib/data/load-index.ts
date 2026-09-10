@@ -1,3 +1,4 @@
+import { applyCompanyScope, type CompanyScope } from "@/lib/company-scope";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyFleetScope, type FleetScope } from "@/lib/fleet-scope";
 import { searchTokens } from "@/lib/search";
@@ -20,6 +21,7 @@ export type LoadIndexFilters = {
   payment?: string | null;
   financial?: string | null;
   fleetScope?: FleetScope;
+  companyScope?: CompanyScope;
   from?: string | null;
   to?: string | null;
 };
@@ -60,6 +62,7 @@ function buildLoadIndexQuery(
   }
   if (filters.broker) query = query.eq("broker_id", filters.broker);
   if (filters.driver) query = query.eq("driver_id", filters.driver);
+  if (filters.companyScope) query = applyCompanyScope(query, filters.companyScope);
   if (filters.fleetScope) query = applyFleetScope(query, filters.fleetScope);
 
   if (filters.payment === "paid") query = query.eq("client_paid", true);

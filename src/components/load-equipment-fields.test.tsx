@@ -22,7 +22,7 @@ describe("LoadEquipmentFields", () => {
   it("filters truck and trailer choices by fleet and unit type", () => {
     render(<LoadEquipmentFields drivers={drivers} equipment={equipment} />);
 
-    fireEvent.change(screen.getByLabelText("Fleet"), { target: { value: "Fleet A" } });
+    fireEvent.change(screen.getByLabelText("Fleet (hauling equipment)"), { target: { value: "Fleet A" } });
 
     const truck = screen.getByLabelText("Truck");
     const trailer = screen.getByLabelText("Trailer");
@@ -38,7 +38,7 @@ describe("LoadEquipmentFields", () => {
 
     fireEvent.change(screen.getByLabelText(/^Driver/), { target: { value: "driver-a" } });
 
-    expect((screen.getByLabelText("Fleet") as HTMLSelectElement).value).toBe("Fleet A");
+    expect((screen.getByLabelText("Fleet (hauling equipment)") as HTMLSelectElement).value).toBe("Fleet A");
     expect((screen.getByLabelText("Truck") as HTMLSelectElement).value).toBe("truck-a");
     expect((screen.getByLabelText("Trailer") as HTMLSelectElement).value).toBe("trailer-a");
   });
@@ -46,12 +46,12 @@ describe("LoadEquipmentFields", () => {
   it("does not replace a manual equipment choice when the driver changes", () => {
     render(<LoadEquipmentFields drivers={drivers} equipment={equipment} />);
 
-    fireEvent.change(screen.getByLabelText("Fleet"), { target: { value: "Fleet B" } });
+    fireEvent.change(screen.getByLabelText("Fleet (hauling equipment)"), { target: { value: "Fleet B" } });
     fireEvent.change(screen.getByLabelText("Truck"), { target: { value: "truck-b" } });
     fireEvent.change(screen.getByLabelText("Trailer"), { target: { value: "trailer-b" } });
     fireEvent.change(screen.getByLabelText(/^Driver/), { target: { value: "driver-a" } });
 
-    expect((screen.getByLabelText("Fleet") as HTMLSelectElement).value).toBe("Fleet B");
+    expect((screen.getByLabelText("Fleet (hauling equipment)") as HTMLSelectElement).value).toBe("Fleet B");
     expect((screen.getByLabelText("Truck") as HTMLSelectElement).value).toBe("truck-b");
     expect((screen.getByLabelText("Trailer") as HTMLSelectElement).value).toBe("trailer-b");
   });

@@ -98,12 +98,12 @@ export function WeeklySummaryPdf({
   summaries,
   range,
   generatedAt = new Date(),
-  fleetLabel = "All fleets",
+  companyLabel = "All companies",
 }: {
   summaries: WeeklyDriverFinancialSummary[];
   range: WeeklyFinancialRange;
   generatedAt?: Date;
-  fleetLabel?: string;
+  companyLabel?: string;
 }) {
   const totals = summaries.reduce(
     (result, summary) => ({
@@ -125,7 +125,7 @@ export function WeeklySummaryPdf({
   const weeks = new Map<string, typeof totals & { weekEnd: string; fleet: string }>();
   const drivers = new Map<string, { name: string; fleet: string; loads: number; pay: number; revenue: number }>();
   for (const summary of summaries) {
-    const fleet = summary.fleetCompany ?? "Unassigned";
+    const fleet = summary.carrierCompany ?? "Unassigned";
     const weekKey = `${summary.weekStart}:${fleet}`;
     const week = weeks.get(weekKey) ?? { loads: 0, revenue: 0, driverPay: 0, dispatcherFees: 0, fuel: 0, factoring: 0, otherDeductions: 0, profit: 0, incompleteLoads: 0, incompleteRevenue: 0, provisionalMargin: 0, weekEnd: summary.weekEnd, fleet };
     week.loads += summary.loadCount;
@@ -177,7 +177,7 @@ export function WeeklySummaryPdf({
           <View>
             <Text style={styles.brand}>DISPATCHDESK</Text>
             <Text style={styles.title}>Financial Summary</Text>
-            <Text style={styles.subtitle}>{rangeLabel(range)} · Fleet: {fleetLabel}</Text>
+            <Text style={styles.subtitle}>{rangeLabel(range)} · Carrier Company: {companyLabel}</Text>
           </View>
           <Text style={styles.generated}>PREPARED{`\n`}{dateFormatter.format(generatedAt)}</Text>
         </View>
@@ -245,7 +245,7 @@ export async function renderWeeklySummaryPdf(
   summaries: WeeklyDriverFinancialSummary[],
   range: WeeklyFinancialRange,
   generatedAt = new Date(),
-  fleetLabel = "All fleets",
+  companyLabel = "All companies",
 ) {
-  return renderToBuffer(<WeeklySummaryPdf summaries={summaries} range={range} generatedAt={generatedAt} fleetLabel={fleetLabel} />);
+  return renderToBuffer(<WeeklySummaryPdf summaries={summaries} range={range} generatedAt={generatedAt} companyLabel={companyLabel} />);
 }
