@@ -102,11 +102,11 @@ jobs:
       - name: Run browser smoke test
         run: npm run test:e2e
 
-      - name: Upload browser failure artifacts
-        if: failure()
+      - name: Upload browser verification artifacts
+        if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: browser-smoke-${{ github.run_id }}
+          name: browser-verification-${{ github.run_id }}
           path: |
             playwright-report/
             test-results/

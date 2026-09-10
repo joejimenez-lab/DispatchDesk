@@ -10,8 +10,8 @@ describe("version history", () => {
     expect(CURRENT_VERSION).toBe("2.13.0");
     expect(VERSION_HISTORY[0]).toMatchObject({
       version: CURRENT_VERSION,
-      title: "Demo workspace safety",
-      kind: "patch",
+      title: "Accounting by carrier company",
+      kind: "minor",
     });
   });
 

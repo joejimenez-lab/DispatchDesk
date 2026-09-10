@@ -103,6 +103,11 @@ test("keeps crossover loads with their carrier across dashboard, reports, export
     await expect(page.getByRole("option", { name: new RegExp(ownLoad) })).toHaveCount(1);
     await expect(page.getByRole("option", { name: new RegExp(otherLoad) })).toHaveCount(0);
   }
+  const operationalExport = await page.request.get("/api/loads/export?fleet=RD");
+  expect(operationalExport.ok()).toBeTruthy();
+  const haulingCsv = await operationalExport.text();
+  expect(haulingCsv).toContain("E2E-DC-CROSS");
+  expect(haulingCsv).not.toContain("E2E-RD-CROSS");
   await page.goto("/invoices/new?company=DC");
   await page.getByLabel("Load", { exact: true }).selectOption("40000000-0000-4000-8000-000000000201");
   await page.getByRole("button", { name: "Create invoice" }).click();
