@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BOOKKEEPING_EXPENSE_SELECT,
+  bookkeepingAccountingCompany,
   bookkeepingExpenseMatchesFleet,
   resolveBookkeepingFleet,
   type BookkeepingExpense,
@@ -45,4 +46,16 @@ describe("bookkeeping fleet classification", () => {
     expect(classification).toEqual({ fleetCompany: null, fleetConflict: true });
     expect(bookkeepingExpenseMatchesFleet({ ...row, ...classification }, { kind: "unassigned" })).toBe(true);
   });
+});
+
+
+it("keeps load-linked accounting expenses with the carrier while retaining equipment classification", () => {
+  const row = expense({
+    fleet_units: { id: "unit", unit_number: "103", unit_type: "Truck", company: "RD" },
+    loads: { id: "load", load_number: "DC-CROSS", pickup_location: "A", delivery_location: "B", fleet_company: "RD", accounting_company: "DC" },
+  });
+  expect(bookkeepingAccountingCompany(row)).toBe("DC");
+  expect(resolveBookkeepingFleet(row).fleetCompany).toBe("RD");
+  expect(bookkeepingAccountingCompany({ ...row, loads: { ...row.loads!, accounting_company: null } })).toBeNull();
+  expect(bookkeepingAccountingCompany({ ...row, loads: null })).toBe("RD");
 });
