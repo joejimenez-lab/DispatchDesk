@@ -79,7 +79,7 @@ test("explains load-save errors, preserves entries, and allows unknown appointme
   await page.getByRole("button", { name: "+ Add stop" }).click();
   await page.getByRole("button", { name: "Save load" }).click();
 
-  const alert = page.getByRole("alert");
+  const alert = page.getByRole("alert", { name: "Load wasn't saved." });
   await expect(alert).toContainText("Load wasn't saved.");
   await expect(alert).toContainText("Stop 2: location: Stop location is required");
   await expect(alert).toContainText("Stop 3: location: Stop location is required");

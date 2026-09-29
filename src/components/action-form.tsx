@@ -70,6 +70,7 @@ export function ActionForm({
         {showMessage ? (
           <div
             role={state.status === "error" ? "alert" : "status"}
+            aria-label={state.status === "error" ? errorTitle : undefined}
             ref={messageRef}
             id={messageId}
             tabIndex={-1}
