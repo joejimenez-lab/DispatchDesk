@@ -95,7 +95,7 @@ test("explains load-save errors, preserves entries, and allows unknown appointme
   await expect(page.locator('input[name="stop_location"]').nth(1)).toBeFocused();
   await page.locator('input[name="stop_location"]').nth(1).fill("Phoenix, AZ");
   await page.locator('input[name="stop_location"]').nth(2).fill("San Diego, CA");
-  await page.getByRole("button", { name: "Skip times for now" }).click();
+  await page.getByRole("button", { name: "Skip times for now", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Appointment times skipped" })).toBeVisible();
   await expect(page.locator('input[name="stop_scheduled_start"]').nth(0)).toHaveValue("");
   await expect(page.locator('input[name="stop_scheduled_end"]').nth(0)).toHaveValue("");
