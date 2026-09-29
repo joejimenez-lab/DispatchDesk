@@ -111,6 +111,56 @@ describe("load and document actions", () => {
     documentInsert.mockReset();
   });
 
+  it("returns the exact stop and missing field without trying to save", async () => {
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.delete("stop_location");
+    formData.append("stop_location", "Los Angeles, CA");
+    formData.append("stop_location", " ");
+
+    const result = await createLoad(initialActionState, formData);
+
+    expect(result.issues).toContainEqual({ path: "stops.1.location", message: "Stop location is required" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("retains the missing delivery-stop error instead of discarding the form-level issue", async () => {
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.delete("stop_type");
+    formData.append("stop_type", "Pickup");
+    formData.append("stop_type", "Pickup");
+
+    const result = await createLoad(initialActionState, formData);
+
+    expect(result.issues).toContainEqual({ path: "stops", message: "Choose Delivery as the stop type for at least one stop" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("points to the missing appointment end and accepts cleared times on retry", async () => {
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    rpc.mockResolvedValue({ data: "load-1", error: null });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.delete("stop_scheduled_end");
+    formData.append("stop_scheduled_end", "");
+    formData.append("stop_scheduled_end", "2026-09-01T14:00");
+
+    const result = await createLoad(initialActionState, formData);
+    expect(result.issues).toContainEqual({ path: "stops.0.scheduled_end", message: "Add an appointment end time, or skip times for now" });
+    expect(rpc).not.toHaveBeenCalled();
+
+    formData.delete("stop_scheduled_start");
+    formData.append("stop_scheduled_start", "");
+    formData.append("stop_scheduled_start", "2026-09-01T13:00");
+    await createLoad(initialActionState, formData);
+    expect(rpc).toHaveBeenCalledWith("save_load", expect.objectContaining({
+      p_stops: expect.arrayContaining([expect.objectContaining({ stop_type: "Pickup", scheduled_start: null, scheduled_end: null })]),
+    }));
+  });
+
   it("rejects spoofed active content before writing to storage", async () => {
     createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
     const { uploadDocument } = await import("./loads");
@@ -282,6 +332,21 @@ describe("load and document actions", () => {
     const result = await createLoad(initialActionState, formData);
 
     expect(result).toMatchObject({ status: "error", message: "Check the form and try again." });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps deduction error paths aligned after blank rows are skipped", async () => {
+    createAuthenticatedClient.mockResolvedValue({ supabase: supabaseClient() });
+    const { createLoad } = await import("./loads");
+    const formData = loadFormData();
+    formData.append("deduction_label", "");
+    formData.append("deduction_amount", "");
+    formData.append("deduction_label", "");
+    formData.append("deduction_amount", "25");
+
+    const result = await createLoad(initialActionState, formData);
+
+    expect(result.issues).toContainEqual({ path: "deductions.1.label", message: "Describe this deduction" });
     expect(rpc).not.toHaveBeenCalled();
   });
 

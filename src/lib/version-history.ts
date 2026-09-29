@@ -9,6 +9,7 @@ export type ProductRelease = {
 };
 
 export const VERSION_HISTORY: readonly ProductRelease[] = [
+  { version: "2.13.1", date: "2026-09-28", title: "Clearer load-save feedback", summary: "See which fields need attention when a load cannot be saved, keep your entered details on retry, and skip unknown appointment times with a reminder to add them later.", kind: "patch" },
   { version: "2.13.0", date: "2026-09-09", title: "Accounting by carrier company", summary: "Filter dashboard totals, reports, exports, and per-load invoices by whose load it is, while keeping the hauling fleet and equipment recorded separately.", kind: "minor" },
   { version: "2.12.1", date: "2026-09-04", title: "Demo workspace safety", summary: "Kept demo resets isolated from production data and aligned the repository with the complete applied migration history.", kind: "patch" },
   { version: "2.12.0", date: "2026-09-04", title: "Invoice and load-save recovery", summary: "Restored focused invoice creation and replaced the fragile load-write chain with one reliable atomic save path.", kind: "minor" },

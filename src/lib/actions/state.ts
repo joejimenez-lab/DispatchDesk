@@ -4,6 +4,7 @@ export type ActionState = {
   status: "idle" | "success" | "error";
   message: string;
   errors?: Record<string, string[] | undefined>;
+  issues?: { path: string; message: string }[];
 };
 
 export const initialActionState: ActionState = {
@@ -21,6 +22,7 @@ export function errorState(error: unknown, fallback = "Something went wrong. Try
       status: "error",
       message: "Check the form and try again.",
       errors: error.flatten().fieldErrors,
+      issues: error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
     };
   }
 

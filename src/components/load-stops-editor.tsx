@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { ActionFieldError } from "@/components/action-form";
 import { Button } from "@/components/button";
 import { Field, Input, Select, Textarea } from "@/components/field";
 import { LocationAutocomplete } from "@/components/location-autocomplete";
@@ -14,6 +15,7 @@ function zoneLabel(zone: string) {
 
 export function LoadStopsEditor({ stops, onChange }: { stops: EditableStop[]; onChange: (stops: EditableStop[]) => void }) {
   const nextKey = useRef(stops.length);
+  const [skippedTimes, setSkippedTimes] = useState<string[]>([]);
 
   function update(index: number, values: Partial<EditableStop>) {
     onChange(stops.map((stop, stopIndex) => stopIndex === index ? { ...stop, ...values } : stop));
@@ -51,6 +53,7 @@ export function LoadStopsEditor({ stops, onChange }: { stops: EditableStop[]; on
         <div>
           <h2 className="text-lg font-semibold text-zinc-950">Stops and appointments</h2>
           <p className="text-sm text-zinc-600">Times are entered and displayed in each stop&apos;s local time zone.</p>
+          <p className="mt-1 text-sm text-zinc-600">Every stop needs a location. Appointment times are optional; leave both blank if unknown, or enter both start and end. Use Add stop for additional pickups or deliveries.</p>
         </div>
         <Button type="button" variant="secondary" onClick={addStop}>+ Add stop</Button>
       </div>
@@ -74,15 +77,19 @@ export function LoadStopsEditor({ stops, onChange }: { stops: EditableStop[]; on
               <Select name="stop_type" value={stop.stop_type} onChange={(event) => update(index, { stop_type: event.target.value as EditableStop["stop_type"] })}>
                 {stopTypes.map((type) => <option key={type} value={type}>{type}</option>)}
               </Select>
+              <ActionFieldError path={`stops.${index}.stop_type`} />
             </Field>
             <Field label="Location" className="md:col-span-1 lg:col-span-2">
               <LocationAutocomplete name="stop_location" required defaultValue={stop.location} />
+              <ActionFieldError path={`stops.${index}.location`} />
             </Field>
             <Field label="Appointment start">
               <Input type="datetime-local" name="stop_scheduled_start" value={stop.scheduled_start?.slice(0, 16) ?? ""} onChange={(event) => update(index, { scheduled_start: event.target.value || null, schedule_precision: "window" })} />
+              <ActionFieldError path={`stops.${index}.scheduled_start`} />
             </Field>
             <Field label="Appointment end">
               <Input type="datetime-local" name="stop_scheduled_end" value={stop.scheduled_end?.slice(0, 16) ?? ""} onChange={(event) => update(index, { scheduled_end: event.target.value || null, schedule_precision: "window" })} />
+              <ActionFieldError path={`stops.${index}.scheduled_end`} />
             </Field>
             <Field label="Time zone">
               <Select name="stop_time_zone" value={stop.time_zone ?? "America/Los_Angeles"} onChange={(event) => update(index, { time_zone: event.target.value })}>
@@ -99,6 +106,17 @@ export function LoadStopsEditor({ stops, onChange }: { stops: EditableStop[]; on
               <Textarea name="stop_instructions" defaultValue={stop.instructions ?? ""} placeholder="Check-in procedure, dock, contact, accessorial, or handling instructions" />
             </Field>
           </div>
+          {stop.scheduled_start || stop.scheduled_end ? (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button type="button" variant="secondary" onClick={() => {
+                update(index, { scheduled_start: null, scheduled_end: null, schedule_precision: "window" });
+                setSkippedTimes((current) => [...new Set([...current, stop.key])]);
+              }}>Skip times for now</Button>
+              <p className="text-sm text-amber-800">Skipping clears both appointment times. Add them later to schedule this stop.</p>
+            </div>
+          ) : skippedTimes.includes(stop.key) ? (
+            <p role="status" className="mt-3 text-sm text-amber-800">Appointment times skipped. You can save this load, but add the times later to schedule this stop.</p>
+          ) : null}
         </article>
       ))}
     </section>

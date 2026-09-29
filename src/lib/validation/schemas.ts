@@ -81,11 +81,11 @@ export const loadStopsSchema = z.array(z.object({
   reference_number: optionalText,
   instructions: optionalText,
 })).min(2, "Add at least a pickup and delivery stop").superRefine((stops, context) => {
-  if (!stops.some((stop) => stop.stop_type === "Pickup")) context.addIssue({ code: "custom", message: "Add a pickup stop" });
-  if (!stops.some((stop) => stop.stop_type === "Delivery")) context.addIssue({ code: "custom", message: "Add a delivery stop" });
+  if (!stops.some((stop) => stop.stop_type === "Pickup")) context.addIssue({ code: "custom", message: "Choose Pickup as the stop type for at least one stop" });
+  if (!stops.some((stop) => stop.stop_type === "Delivery")) context.addIssue({ code: "custom", message: "Choose Delivery as the stop type for at least one stop" });
   stops.forEach((stop, index) => {
     if (Boolean(stop.scheduled_start) !== Boolean(stop.scheduled_end)) {
-      context.addIssue({ code: "custom", path: [index, "scheduled_end"], message: "Enter both appointment start and end" });
+      context.addIssue({ code: "custom", path: [index, stop.scheduled_start ? "scheduled_end" : "scheduled_start"], message: `Add an appointment ${stop.scheduled_start ? "end" : "start"} time, or skip times for now` });
     }
     if (stop.scheduled_start && stop.scheduled_end && stop.scheduled_end < stop.scheduled_start) {
       context.addIssue({ code: "custom", path: [index, "scheduled_end"], message: "Appointment end must be after its start" });

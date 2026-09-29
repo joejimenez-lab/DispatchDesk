@@ -2,13 +2,16 @@
 
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/button";
+import { useActionFormPending } from "@/components/action-form";
 
 type SubmitButtonProps = React.ComponentProps<typeof Button> & {
   pendingText?: string;
 };
 
 export function SubmitButton({ children, pendingText = "Saving...", disabled, ...props }: SubmitButtonProps) {
-  const { pending } = useFormStatus();
+  const formStatus = useFormStatus();
+  const actionPending = useActionFormPending();
+  const pending = formStatus.pending || actionPending;
 
   return (
     <Button type="submit" disabled={pending || disabled} {...props}>
@@ -28,7 +31,9 @@ export function ConfirmSubmitButton({
   disabled,
   ...props
 }: ConfirmSubmitButtonProps) {
-  const { pending } = useFormStatus();
+  const formStatus = useFormStatus();
+  const actionPending = useActionFormPending();
+  const pending = formStatus.pending || actionPending;
 
   return (
     <Button
