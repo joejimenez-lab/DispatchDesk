@@ -61,6 +61,51 @@ test("creates a load and opens its new invoice page", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Invoice E2E-INV-102" })).toBeVisible();
 });
 
+test("explains load-save errors, preserves entries, and allows unknown appointment times", async ({ page }, testInfo) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(process.env.E2E_EMAIL!);
+  await page.getByLabel("Password").fill(process.env.E2E_PASSWORD!);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+
+  await page.goto("/loads/new");
+  await page.getByLabel("Load Number").fill("E2E-VALIDATION-107");
+  const broker = page.locator('select[name="broker_id"]');
+  await broker.selectOption({ index: 1 });
+  const brokerId = await broker.inputValue();
+  await page.getByLabel("Notes").fill("Keep these details after a failed save.");
+  await page.locator('input[name="stop_location"]').nth(0).fill("Los Angeles, CA");
+  await page.locator('input[name="stop_scheduled_start"]').nth(0).fill("2026-09-28T09:00");
+  await page.getByRole("button", { name: "+ Add stop" }).click();
+  await page.getByRole("button", { name: "Save load" }).click();
+
+  const alert = page.getByRole("alert", { name: "Load wasn't saved." });
+  await expect(alert).toContainText("Load wasn't saved.");
+  await expect(alert).toContainText("Stop 2: location: Stop location is required");
+  await expect(alert).toContainText("Stop 3: location: Stop location is required");
+  await expect(alert).toContainText("Stop 1: appointment end: Add an appointment end time, or skip times for now");
+  await expect(alert).toBeFocused();
+  await expect(page.getByLabel("Load Number")).toHaveValue("E2E-VALIDATION-107");
+  await expect(broker).toHaveValue(brokerId);
+  await expect(page.getByLabel("Notes")).toHaveValue("Keep these details after a failed save.");
+  await expect(page.locator('select[name="stop_type"]').nth(1)).toHaveValue("Delivery");
+  await page.screenshot({ path: testInfo.outputPath("load-validation-feedback.png"), fullPage: true });
+
+  await alert.getByRole("button", { name: /Stop 2: location/ }).click();
+  await expect(page.locator('input[name="stop_location"]').nth(1)).toBeFocused();
+  await page.locator('input[name="stop_location"]').nth(1).fill("Phoenix, AZ");
+  await page.locator('input[name="stop_location"]').nth(2).fill("San Diego, CA");
+  await page.getByRole("button", { name: "Skip times for now", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Appointment times skipped" })).toBeVisible();
+  await expect(page.locator('input[name="stop_scheduled_start"]').nth(0)).toHaveValue("");
+  await expect(page.locator('input[name="stop_scheduled_end"]').nth(0)).toHaveValue("");
+  await page.getByRole("button", { name: "Save load" }).click();
+
+  await expect(page).toHaveURL(/\/loads\/[0-9a-f-]+$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Load E2E-VALIDATION-107" })).toBeVisible();
+  await expect(page.getByText("Schedule missing").first()).toBeVisible();
+});
+
 test("keeps crossover loads with their carrier across dashboard, reports, exports, and invoices", async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   await page.goto("/login");

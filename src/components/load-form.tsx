@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ActionForm } from "@/components/action-form";
+import { ActionFieldError, ActionForm } from "@/components/action-form";
 import { LinkButton } from "@/components/button";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/field";
 import { SubmitButton } from "@/components/form-buttons";
@@ -14,6 +14,7 @@ import type { LoadDriverOption, LoadEquipmentOption } from "@/lib/data/options";
 import { inputDate } from "@/lib/utils";
 import { findAssignmentConflicts, type AssignmentSelection, type AssignmentWindow, type DispatchStop } from "@/lib/dispatch";
 import { loadStatuses, type Database } from "@/types/database";
+import { describeLoadIssue } from "@/lib/load-form-errors";
 
 type LoadRow = Database["public"]["Tables"]["loads"]["Row"];
 type PaymentRow = Database["public"]["Tables"]["payments"]["Row"];
@@ -65,10 +66,11 @@ export function LoadForm({ action, drivers, brokers, equipment, load, payment, d
   const [assignment, setAssignment] = useState<AssignmentSelection>({ driverId: load?.driver_id ?? null, truckUnitId: load?.truck_unit_id ?? null, trailerUnitId: load?.trailer_unit_id ?? null });
   const conflicts = useMemo(() => findAssignmentConflicts(assignment, stops, assignmentWindows, load?.id), [assignment, assignmentWindows, load?.id, stops]);
   return (
-    <ActionForm action={action} className="space-y-8" successMessage={false}>
+    <ActionForm action={action} className="space-y-8" successMessage={false} preserveValues errorTitle="Load wasn't saved." describeIssue={describeLoadIssue}>
       <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 md:grid-cols-2">
         <Field label="Load Number">
           <Input name="load_number" required defaultValue={load?.load_number ?? ""} />
+          <ActionFieldError path="load_number" />
         </Field>
         <Field label="Status">
           <Select name="status" defaultValue={load?.status ?? "Booked"}>

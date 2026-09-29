@@ -8,6 +8,7 @@ import { logError } from "@/lib/logger";
 import { createAuthenticatedClient } from "@/lib/supabase/authenticated";
 import { documentSchema, loadDeductionsSchema, loadSchema, loadStopsSchema, noteSchema, paymentSchema } from "@/lib/validation/schemas";
 import { loadStatuses, type Database, type LoadStatus } from "@/types/database";
+import { z } from "zod";
 
 type PaymentFlag = "client_paid" | "driver_paid" | "dispatcher_paid";
 type PaymentUpdate = Database["public"]["Tables"]["payments"]["Update"];
@@ -113,7 +114,7 @@ function stopEntries(formData: FormData) {
   const fields = ["stop_type", "stop_location", "stop_scheduled_start", "stop_scheduled_end", "stop_schedule_precision", "stop_time_zone", "stop_appointment_number", "stop_reference_number", "stop_instructions"] as const;
   const values = Object.fromEntries(fields.map((field) => [field, formData.getAll(field)]));
   const rowCount = Math.max(...fields.map((field) => values[field].length), 0);
-  return loadStopsSchema.parse(Array.from({ length: rowCount }, (_, index) => ({
+  return z.object({ stops: loadStopsSchema }).parse({ stops: Array.from({ length: rowCount }, (_, index) => ({
     stop_type: values.stop_type[index] ?? "",
     location: values.stop_location[index] ?? "",
     scheduled_start: values.stop_scheduled_start[index] ?? "",
@@ -123,7 +124,7 @@ function stopEntries(formData: FormData) {
     appointment_number: values.stop_appointment_number[index] ?? "",
     reference_number: values.stop_reference_number[index] ?? "",
     instructions: values.stop_instructions[index] ?? "",
-  })));
+  })) }).stops;
 }
 
 function loadPayload(formData: FormData, stops: ReturnType<typeof stopEntries>) {
@@ -186,10 +187,18 @@ function deductionEntries(formData: FormData) {
   const rows = Array.from({ length: rowCount }, (_, index) => {
     const label = typeof labels[index] === "string" ? labels[index] : "";
     const amount = typeof amounts[index] === "string" ? amounts[index] : "";
-    return { label, amount };
+    return { label, amount, index };
   }).filter((row) => row.label.trim() !== "" || row.amount.trim() !== "");
 
-  return loadDeductionsSchema.parse(rows);
+  const result = z.object({ deductions: loadDeductionsSchema }).safeParse({ deductions: rows });
+  if (!result.success) {
+    // Keep error links aligned with the visible rows when empty rows are omitted.
+    throw new z.ZodError(result.error.issues.map((issue) => ({
+      ...issue,
+      path: issue.path.map((part, position) => position === 1 && typeof part === "number" ? rows[part].index : part),
+    })));
+  }
+  return result.data.deductions;
 }
 
 function paymentPayload(formData: FormData) {

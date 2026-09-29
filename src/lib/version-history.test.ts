@@ -7,11 +7,11 @@ function semverParts(version: string) {
 
 describe("version history", () => {
   it("exposes the current release first", () => {
-    expect(CURRENT_VERSION).toBe("2.13.0");
+    expect(CURRENT_VERSION).toBe("2.13.1");
     expect(VERSION_HISTORY[0]).toMatchObject({
       version: CURRENT_VERSION,
-      title: "Accounting by carrier company",
-      kind: "minor",
+      title: "Clearer load-save feedback",
+      kind: "patch",
     });
   });
 
